@@ -28,8 +28,9 @@ export type InferSchema<T> = T extends z.ZodSchema<infer U> ? U : never;
 
 export interface QueryFilter {
   field: string;
-  operator: 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'nin';
+  operator: 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'nin' | 'like' | 'ilike' | 'startswith' | 'endswith' | 'contains' | 'exists' | 'between';
   value: any;
+  value2?: any; // For between operator
 }
 
 export interface QueryOptions {
@@ -37,4 +38,6 @@ export interface QueryOptions {
   orderBy?: { field: string; direction: 'asc' | 'desc' }[];
   limit?: number;
   offset?: number;
+  groupBy?: string[];
+  distinct?: boolean;
 }

@@ -3,13 +3,20 @@ import { stringifyDoc } from './json-utils.js';
 
 export class SQLTranslator {
   static buildSelectQuery(tableName: string, options: QueryOptions): { sql: string; params: any[] } {
-    let sql = `SELECT doc FROM ${tableName}`;
+    let sql = options.distinct ? `SELECT DISTINCT doc FROM ${tableName}` : `SELECT doc FROM ${tableName}`;
     const params: any[] = [];
 
     if (options.filters.length > 0) {
       const { whereClause, whereParams } = this.buildWhereClause(options.filters);
       sql += ` WHERE ${whereClause}`;
       params.push(...whereParams);
+    }
+
+    if (options.groupBy && options.groupBy.length > 0) {
+      const groupClauses = options.groupBy.map(field => 
+        `json_extract(doc, '$.${field}')`
+      );
+      sql += ` GROUP BY ${groupClauses.join(', ')}`;
     }
 
     if (options.orderBy && options.orderBy.length > 0) {
@@ -22,11 +29,15 @@ export class SQLTranslator {
     if (options.limit) {
       sql += ` LIMIT ?`;
       params.push(options.limit);
-    }
-
-    if (options.offset) {
-      sql += ` OFFSET ?`;
-      params.push(options.offset);
+      
+      if (options.offset) {
+        sql += ` OFFSET ?`;
+        params.push(options.offset);
+      }
+    } else if (options.offset) {
+      // SQLite requires LIMIT when using OFFSET, so we use a very large limit
+      sql += ` LIMIT ? OFFSET ?`;
+      params.push(Number.MAX_SAFE_INTEGER, options.offset);
     }
 
     return { sql, params };
@@ -86,6 +97,10 @@ export class SQLTranslator {
           clauses.push(`${fieldPath} <= ?`);
           params.push(filter.value);
           break;
+        case 'between':
+          clauses.push(`${fieldPath} BETWEEN ? AND ?`);
+          params.push(filter.value, filter.value2);
+          break;
         case 'in':
           const placeholders = filter.value.map(() => '?').join(', ');
           clauses.push(`${fieldPath} IN (${placeholders})`);
@@ -95,6 +110,33 @@ export class SQLTranslator {
           const ninPlaceholders = filter.value.map(() => '?').join(', ');
           clauses.push(`${fieldPath} NOT IN (${ninPlaceholders})`);
           params.push(...filter.value);
+          break;
+        case 'like':
+          clauses.push(`${fieldPath} LIKE ?`);
+          params.push(filter.value);
+          break;
+        case 'ilike':
+          clauses.push(`UPPER(${fieldPath}) LIKE UPPER(?)`);
+          params.push(filter.value);
+          break;
+        case 'startswith':
+          clauses.push(`${fieldPath} LIKE ?`);
+          params.push(`${filter.value}%`);
+          break;
+        case 'endswith':
+          clauses.push(`${fieldPath} LIKE ?`);
+          params.push(`%${filter.value}`);
+          break;
+        case 'contains':
+          clauses.push(`${fieldPath} LIKE ?`);
+          params.push(`%${filter.value}%`);
+          break;
+        case 'exists':
+          if (filter.value) {
+            clauses.push(`${fieldPath} IS NOT NULL`);
+          } else {
+            clauses.push(`${fieldPath} IS NULL`);
+          }
           break;
       }
     }

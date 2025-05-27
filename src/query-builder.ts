@@ -6,52 +6,80 @@ export class FieldBuilder<T, K extends keyof T> {
     private builder: QueryBuilder<T>
   ) {}
 
-  eq(value: T[K]): QueryBuilder<T> {
-    const newBuilder = this.builder.addFilter(this.field as string, 'eq', value);
+  private addFilterAndReturn(operator: any, value: any, value2?: any): QueryBuilder<T> {
+    const newBuilder = this.builder.addFilter(this.field as string, operator, value, value2);
     (newBuilder as any).collection = (this.builder as any).collection;
     return newBuilder;
+  }
+
+  // Equality operators
+  eq(value: T[K]): QueryBuilder<T> {
+    return this.addFilterAndReturn('eq', value);
   }
 
   neq(value: T[K]): QueryBuilder<T> {
-    const newBuilder = this.builder.addFilter(this.field as string, 'neq', value);
-    (newBuilder as any).collection = (this.builder as any).collection;
-    return newBuilder;
+    return this.addFilterAndReturn('neq', value);
   }
 
+  // Comparison operators
   gt(value: T[K]): QueryBuilder<T> {
-    const newBuilder = this.builder.addFilter(this.field as string, 'gt', value);
-    (newBuilder as any).collection = (this.builder as any).collection;
-    return newBuilder;
+    return this.addFilterAndReturn('gt', value);
   }
 
   gte(value: T[K]): QueryBuilder<T> {
-    const newBuilder = this.builder.addFilter(this.field as string, 'gte', value);
-    (newBuilder as any).collection = (this.builder as any).collection;
-    return newBuilder;
+    return this.addFilterAndReturn('gte', value);
   }
 
   lt(value: T[K]): QueryBuilder<T> {
-    const newBuilder = this.builder.addFilter(this.field as string, 'lt', value);
-    (newBuilder as any).collection = (this.builder as any).collection;
-    return newBuilder;
+    return this.addFilterAndReturn('lt', value);
   }
 
   lte(value: T[K]): QueryBuilder<T> {
-    const newBuilder = this.builder.addFilter(this.field as string, 'lte', value);
-    (newBuilder as any).collection = (this.builder as any).collection;
-    return newBuilder;
+    return this.addFilterAndReturn('lte', value);
   }
 
+  // Range operators
+  between(min: T[K], max: T[K]): QueryBuilder<T> {
+    return this.addFilterAndReturn('between', min, max);
+  }
+
+  // Array operators
   in(values: T[K][]): QueryBuilder<T> {
-    const newBuilder = this.builder.addFilter(this.field as string, 'in', values);
-    (newBuilder as any).collection = (this.builder as any).collection;
-    return newBuilder;
+    return this.addFilterAndReturn('in', values);
   }
 
   nin(values: T[K][]): QueryBuilder<T> {
-    const newBuilder = this.builder.addFilter(this.field as string, 'nin', values);
-    (newBuilder as any).collection = (this.builder as any).collection;
-    return newBuilder;
+    return this.addFilterAndReturn('nin', values);
+  }
+
+  // String operators (for string fields)
+  like(pattern: string): QueryBuilder<T> {
+    return this.addFilterAndReturn('like', pattern);
+  }
+
+  ilike(pattern: string): QueryBuilder<T> {
+    return this.addFilterAndReturn('ilike', pattern);
+  }
+
+  startsWith(prefix: string): QueryBuilder<T> {
+    return this.addFilterAndReturn('startswith', prefix);
+  }
+
+  endsWith(suffix: string): QueryBuilder<T> {
+    return this.addFilterAndReturn('endswith', suffix);
+  }
+
+  contains(substring: string): QueryBuilder<T> {
+    return this.addFilterAndReturn('contains', substring);
+  }
+
+  // Existence operator
+  exists(): QueryBuilder<T> {
+    return this.addFilterAndReturn('exists', true);
+  }
+
+  notExists(): QueryBuilder<T> {
+    return this.addFilterAndReturn('exists', false);
   }
 }
 
@@ -64,29 +92,124 @@ export class QueryBuilder<T> {
     return fieldBuilder;
   }
 
-  addFilter(field: string, operator: QueryFilter['operator'], value: any): QueryBuilder<T> {
-    this.options.filters.push({ field, operator, value });
+  addFilter(field: string, operator: QueryFilter['operator'], value: any, value2?: any): QueryBuilder<T> {
+    this.options.filters.push({ field, operator, value, value2 });
     return this;
   }
 
+  // Logical operators
   and(): QueryBuilder<T> {
     return this;
   }
 
+  // Sorting
   orderBy<K extends keyof T>(field: K, direction: 'asc' | 'desc' = 'asc'): QueryBuilder<T> {
     if (!this.options.orderBy) this.options.orderBy = [];
     this.options.orderBy.push({ field: field as string, direction });
     return this;
   }
 
+  // Clear existing order and add new one
+  orderByOnly<K extends keyof T>(field: K, direction: 'asc' | 'desc' = 'asc'): QueryBuilder<T> {
+    this.options.orderBy = [{ field: field as string, direction }];
+    return this;
+  }
+
+  // Multiple field sorting shorthand
+  orderByMultiple(orders: { field: keyof T; direction?: 'asc' | 'desc' }[]): QueryBuilder<T> {
+    this.options.orderBy = orders.map(order => ({
+      field: order.field as string,
+      direction: order.direction || 'asc'
+    }));
+    return this;
+  }
+
+  // Pagination
   limit(count: number): QueryBuilder<T> {
+    if (count < 0) throw new Error('Limit must be non-negative');
     this.options.limit = count;
     return this;
   }
 
   offset(count: number): QueryBuilder<T> {
+    if (count < 0) throw new Error('Offset must be non-negative');
     this.options.offset = count;
     return this;
+  }
+
+  // Pagination helper
+  page(pageNumber: number, pageSize: number): QueryBuilder<T> {
+    if (pageNumber < 1) throw new Error('Page number must be >= 1');
+    if (pageSize < 1) throw new Error('Page size must be >= 1');
+    
+    this.options.limit = pageSize;
+    this.options.offset = (pageNumber - 1) * pageSize;
+    return this;
+  }
+
+  // Grouping and distinct
+  groupBy<K extends keyof T>(...fields: K[]): QueryBuilder<T> {
+    this.options.groupBy = fields.map(f => f as string);
+    return this;
+  }
+
+  distinct(): QueryBuilder<T> {
+    this.options.distinct = true;
+    return this;
+  }
+
+  // Reset methods
+  clearFilters(): QueryBuilder<T> {
+    this.options.filters = [];
+    return this;
+  }
+
+  clearOrder(): QueryBuilder<T> {
+    this.options.orderBy = undefined;
+    return this;
+  }
+
+  clearLimit(): QueryBuilder<T> {
+    this.options.limit = undefined;
+    this.options.offset = undefined;
+    return this;
+  }
+
+  reset(): QueryBuilder<T> {
+    this.options = { filters: [] };
+    return this;
+  }
+
+  // Query inspection
+  getFilterCount(): number {
+    return this.options.filters.length;
+  }
+
+  hasFilters(): boolean {
+    return this.options.filters.length > 0;
+  }
+
+  hasOrdering(): boolean {
+    return !!this.options.orderBy && this.options.orderBy.length > 0;
+  }
+
+  hasPagination(): boolean {
+    return this.options.limit !== undefined || this.options.offset !== undefined;
+  }
+
+  // Clone the query builder
+  clone(): QueryBuilder<T> {
+    const cloned = new QueryBuilder<T>();
+    cloned.options = {
+      filters: [...this.options.filters],
+      orderBy: this.options.orderBy ? [...this.options.orderBy] : undefined,
+      limit: this.options.limit,
+      offset: this.options.offset,
+      groupBy: this.options.groupBy ? [...this.options.groupBy] : undefined,
+      distinct: this.options.distinct
+    };
+    (cloned as any).collection = (this as any).collection;
+    return cloned;
   }
 
   getOptions(): QueryOptions {

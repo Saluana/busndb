@@ -143,6 +143,7 @@ export class Collection<T extends z.ZodSchema> {
         > & { collection: Collection<T> };
     }
 
+    // Direct query methods without conditions
     toArray(): InferSchema<T>[] {
         const { sql, params } = SQLTranslator.buildSelectQuery(
             this.collectionSchema.name,
@@ -150,6 +151,43 @@ export class Collection<T extends z.ZodSchema> {
         );
         const rows = this.driver.query(sql, params);
         return rows.map((row) => parseDoc(row.doc));
+    }
+
+    // Add direct sorting and pagination methods to Collection
+    orderBy<K extends keyof InferSchema<T>>(field: K, direction: 'asc' | 'desc' = 'asc'): QueryBuilder<InferSchema<T>> {
+        const builder = new QueryBuilder<InferSchema<T>>();
+        (builder as any).collection = this;
+        return builder.orderBy(field, direction);
+    }
+
+    limit(count: number): QueryBuilder<InferSchema<T>> {
+        const builder = new QueryBuilder<InferSchema<T>>();
+        (builder as any).collection = this;
+        return builder.limit(count);
+    }
+
+    offset(count: number): QueryBuilder<InferSchema<T>> {
+        const builder = new QueryBuilder<InferSchema<T>>();
+        (builder as any).collection = this;
+        return builder.offset(count);
+    }
+
+    page(pageNumber: number, pageSize: number): QueryBuilder<InferSchema<T>> {
+        const builder = new QueryBuilder<InferSchema<T>>();
+        (builder as any).collection = this;
+        return builder.page(pageNumber, pageSize);
+    }
+
+    distinct(): QueryBuilder<InferSchema<T>> {
+        const builder = new QueryBuilder<InferSchema<T>>();
+        (builder as any).collection = this;
+        return builder.distinct();
+    }
+
+    orderByMultiple(orders: { field: keyof InferSchema<T>; direction?: 'asc' | 'desc' }[]): QueryBuilder<InferSchema<T>> {
+        const builder = new QueryBuilder<InferSchema<T>>();
+        (builder as any).collection = this;
+        return builder.orderByMultiple(orders);
     }
 }
 
@@ -209,35 +247,22 @@ QueryBuilder.prototype.count = function <T>(
     return result[0].count;
 };
 
-// Add prototype methods for FieldBuilder
+// Add prototype methods for FieldBuilder - these are not actually used since FieldBuilder returns QueryBuilder
+// but we keep them for type compatibility
 FieldBuilder.prototype.toArray = function <T>(
     this: FieldBuilder<T, any> & { collection?: Collection<any> }
 ): T[] {
-    if (!this.collection)
-        throw new Error('Collection not bound to field builder');
-
-    const { sql, params } = SQLTranslator.buildSelectQuery(
-        this.collection['collectionSchema'].name,
-        { filters: [] } // FieldBuilder doesn't have getOptions, so we use empty filters
-    );
-    const rows = this.collection['driver'].query(sql, params);
-    return rows.map((row) => parseDoc(row.doc));
+    throw new Error('toArray() should not be called on FieldBuilder. Use a comparison operator first.');
 };
 
 FieldBuilder.prototype.first = function <T>(
     this: FieldBuilder<T, any>
 ): T | null {
-    const results = this.toArray();
-    return results[0] || null;
+    throw new Error('first() should not be called on FieldBuilder. Use a comparison operator first.');
 };
 
 FieldBuilder.prototype.count = function <T>(
     this: FieldBuilder<T, any> & { collection?: Collection<any> }
 ): number {
-    if (!this.collection)
-        throw new Error('Collection not bound to field builder');
-
-    let sql = `SELECT COUNT(*) as count FROM ${this.collection['collectionSchema'].name}`;
-    const result = this.collection['driver'].query(sql, []);
-    return result[0].count;
+    throw new Error('count() should not be called on FieldBuilder. Use a comparison operator first.');
 };

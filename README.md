@@ -100,26 +100,75 @@ collection.delete(id);
 collection.deleteBulk(ids);
 collection.findById(id);
 
-// Queries
-collection.where('field').eq(value);
-collection.where('field').neq(value);
-collection.where('field').gt(value);
-collection.where('field').gte(value);
-collection.where('field').lt(value);
-collection.where('field').lte(value);
-collection.where('field').in(values);
-collection.where('field').nin(values);
+// Basic Comparison Operators
+collection.where('field').eq(value);        // Equal
+collection.where('field').neq(value);       // Not equal
+collection.where('field').gt(value);        // Greater than
+collection.where('field').gte(value);       // Greater than or equal
+collection.where('field').lt(value);        // Less than
+collection.where('field').lte(value);       // Less than or equal
+collection.where('field').between(min, max); // Between range
 
-// Query modifiers
-.and()
-.orderBy('field', 'asc' | 'desc')
-.limit(count)
-.offset(count)
+// Array Operators
+collection.where('field').in(values);       // Value in array
+collection.where('field').nin(values);      // Value not in array
 
-// Execute queries
-.toArray()   // Get all results
-.first()     // Get first result
-.count()     // Count results
+// String Operators
+collection.where('field').like(pattern);    // SQL LIKE pattern
+collection.where('field').ilike(pattern);   // Case-insensitive LIKE
+collection.where('field').startsWith(prefix); // Starts with prefix
+collection.where('field').endsWith(suffix); // Ends with suffix
+collection.where('field').contains(substring); // Contains substring
+
+// Existence Operators
+collection.where('field').exists();         // Field has value
+collection.where('field').notExists();      // Field is null/undefined
+
+// Logical Operators
+.and()                                       // Explicit AND (optional)
+
+// Sorting
+.orderBy('field', 'asc' | 'desc')          // Single field sort
+.orderByOnly('field', 'asc' | 'desc')      // Replace existing sorts
+.orderByMultiple([                          // Multiple field sort
+  { field: 'field1', direction: 'asc' },
+  { field: 'field2', direction: 'desc' }
+])
+
+// Pagination
+.limit(count)                               // Limit results
+.offset(count)                              // Skip results
+.page(pageNumber, pageSize)                 // Page-based pagination
+
+// Advanced Options
+.distinct()                                 // Unique results only
+.groupBy(...fields)                         // Group by fields
+
+// State Management
+.clearFilters()                             // Remove all filters
+.clearOrder()                               // Remove sorting
+.clearLimit()                               // Remove pagination
+.reset()                                    // Clear all state
+.clone()                                    // Clone query builder
+
+// Query Inspection
+.hasFilters()                               // Check if has filters
+.hasOrdering()                              // Check if has sorting
+.hasPagination()                            // Check if has pagination
+.getFilterCount()                           // Get number of filters
+
+// Execute Queries
+.toArray()                                  // Get all results
+.first()                                    // Get first result or null
+.count()                                    // Count matching records
+
+// Direct Collection Methods (return QueryBuilder)
+collection.orderBy('field', 'direction');
+collection.limit(count);
+collection.offset(count);
+collection.page(pageNumber, pageSize);
+collection.distinct();
+collection.orderByMultiple(orders);
 ```
 
 ## Examples
@@ -127,21 +176,57 @@ collection.where('field').nin(values);
 ### Complex Queries
 
 ```typescript
-const posts = db.collection('posts', postSchema);
+const users = db.collection('users', userSchema);
 
-// Find published posts by specific author, ordered by date
-const recentPosts = posts
-  .where('authorId').eq(userId)
-  .and().where('published').eq(true)
-  .orderBy('createdAt', 'desc')
-  .limit(10)
+// Multiple conditions
+const seniorDevelopers = users
+  .where('department').eq('Engineering')
+  .where('level').eq('senior')
+  .where('isActive').eq(true)
+  .orderBy('salary', 'desc')
   .toArray();
 
-// Count posts in category
-const count = posts
-  .where('category').eq('tech')
-  .where('published').eq(true)
-  .count();
+// Range queries
+const midCareerEmployees = users
+  .where('age').between(28, 35)
+  .where('salary').gte(75000)
+  .orderBy('experience', 'desc')
+  .toArray();
+
+// String searches
+const searchResults = users
+  .where('name').contains('John')
+  .where('email').endsWith('@company.com')
+  .where('skills').contains('TypeScript')
+  .toArray();
+
+// Advanced pagination
+const employeeDirectory = users
+  .where('isActive').eq(true)
+  .orderBy('department')
+  .orderBy('name')
+  .page(2, 10)
+  .toArray();
+
+// Existence and array queries
+const consultants = users
+  .where('metadata').exists()
+  .where('skills').in(['React', 'Vue', 'Angular'])
+  .where('location').nin(['Remote'])
+  .toArray();
+
+// Aggregation queries
+const departmentStats = {
+  totalEngineers: users.where('department').eq('Engineering').count(),
+  activeEngineers: users
+    .where('department').eq('Engineering')
+    .where('isActive').eq(true)
+    .count(),
+  topPerformer: users
+    .where('department').eq('Engineering')
+    .orderBy('performanceScore', 'desc')
+    .first()
+};
 ```
 
 ### Transactions
