@@ -126,6 +126,11 @@ collection.where('field').notExists();      // Field is null/undefined
 
 // Logical Operators
 .and()                                       // Explicit AND (optional)
+.or(builder => builder.where(...))          // OR conditions
+.orWhere([                                   // Multiple OR conditions
+  builder => builder.where(...),
+  builder => builder.where(...)
+])
 
 // Sorting
 .orderBy('field', 'asc' | 'desc')          // Single field sort
@@ -169,6 +174,7 @@ collection.offset(count);
 collection.page(pageNumber, pageSize);
 collection.distinct();
 collection.orderByMultiple(orders);
+collection.or(builder => builder.where(...));
 ```
 
 ## Examples
@@ -213,6 +219,34 @@ const consultants = users
   .where('metadata').exists()
   .where('skills').in(['React', 'Vue', 'Angular'])
   .where('location').nin(['Remote'])
+  .toArray();
+
+// OR queries
+const flexibleSearch = users
+  .where('department').eq('Engineering')
+  .or(builder => 
+    builder.where('salary').gt(100000)
+      .where('isActive').eq(true)
+  )
+  .toArray();
+
+// Multiple OR conditions
+const seniorStaff = users
+  .where('age').gt(40)
+  .orWhere([
+    builder => builder.where('level').eq('senior'),
+    builder => builder.where('department').eq('Management')
+  ])
+  .toArray();
+
+// Complex OR with AND combinations
+const emergencyContacts = users
+  .where('isActive').eq(true)
+  .where('department').in(['Engineering', 'Operations'])
+  .or(builder => 
+    builder.where('role').eq('Manager')
+      .where('onCallStatus').eq(true)
+  )
   .toArray();
 
 // Aggregation queries

@@ -1,4 +1,4 @@
-import type { QueryOptions, QueryFilter } from './types.js';
+import type { QueryOptions, QueryFilter, QueryGroup } from './types.js';
 import { stringifyDoc } from './json-utils.js';
 
 export class SQLTranslator {
@@ -65,80 +65,127 @@ export class SQLTranslator {
     )`;
   }
 
-  static buildWhereClause(filters: QueryFilter[]): { whereClause: string; whereParams: any[] } {
+  static buildWhereClause(filters: (QueryFilter | QueryGroup)[]): { whereClause: string; whereParams: any[] } {
     const clauses: string[] = [];
     const params: any[] = [];
 
-    for (const filter of filters) {
-      const fieldPath = `json_extract(doc, '$.${filter.field}')`;
-      
-      switch (filter.operator) {
-        case 'eq':
-          clauses.push(`${fieldPath} = ?`);
-          params.push(filter.value);
-          break;
-        case 'neq':
-          clauses.push(`${fieldPath} != ?`);
-          params.push(filter.value);
-          break;
-        case 'gt':
-          clauses.push(`${fieldPath} > ?`);
-          params.push(filter.value);
-          break;
-        case 'gte':
-          clauses.push(`${fieldPath} >= ?`);
-          params.push(filter.value);
-          break;
-        case 'lt':
-          clauses.push(`${fieldPath} < ?`);
-          params.push(filter.value);
-          break;
-        case 'lte':
-          clauses.push(`${fieldPath} <= ?`);
-          params.push(filter.value);
-          break;
-        case 'between':
-          clauses.push(`${fieldPath} BETWEEN ? AND ?`);
-          params.push(filter.value, filter.value2);
-          break;
-        case 'in':
-          const placeholders = filter.value.map(() => '?').join(', ');
-          clauses.push(`${fieldPath} IN (${placeholders})`);
-          params.push(...filter.value);
-          break;
-        case 'nin':
-          const ninPlaceholders = filter.value.map(() => '?').join(', ');
-          clauses.push(`${fieldPath} NOT IN (${ninPlaceholders})`);
-          params.push(...filter.value);
-          break;
-        case 'like':
-          clauses.push(`${fieldPath} LIKE ?`);
-          params.push(filter.value);
-          break;
-        case 'ilike':
-          clauses.push(`UPPER(${fieldPath}) LIKE UPPER(?)`);
-          params.push(filter.value);
-          break;
-        case 'startswith':
-          clauses.push(`${fieldPath} LIKE ?`);
-          params.push(`${filter.value}%`);
-          break;
-        case 'endswith':
-          clauses.push(`${fieldPath} LIKE ?`);
-          params.push(`%${filter.value}`);
-          break;
-        case 'contains':
-          clauses.push(`${fieldPath} LIKE ?`);
-          params.push(`%${filter.value}%`);
-          break;
-        case 'exists':
-          if (filter.value) {
-            clauses.push(`${fieldPath} IS NOT NULL`);
+    for (const filterOrGroup of filters) {
+      if ('type' in filterOrGroup) {
+        // Handle QueryGroup (OR/AND)
+        const group = filterOrGroup as QueryGroup;
+        const operator = group.type.toUpperCase();
+        const groupConditions: string[] = [];
+        
+        for (const filter of group.filters) {
+          if ('type' in filter) {
+            // Nested group
+            const { whereClause: nestedClause, whereParams: nestedParams } = this.buildWhereClause([filter]);
+            if (nestedClause) {
+              groupConditions.push(`(${nestedClause})`);
+              params.push(...nestedParams);
+            }
           } else {
-            clauses.push(`${fieldPath} IS NULL`);
+            // Individual filter
+            const { whereClause: filterClause, whereParams: filterParams } = this.buildFilterClause(filter as QueryFilter);
+            if (filterClause) {
+              groupConditions.push(filterClause);
+              params.push(...filterParams);
+            }
           }
-          break;
+        }
+        
+        if (groupConditions.length > 0) {
+          clauses.push(`(${groupConditions.join(` ${operator} `)})`);
+        }
+      } else {
+        // Handle individual QueryFilter
+        const filter = filterOrGroup as QueryFilter;
+        const { whereClause: filterClause, whereParams: filterParams } = this.buildFilterClause(filter);
+        
+        if (filterClause) {
+          clauses.push(filterClause);
+          params.push(...filterParams);
+        }
       }
+    }
+
+    return {
+      whereClause: clauses.join(' AND '),
+      whereParams: params
+    };
+  }
+
+  private static buildFilterClause(filter: QueryFilter): { whereClause: string; whereParams: any[] } {
+    const clauses: string[] = [];
+    const params: any[] = [];
+    const fieldPath = `json_extract(doc, '$.${filter.field}')`;
+    
+    switch (filter.operator) {
+      case 'eq':
+        clauses.push(`${fieldPath} = ?`);
+        params.push(filter.value);
+        break;
+      case 'neq':
+        clauses.push(`${fieldPath} != ?`);
+        params.push(filter.value);
+        break;
+      case 'gt':
+        clauses.push(`${fieldPath} > ?`);
+        params.push(filter.value);
+        break;
+      case 'gte':
+        clauses.push(`${fieldPath} >= ?`);
+        params.push(filter.value);
+        break;
+      case 'lt':
+        clauses.push(`${fieldPath} < ?`);
+        params.push(filter.value);
+        break;
+      case 'lte':
+        clauses.push(`${fieldPath} <= ?`);
+        params.push(filter.value);
+        break;
+      case 'between':
+        clauses.push(`${fieldPath} BETWEEN ? AND ?`);
+        params.push(filter.value, filter.value2);
+        break;
+      case 'in':
+        const placeholders = filter.value.map(() => '?').join(', ');
+        clauses.push(`${fieldPath} IN (${placeholders})`);
+        params.push(...filter.value);
+        break;
+      case 'nin':
+        const ninPlaceholders = filter.value.map(() => '?').join(', ');
+        clauses.push(`${fieldPath} NOT IN (${ninPlaceholders})`);
+        params.push(...filter.value);
+        break;
+      case 'like':
+        clauses.push(`${fieldPath} LIKE ?`);
+        params.push(filter.value);
+        break;
+      case 'ilike':
+        clauses.push(`UPPER(${fieldPath}) LIKE UPPER(?)`);
+        params.push(filter.value);
+        break;
+      case 'startswith':
+        clauses.push(`${fieldPath} LIKE ?`);
+        params.push(`${filter.value}%`);
+        break;
+      case 'endswith':
+        clauses.push(`${fieldPath} LIKE ?`);
+        params.push(`%${filter.value}`);
+        break;
+      case 'contains':
+        clauses.push(`${fieldPath} LIKE ?`);
+        params.push(`%${filter.value}%`);
+        break;
+      case 'exists':
+        if (filter.value) {
+          clauses.push(`${fieldPath} IS NOT NULL`);
+        } else {
+          clauses.push(`${fieldPath} IS NULL`);
+        }
+        break;
     }
 
     return {

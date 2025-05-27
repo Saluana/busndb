@@ -1,4 +1,4 @@
-import type { QueryFilter, QueryOptions } from './types.js';
+import type { QueryFilter, QueryOptions, QueryGroup } from './types.js';
 
 export class FieldBuilder<T, K extends keyof T> {
   constructor(
@@ -99,6 +99,64 @@ export class QueryBuilder<T> {
 
   // Logical operators
   and(): QueryBuilder<T> {
+    return this;
+  }
+
+  or(builderFn: (builder: QueryBuilder<T>) => QueryBuilder<T>): QueryBuilder<T> {
+    // Get current filters and new OR conditions
+    const currentFilters = [...this.options.filters];
+    
+    const orBuilder = new QueryBuilder<T>();
+    (orBuilder as any).collection = (this as any).collection;
+    const result = builderFn(orBuilder);
+    const orConditions = result.getOptions().filters;
+    
+    // If we have existing filters, we need to group them
+    if (currentFilters.length > 0 && orConditions.length > 0) {
+      // Create an OR group containing all current filters and new OR conditions
+      const orGroup: QueryGroup = {
+        type: 'or',
+        filters: [...currentFilters, ...orConditions]
+      };
+      
+      // Replace all filters with the OR group
+      this.options.filters = [orGroup];
+    } else if (orConditions.length > 0) {
+      // Just add the OR conditions
+      this.options.filters.push(...orConditions);
+    }
+    
+    return this;
+  }
+
+  // Create a new OR group with multiple conditions
+  orWhere(conditions: Array<(builder: QueryBuilder<T>) => QueryBuilder<T>>): QueryBuilder<T> {
+    if (conditions.length === 0) return this;
+    
+    const currentFilters = [...this.options.filters];
+    const orFilters: (QueryFilter | QueryGroup)[] = [];
+    
+    for (const condition of conditions) {
+      const tempBuilder = new QueryBuilder<T>();
+      (tempBuilder as any).collection = (this as any).collection;
+      const result = condition(tempBuilder);
+      orFilters.push(...result.getOptions().filters);
+    }
+    
+    if (currentFilters.length > 0 && orFilters.length > 0) {
+      // Create an OR group containing all current filters and new OR conditions
+      const orGroup: QueryGroup = {
+        type: 'or',
+        filters: [...currentFilters, ...orFilters]
+      };
+      
+      // Replace all filters with the OR group
+      this.options.filters = [orGroup];
+    } else if (orFilters.length > 0) {
+      // Just add the OR conditions
+      this.options.filters.push(...orFilters);
+    }
+    
     return this;
   }
 

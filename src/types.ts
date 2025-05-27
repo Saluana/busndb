@@ -33,8 +33,13 @@ export interface QueryFilter {
   value2?: any; // For between operator
 }
 
+export interface QueryGroup {
+  type: 'and' | 'or';
+  filters: (QueryFilter | QueryGroup)[];
+}
+
 export interface QueryOptions {
-  filters: QueryFilter[];
+  filters: (QueryFilter | QueryGroup)[];
   orderBy?: { field: string; direction: 'asc' | 'desc' }[];
   limit?: number;
   offset?: number;

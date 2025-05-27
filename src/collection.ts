@@ -189,6 +189,12 @@ export class Collection<T extends z.ZodSchema> {
         (builder as any).collection = this;
         return builder.orderByMultiple(orders);
     }
+
+    or(builderFn: (builder: QueryBuilder<InferSchema<T>>) => QueryBuilder<InferSchema<T>>): QueryBuilder<InferSchema<T>> {
+        const builder = new QueryBuilder<InferSchema<T>>();
+        (builder as any).collection = this;
+        return builder.or(builderFn);
+    }
 }
 
 // Extend QueryBuilder to support collection operations
