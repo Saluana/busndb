@@ -16,7 +16,7 @@ export class SchemaSQLGenerator {
         constraints?: SchemaConstraints
     ): { sql: string; additionalSQL: string[] } {
         let sql = `CREATE TABLE IF NOT EXISTS ${tableName} (\n`;
-        sql += `  id TEXT PRIMARY KEY,\n`;
+        sql += `  _id TEXT PRIMARY KEY,\n`;
         sql += `  doc TEXT NOT NULL`;
 
         const additionalSQL: string[] = [];
@@ -202,7 +202,7 @@ export class SchemaSQLGenerator {
         const params = [value];
 
         if (excludeId) {
-            sql += ` AND id != ?`;
+            sql += ` AND _id != ?`;
             params.push(excludeId);
         }
 
@@ -227,7 +227,7 @@ export class SchemaSQLGenerator {
         const params = [...values];
 
         if (excludeId) {
-            sql += ` AND id != ?`;
+            sql += ` AND _id != ?`;
             params.push(excludeId);
         }
 

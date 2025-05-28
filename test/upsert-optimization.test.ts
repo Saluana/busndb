@@ -106,7 +106,7 @@ describe('Upsert Optimization Analysis', () => {
         console.log('4. Measuring direct SQL updates...');
         const directSqlResult = benchmark('Direct SQL Updates', 1000, () => {
             existingIds.forEach((id, i) => {
-                const sql = `UPDATE test SET doc = json_set(doc, '$.score', ?) WHERE id = ?`;
+                const sql = `UPDATE test SET doc = json_set(doc, '$.score', ?) WHERE _id = ?`;
                 collection['driver'].exec(sql, [i * 40, id]);
             });
         });
@@ -123,13 +123,13 @@ describe('Upsert Optimization Analysis', () => {
                     // For now, just measure the overhead of checking existence
                     const exists =
                         collection['driver'].query(
-                            'SELECT 1 FROM test WHERE id = ? LIMIT 1',
+                            'SELECT 1 FROM test WHERE _id = ? LIMIT 1',
                             [id]
                         ).length > 0;
 
                     if (exists) {
                         // Direct update without findById
-                        const sql = `UPDATE test SET doc = json_set(doc, '$.score', ?) WHERE id = ?`;
+                        const sql = `UPDATE test SET doc = json_set(doc, '$.score', ?) WHERE _id = ?`;
                         collection['driver'].exec(sql, [i * 50, id]);
                     } else {
                         // This shouldn't happen in this test, but would be insert
@@ -149,7 +149,7 @@ describe('Upsert Optimization Analysis', () => {
             () => {
                 existingIds.forEach((id) => {
                     collection['driver'].query(
-                        'SELECT 1 FROM test WHERE id = ? LIMIT 1',
+                        'SELECT 1 FROM test WHERE _id = ? LIMIT 1',
                         [id]
                     ).length > 0;
                 });
@@ -164,7 +164,7 @@ describe('Upsert Optimization Analysis', () => {
             () => {
                 existingIds.forEach((id) => {
                     const rows = collection['driver'].query(
-                        'SELECT doc FROM test WHERE id = ?',
+                        'SELECT doc FROM test WHERE _id = ?',
                         [id]
                     );
                     if (rows.length > 0) {

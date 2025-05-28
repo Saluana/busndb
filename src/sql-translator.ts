@@ -74,7 +74,7 @@ export class SQLTranslator {
         doc: any,
         id: string
     ): { sql: string; params: any[] } {
-        const sql = `INSERT INTO ${tableName} (id, doc) VALUES (?, ?)`;
+        const sql = `INSERT INTO ${tableName} (_id, doc) VALUES (?, ?)`;
         return { sql, params: [id, stringifyDoc(doc)] };
     }
 
@@ -83,7 +83,7 @@ export class SQLTranslator {
         doc: any,
         id: string
     ): { sql: string; params: any[] } {
-        const sql = `UPDATE ${tableName} SET doc = ? WHERE id = ?`;
+        const sql = `UPDATE ${tableName} SET doc = ? WHERE _id = ?`;
         return { sql, params: [stringifyDoc(doc), id] };
     }
 
@@ -91,13 +91,13 @@ export class SQLTranslator {
         tableName: string,
         id: string
     ): { sql: string; params: any[] } {
-        const sql = `DELETE FROM ${tableName} WHERE id = ?`;
+        const sql = `DELETE FROM ${tableName} WHERE _id = ?`;
         return { sql, params: [id] };
     }
 
     static buildCreateTableQuery(tableName: string): string {
         return `CREATE TABLE IF NOT EXISTS ${tableName} (
-      id TEXT PRIMARY KEY,
+      _id TEXT PRIMARY KEY,
       doc TEXT NOT NULL
     )`;
     }

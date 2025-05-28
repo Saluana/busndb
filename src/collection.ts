@@ -264,7 +264,7 @@ export class Collection<T extends z.ZodSchema> {
             this.validateForeignKeyConstraints(validatedDoc);
 
             // Use INSERT OR REPLACE for atomic upsert
-            const sql = `INSERT OR REPLACE INTO ${this.collectionSchema.name} (id, doc) VALUES (?, ?)`;
+            const sql = `INSERT OR REPLACE INTO ${this.collectionSchema.name} (_id, doc) VALUES (?, ?)`;
             const params = [id, JSON.stringify(validatedDoc)];
 
             this.driver.exec(sql, params);
@@ -295,10 +295,8 @@ export class Collection<T extends z.ZodSchema> {
     }
 
     findById(id: string): InferSchema<T> | null {
-        const { sql, params } = SQLTranslator.buildSelectQuery(
-            this.collectionSchema.name,
-            { filters: [{ field: 'id', operator: 'eq', value: id }] }
-        );
+        const sql = `SELECT doc FROM ${this.collectionSchema.name} WHERE _id = ?`;
+        const params = [id];
         const rows = this.driver.query(sql, params);
         if (rows.length === 0) return null;
         return parseDoc(rows[0].doc);
