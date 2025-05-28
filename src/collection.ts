@@ -22,13 +22,14 @@ export class Collection<T extends z.ZodSchema> {
     }
 
     private createTable(): void {
-        const { sql, additionalSQL } = SchemaSQLGenerator.buildCreateTableWithConstraints(
-            this.collectionSchema.name,
-            this.collectionSchema.constraints
-        );
-        
+        const { sql, additionalSQL } =
+            SchemaSQLGenerator.buildCreateTableWithConstraints(
+                this.collectionSchema.name,
+                this.collectionSchema.constraints
+            );
+
         this.driver.exec(sql);
-        
+
         // Execute additional SQL for indexes and constraints
         for (const additionalQuery of additionalSQL) {
             this.driver.exec(additionalQuery);
@@ -47,31 +48,45 @@ export class Collection<T extends z.ZodSchema> {
         return crypto.randomUUID();
     }
 
-    private validateUniqueConstraints(doc: InferSchema<T>, excludeId?: string): void {
+    private validateUniqueConstraints(
+        doc: InferSchema<T>,
+        excludeId?: string
+    ): void {
         if (!this.collectionSchema.constraints?.constraints) return;
 
-        for (const [fieldName, constraint] of Object.entries(this.collectionSchema.constraints.constraints)) {
-            const constraintArray = Array.isArray(constraint) ? constraint : [constraint];
-            
+        for (const [fieldName, constraint] of Object.entries(
+            this.collectionSchema.constraints.constraints
+        )) {
+            const constraintArray = Array.isArray(constraint)
+                ? constraint
+                : [constraint];
+
             for (const c of constraintArray) {
                 if (c.type === 'unique') {
                     if (c.fields && c.fields.length > 1) {
                         // Composite unique constraint
-                        const values = c.fields.map(field => (doc as any)[field]);
-                        const hasNonNullValues = values.some(v => v !== null && v !== undefined);
-                        
+                        const values = c.fields.map(
+                            (field) => (doc as any)[field]
+                        );
+                        const hasNonNullValues = values.some(
+                            (v) => v !== null && v !== undefined
+                        );
+
                         if (hasNonNullValues) {
-                            const { sql, params } = SchemaSQLGenerator.buildCompositeUniqueCheckQuery(
-                                this.collectionSchema.name,
-                                c.fields,
-                                values,
-                                excludeId
-                            );
-                            
+                            const { sql, params } =
+                                SchemaSQLGenerator.buildCompositeUniqueCheckQuery(
+                                    this.collectionSchema.name,
+                                    c.fields,
+                                    values,
+                                    excludeId
+                                );
+
                             const result = this.driver.query(sql, params);
                             if (result[0].count > 0) {
                                 throw new UniqueConstraintError(
-                                    `Composite unique constraint violation: ${c.fields.join(', ')} combination already exists`,
+                                    `Composite unique constraint violation: ${c.fields.join(
+                                        ', '
+                                    )} combination already exists`,
                                     c.fields.join('_')
                                 );
                             }
@@ -80,13 +95,14 @@ export class Collection<T extends z.ZodSchema> {
                         // Single field unique constraint
                         const fieldValue = (doc as any)[fieldName];
                         if (fieldValue !== null && fieldValue !== undefined) {
-                            const { sql, params } = SchemaSQLGenerator.buildUniqueCheckQuery(
-                                this.collectionSchema.name,
-                                fieldName,
-                                fieldValue,
-                                excludeId
-                            );
-                            
+                            const { sql, params } =
+                                SchemaSQLGenerator.buildUniqueCheckQuery(
+                                    this.collectionSchema.name,
+                                    fieldName,
+                                    fieldValue,
+                                    excludeId
+                                );
+
                             const result = this.driver.query(sql, params);
                             if (result[0].count > 0) {
                                 throw new UniqueConstraintError(
@@ -104,21 +120,26 @@ export class Collection<T extends z.ZodSchema> {
     private validateForeignKeyConstraints(doc: InferSchema<T>): void {
         if (!this.collectionSchema.constraints?.constraints) return;
 
-        for (const [fieldName, constraint] of Object.entries(this.collectionSchema.constraints.constraints)) {
-            const constraintArray = Array.isArray(constraint) ? constraint : [constraint];
-            
+        for (const [fieldName, constraint] of Object.entries(
+            this.collectionSchema.constraints.constraints
+        )) {
+            const constraintArray = Array.isArray(constraint)
+                ? constraint
+                : [constraint];
+
             for (const c of constraintArray) {
                 if (c.type === 'foreign_key') {
                     const fkConstraint = c as ForeignKeyConstraint;
                     const fieldValue = (doc as any)[fieldName];
-                    
+
                     if (fieldValue !== null && fieldValue !== undefined) {
-                        const { sql, params } = SchemaSQLGenerator.buildForeignKeyCheckQuery(
-                            fkConstraint.referencedTable,
-                            fkConstraint.referencedFields[0],
-                            fieldValue
-                        );
-                        
+                        const { sql, params } =
+                            SchemaSQLGenerator.buildForeignKeyCheckQuery(
+                                fkConstraint.referencedTable,
+                                fkConstraint.referencedFields[0],
+                                fieldValue
+                            );
+
                         const result = this.driver.query(sql, params);
                         if (result[0].count === 0) {
                             throw new ValidationError(
@@ -237,10 +258,21 @@ export class Collection<T extends z.ZodSchema> {
         field: K
     ): import('./query-builder.js').FieldBuilder<InferSchema<T>, K> & {
         collection: Collection<T>;
+    };
+    where(field: string): import('./query-builder.js').FieldBuilder<
+        InferSchema<T>,
+        any
+    > & {
+        collection: Collection<T>;
+    };
+    where<K extends keyof InferSchema<T>>(
+        field: K | string
+    ): import('./query-builder.js').FieldBuilder<InferSchema<T>, K> & {
+        collection: Collection<T>;
     } {
         const builder = new QueryBuilder<InferSchema<T>>();
         (builder as any).collection = this;
-        const fieldBuilder = builder.where(field);
+        const fieldBuilder = builder.where(field as K);
         (fieldBuilder as any).collection = this;
         return fieldBuilder as import('./query-builder.js').FieldBuilder<
             InferSchema<T>,
@@ -261,11 +293,19 @@ export class Collection<T extends z.ZodSchema> {
     // Add direct sorting and pagination methods to Collection
     orderBy<K extends keyof InferSchema<T>>(
         field: K,
+        direction?: 'asc' | 'desc'
+    ): QueryBuilder<InferSchema<T>>;
+    orderBy(
+        field: string,
+        direction?: 'asc' | 'desc'
+    ): QueryBuilder<InferSchema<T>>;
+    orderBy<K extends keyof InferSchema<T>>(
+        field: K | string,
         direction: 'asc' | 'desc' = 'asc'
     ): QueryBuilder<InferSchema<T>> {
         const builder = new QueryBuilder<InferSchema<T>>();
         (builder as any).collection = this;
-        return builder.orderBy(field, direction);
+        return builder.orderBy(field as K, direction);
     }
 
     limit(count: number): QueryBuilder<InferSchema<T>> {

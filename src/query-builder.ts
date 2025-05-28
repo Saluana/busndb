@@ -1,7 +1,7 @@
 import type { QueryFilter, QueryOptions, QueryGroup } from './types';
 
 export class FieldBuilder<T, K extends keyof T> {
-    constructor(private field: K, private builder: QueryBuilder<T>) {}
+    constructor(private field: K | string, private builder: QueryBuilder<T>) {}
 
     private addFilterAndReturn(
         operator: any,
@@ -19,42 +19,42 @@ export class FieldBuilder<T, K extends keyof T> {
     }
 
     // Equality operators
-    eq(value: T[K]): QueryBuilder<T> {
+    eq(value: K extends keyof T ? T[K] : any): QueryBuilder<T> {
         return this.addFilterAndReturn('eq', value);
     }
 
-    neq(value: T[K]): QueryBuilder<T> {
+    neq(value: K extends keyof T ? T[K] : any): QueryBuilder<T> {
         return this.addFilterAndReturn('neq', value);
     }
 
     // Comparison operators
-    gt(value: T[K]): QueryBuilder<T> {
+    gt(value: K extends keyof T ? T[K] : any): QueryBuilder<T> {
         return this.addFilterAndReturn('gt', value);
     }
 
-    gte(value: T[K]): QueryBuilder<T> {
+    gte(value: K extends keyof T ? T[K] : any): QueryBuilder<T> {
         return this.addFilterAndReturn('gte', value);
     }
 
-    lt(value: T[K]): QueryBuilder<T> {
+    lt(value: K extends keyof T ? T[K] : any): QueryBuilder<T> {
         return this.addFilterAndReturn('lt', value);
     }
 
-    lte(value: T[K]): QueryBuilder<T> {
+    lte(value: K extends keyof T ? T[K] : any): QueryBuilder<T> {
         return this.addFilterAndReturn('lte', value);
     }
 
     // Range operators
-    between(min: T[K], max: T[K]): QueryBuilder<T> {
+    between(min: K extends keyof T ? T[K] : any, max: K extends keyof T ? T[K] : any): QueryBuilder<T> {
         return this.addFilterAndReturn('between', min, max);
     }
 
     // Array operators
-    in(values: T[K][]): QueryBuilder<T> {
+    in(values: K extends keyof T ? T[K][] : any[]): QueryBuilder<T> {
         return this.addFilterAndReturn('in', values);
     }
 
-    nin(values: T[K][]): QueryBuilder<T> {
+    nin(values: K extends keyof T ? T[K][] : any[]): QueryBuilder<T> {
         return this.addFilterAndReturn('nin', values);
     }
 
@@ -92,8 +92,10 @@ export class FieldBuilder<T, K extends keyof T> {
 export class QueryBuilder<T> {
     private options: QueryOptions = { filters: [] };
 
-    where<K extends keyof T>(field: K): FieldBuilder<T, K> {
-        const fieldBuilder = new FieldBuilder(field, this);
+    where<K extends keyof T>(field: K): FieldBuilder<T, K>;
+    where(field: string): FieldBuilder<T, any>;
+    where<K extends keyof T>(field: K | string): FieldBuilder<T, K> {
+        const fieldBuilder = new FieldBuilder(field as K, this);
         (fieldBuilder as any).collection = (this as any).collection;
         return fieldBuilder;
     }
@@ -178,6 +180,14 @@ export class QueryBuilder<T> {
     // Sorting
     orderBy<K extends keyof T>(
         field: K,
+        direction?: 'asc' | 'desc'
+    ): QueryBuilder<T>;
+    orderBy(
+        field: string,
+        direction?: 'asc' | 'desc'
+    ): QueryBuilder<T>;
+    orderBy<K extends keyof T>(
+        field: K | string,
         direction: 'asc' | 'desc' = 'asc'
     ): QueryBuilder<T> {
         if (!this.options.orderBy) this.options.orderBy = [];
@@ -188,6 +198,14 @@ export class QueryBuilder<T> {
     // Clear existing order and add new one
     orderByOnly<K extends keyof T>(
         field: K,
+        direction?: 'asc' | 'desc'
+    ): QueryBuilder<T>;
+    orderByOnly(
+        field: string,
+        direction?: 'asc' | 'desc'
+    ): QueryBuilder<T>;
+    orderByOnly<K extends keyof T>(
+        field: K | string,
         direction: 'asc' | 'desc' = 'asc'
     ): QueryBuilder<T> {
         this.options.orderBy = [{ field: field as string, direction }];
@@ -196,7 +214,7 @@ export class QueryBuilder<T> {
 
     // Multiple field sorting shorthand
     orderByMultiple(
-        orders: { field: keyof T; direction?: 'asc' | 'desc' }[]
+        orders: { field: keyof T | string; direction?: 'asc' | 'desc' }[]
     ): QueryBuilder<T> {
         this.options.orderBy = orders.map((order) => ({
             field: order.field as string,
