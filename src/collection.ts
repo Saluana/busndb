@@ -1,7 +1,7 @@
 import { z } from 'zod';
-import type { Driver, CollectionSchema, InferSchema } from './types.js';
-import { QueryBuilder, FieldBuilder } from './query-builder.js';
-import { SQLTranslator } from './sql-translator.js';
+import type { Driver, CollectionSchema, InferSchema } from './types';
+import { QueryBuilder, FieldBuilder } from './query-builder';
+import { SQLTranslator } from './sql-translator';
 import {
     ValidationError,
     NotFoundError,
@@ -154,7 +154,10 @@ export class Collection<T extends z.ZodSchema> {
     }
 
     // Add direct sorting and pagination methods to Collection
-    orderBy<K extends keyof InferSchema<T>>(field: K, direction: 'asc' | 'desc' = 'asc'): QueryBuilder<InferSchema<T>> {
+    orderBy<K extends keyof InferSchema<T>>(
+        field: K,
+        direction: 'asc' | 'desc' = 'asc'
+    ): QueryBuilder<InferSchema<T>> {
         const builder = new QueryBuilder<InferSchema<T>>();
         (builder as any).collection = this;
         return builder.orderBy(field, direction);
@@ -184,13 +187,19 @@ export class Collection<T extends z.ZodSchema> {
         return builder.distinct();
     }
 
-    orderByMultiple(orders: { field: keyof InferSchema<T>; direction?: 'asc' | 'desc' }[]): QueryBuilder<InferSchema<T>> {
+    orderByMultiple(
+        orders: { field: keyof InferSchema<T>; direction?: 'asc' | 'desc' }[]
+    ): QueryBuilder<InferSchema<T>> {
         const builder = new QueryBuilder<InferSchema<T>>();
         (builder as any).collection = this;
         return builder.orderByMultiple(orders);
     }
 
-    or(builderFn: (builder: QueryBuilder<InferSchema<T>>) => QueryBuilder<InferSchema<T>>): QueryBuilder<InferSchema<T>> {
+    or(
+        builderFn: (
+            builder: QueryBuilder<InferSchema<T>>
+        ) => QueryBuilder<InferSchema<T>>
+    ): QueryBuilder<InferSchema<T>> {
         const builder = new QueryBuilder<InferSchema<T>>();
         (builder as any).collection = this;
         return builder.or(builderFn);
@@ -258,17 +267,23 @@ QueryBuilder.prototype.count = function <T>(
 FieldBuilder.prototype.toArray = function <T>(
     this: FieldBuilder<T, any> & { collection?: Collection<any> }
 ): T[] {
-    throw new Error('toArray() should not be called on FieldBuilder. Use a comparison operator first.');
+    throw new Error(
+        'toArray() should not be called on FieldBuilder. Use a comparison operator first.'
+    );
 };
 
 FieldBuilder.prototype.first = function <T>(
     this: FieldBuilder<T, any>
 ): T | null {
-    throw new Error('first() should not be called on FieldBuilder. Use a comparison operator first.');
+    throw new Error(
+        'first() should not be called on FieldBuilder. Use a comparison operator first.'
+    );
 };
 
 FieldBuilder.prototype.count = function <T>(
     this: FieldBuilder<T, any> & { collection?: Collection<any> }
 ): number {
-    throw new Error('count() should not be called on FieldBuilder. Use a comparison operator first.');
+    throw new Error(
+        'count() should not be called on FieldBuilder. Use a comparison operator first.'
+    );
 };
