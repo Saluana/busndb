@@ -1,17 +1,17 @@
-export { createDB, Database } from './database.js';
-export { Collection } from './collection.js';
-export { QueryBuilder, FieldBuilder } from './query-builder.js';
-export { 
-  ValidationError, 
-  UniqueConstraintError, 
-  NotFoundError, 
-  DatabaseError 
-} from './errors.js';
-export type { 
-  DBConfig, 
-  Driver, 
-  CollectionSchema, 
-  InferSchema,
-  QueryFilter,
-  QueryOptions 
-} from './types.js';
+export { createDB, Database } from './database';
+export { Collection } from './collection';
+export { QueryBuilder, FieldBuilder } from './query-builder';
+export {
+    ValidationError,
+    UniqueConstraintError,
+    NotFoundError,
+    DatabaseError,
+} from './errors';
+export type {
+    DBConfig,
+    Driver,
+    CollectionSchema,
+    InferSchema,
+    QueryFilter,
+    QueryOptions,
+} from './types';

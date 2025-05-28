@@ -1,42 +1,48 @@
 import { z } from 'zod';
-import type { CollectionSchema, InferSchema } from './types.js';
+import type { CollectionSchema, InferSchema } from './types';
+import type { SchemaConstraints } from './schema-constraints';
 
 export class Registry {
-  private collections = new Map<string, CollectionSchema>();
+    private collections = new Map<string, CollectionSchema>();
 
-  register<T extends z.ZodSchema>(
-    name: string,
-    schema: T,
-    options: { primaryKey?: string; indexes?: string[] } = {}
-  ): CollectionSchema<InferSchema<T>> {
-    if (this.collections.has(name)) {
-      throw new Error(`Collection '${name}' is already registered`);
+    register<T extends z.ZodSchema>(
+        name: string,
+        schema: T,
+        options: {
+            primaryKey?: string;
+            indexes?: string[];
+            constraints?: SchemaConstraints;
+        } = {}
+    ): CollectionSchema<InferSchema<T>> {
+        if (this.collections.has(name)) {
+            throw new Error(`Collection '${name}' is already registered`);
+        }
+
+        const collectionSchema: CollectionSchema<InferSchema<T>> = {
+            name,
+            schema,
+            primaryKey: options.primaryKey || 'id',
+            indexes: options.indexes || [],
+            constraints: options.constraints,
+        };
+
+        this.collections.set(name, collectionSchema);
+        return collectionSchema;
     }
 
-    const collectionSchema: CollectionSchema<InferSchema<T>> = {
-      name,
-      schema,
-      primaryKey: options.primaryKey || 'id',
-      indexes: options.indexes || []
-    };
+    get<T = any>(name: string): CollectionSchema<T> | undefined {
+        return this.collections.get(name) as CollectionSchema<T>;
+    }
 
-    this.collections.set(name, collectionSchema);
-    return collectionSchema;
-  }
+    has(name: string): boolean {
+        return this.collections.has(name);
+    }
 
-  get<T = any>(name: string): CollectionSchema<T> | undefined {
-    return this.collections.get(name) as CollectionSchema<T>;
-  }
+    list(): string[] {
+        return Array.from(this.collections.keys());
+    }
 
-  has(name: string): boolean {
-    return this.collections.has(name);
-  }
-
-  list(): string[] {
-    return Array.from(this.collections.keys());
-  }
-
-  clear(): void {
-    this.collections.clear();
-  }
+    clear(): void {
+        this.collections.clear();
+    }
 }

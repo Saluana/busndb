@@ -1,5 +1,5 @@
-import type { QueryOptions, QueryFilter, QueryGroup } from './types.js';
-import { stringifyDoc } from './json-utils.js';
+import type { QueryOptions, QueryFilter, QueryGroup } from './types';
+import { stringifyDoc } from './json-utils';
 
 /**
  * Small helper: cache `"json_extract(doc,'$.field')"` strings so we build

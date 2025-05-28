@@ -2,6 +2,8 @@ import { z } from 'zod';
 import type { Driver, CollectionSchema, InferSchema } from './types';
 import { QueryBuilder, FieldBuilder } from './query-builder';
 import { SQLTranslator } from './sql-translator';
+import { SchemaSQLGenerator } from './schema-sql-generator.js';
+import type { ForeignKeyConstraint } from './schema-constraints.js';
 import {
     ValidationError,
     NotFoundError,
@@ -20,10 +22,17 @@ export class Collection<T extends z.ZodSchema> {
     }
 
     private createTable(): void {
-        const sql = SQLTranslator.buildCreateTableQuery(
-            this.collectionSchema.name
+        const { sql, additionalSQL } = SchemaSQLGenerator.buildCreateTableWithConstraints(
+            this.collectionSchema.name,
+            this.collectionSchema.constraints
         );
+        
         this.driver.exec(sql);
+        
+        // Execute additional SQL for indexes and constraints
+        for (const additionalQuery of additionalSQL) {
+            this.driver.exec(additionalQuery);
+        }
     }
 
     private validateDocument(doc: any): InferSchema<T> {
@@ -38,10 +47,100 @@ export class Collection<T extends z.ZodSchema> {
         return crypto.randomUUID();
     }
 
+    private validateUniqueConstraints(doc: InferSchema<T>, excludeId?: string): void {
+        if (!this.collectionSchema.constraints?.constraints) return;
+
+        for (const [fieldName, constraint] of Object.entries(this.collectionSchema.constraints.constraints)) {
+            const constraintArray = Array.isArray(constraint) ? constraint : [constraint];
+            
+            for (const c of constraintArray) {
+                if (c.type === 'unique') {
+                    if (c.fields && c.fields.length > 1) {
+                        // Composite unique constraint
+                        const values = c.fields.map(field => (doc as any)[field]);
+                        const hasNonNullValues = values.some(v => v !== null && v !== undefined);
+                        
+                        if (hasNonNullValues) {
+                            const { sql, params } = SchemaSQLGenerator.buildCompositeUniqueCheckQuery(
+                                this.collectionSchema.name,
+                                c.fields,
+                                values,
+                                excludeId
+                            );
+                            
+                            const result = this.driver.query(sql, params);
+                            if (result[0].count > 0) {
+                                throw new UniqueConstraintError(
+                                    `Composite unique constraint violation: ${c.fields.join(', ')} combination already exists`,
+                                    c.fields.join('_')
+                                );
+                            }
+                        }
+                    } else {
+                        // Single field unique constraint
+                        const fieldValue = (doc as any)[fieldName];
+                        if (fieldValue !== null && fieldValue !== undefined) {
+                            const { sql, params } = SchemaSQLGenerator.buildUniqueCheckQuery(
+                                this.collectionSchema.name,
+                                fieldName,
+                                fieldValue,
+                                excludeId
+                            );
+                            
+                            const result = this.driver.query(sql, params);
+                            if (result[0].count > 0) {
+                                throw new UniqueConstraintError(
+                                    `Unique constraint violation: ${fieldName} value '${fieldValue}' already exists`,
+                                    fieldName
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private validateForeignKeyConstraints(doc: InferSchema<T>): void {
+        if (!this.collectionSchema.constraints?.constraints) return;
+
+        for (const [fieldName, constraint] of Object.entries(this.collectionSchema.constraints.constraints)) {
+            const constraintArray = Array.isArray(constraint) ? constraint : [constraint];
+            
+            for (const c of constraintArray) {
+                if (c.type === 'foreign_key') {
+                    const fkConstraint = c as ForeignKeyConstraint;
+                    const fieldValue = (doc as any)[fieldName];
+                    
+                    if (fieldValue !== null && fieldValue !== undefined) {
+                        const { sql, params } = SchemaSQLGenerator.buildForeignKeyCheckQuery(
+                            fkConstraint.referencedTable,
+                            fkConstraint.referencedFields[0],
+                            fieldValue
+                        );
+                        
+                        const result = this.driver.query(sql, params);
+                        if (result[0].count === 0) {
+                            throw new ValidationError(
+                                `Foreign key constraint violation: ${fieldName} references non-existent ${fkConstraint.referencedTable}.${fkConstraint.referencedFields[0]}`
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     insert(doc: Omit<InferSchema<T>, 'id'>): InferSchema<T> {
         const id = this.generateId();
         const fullDoc = { ...doc, id };
         const validatedDoc = this.validateDocument(fullDoc);
+
+        // Check unique constraints before insertion
+        this.validateUniqueConstraints(validatedDoc);
+
+        // Check foreign key constraints before insertion
+        this.validateForeignKeyConstraints(validatedDoc);
 
         try {
             const { sql, params } = SQLTranslator.buildInsertQuery(
@@ -57,7 +156,7 @@ export class Collection<T extends z.ZodSchema> {
                 error.message.includes('UNIQUE constraint')
             ) {
                 throw new UniqueConstraintError(
-                    'Document with this ID already exists',
+                    'Document violates unique constraint',
                     id
                 );
             }
@@ -81,6 +180,12 @@ export class Collection<T extends z.ZodSchema> {
 
         const updatedDoc = { ...existing, ...doc, id };
         const validatedDoc = this.validateDocument(updatedDoc);
+
+        // Check unique constraints before update (excluding current document)
+        this.validateUniqueConstraints(validatedDoc, id);
+
+        // Check foreign key constraints before update
+        this.validateForeignKeyConstraints(validatedDoc);
 
         const { sql, params } = SQLTranslator.buildUpdateQuery(
             this.collectionSchema.name,
