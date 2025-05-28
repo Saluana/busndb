@@ -1,7 +1,13 @@
 import type { QueryFilter, QueryOptions, QueryGroup } from './types';
+import type { 
+    QueryablePaths, 
+    OrderablePaths, 
+    NestedValue, 
+    SafeNestedPaths 
+} from './types/nested-paths';
 
-export class FieldBuilder<T, K extends keyof T> {
-    constructor(private field: K | string, private builder: QueryBuilder<T>) {}
+export class FieldBuilder<T, K extends QueryablePaths<T> | string> {
+    constructor(private field: K, private builder: QueryBuilder<T>) {}
 
     private addFilterAndReturn(
         operator: any,
@@ -19,42 +25,42 @@ export class FieldBuilder<T, K extends keyof T> {
     }
 
     // Equality operators
-    eq(value: K extends keyof T ? T[K] : any): QueryBuilder<T> {
+    eq(value: any): QueryBuilder<T> {
         return this.addFilterAndReturn('eq', value);
     }
 
-    neq(value: K extends keyof T ? T[K] : any): QueryBuilder<T> {
+    neq(value: any): QueryBuilder<T> {
         return this.addFilterAndReturn('neq', value);
     }
 
     // Comparison operators
-    gt(value: K extends keyof T ? T[K] : any): QueryBuilder<T> {
+    gt(value: any): QueryBuilder<T> {
         return this.addFilterAndReturn('gt', value);
     }
 
-    gte(value: K extends keyof T ? T[K] : any): QueryBuilder<T> {
+    gte(value: any): QueryBuilder<T> {
         return this.addFilterAndReturn('gte', value);
     }
 
-    lt(value: K extends keyof T ? T[K] : any): QueryBuilder<T> {
+    lt(value: any): QueryBuilder<T> {
         return this.addFilterAndReturn('lt', value);
     }
 
-    lte(value: K extends keyof T ? T[K] : any): QueryBuilder<T> {
+    lte(value: any): QueryBuilder<T> {
         return this.addFilterAndReturn('lte', value);
     }
 
     // Range operators
-    between(min: K extends keyof T ? T[K] : any, max: K extends keyof T ? T[K] : any): QueryBuilder<T> {
+    between(min: any, max: any): QueryBuilder<T> {
         return this.addFilterAndReturn('between', min, max);
     }
 
     // Array operators
-    in(values: K extends keyof T ? T[K][] : any[]): QueryBuilder<T> {
+    in(values: any[]): QueryBuilder<T> {
         return this.addFilterAndReturn('in', values);
     }
 
-    nin(values: K extends keyof T ? T[K][] : any[]): QueryBuilder<T> {
+    nin(values: any[]): QueryBuilder<T> {
         return this.addFilterAndReturn('nin', values);
     }
 
@@ -92,9 +98,9 @@ export class FieldBuilder<T, K extends keyof T> {
 export class QueryBuilder<T> {
     private options: QueryOptions = { filters: [] };
 
-    where<K extends keyof T>(field: K): FieldBuilder<T, K>;
+    where<K extends QueryablePaths<T>>(field: K): FieldBuilder<T, K>;
     where(field: string): FieldBuilder<T, any>;
-    where<K extends keyof T>(field: K | string): FieldBuilder<T, K> {
+    where<K extends QueryablePaths<T>>(field: K | string): FieldBuilder<T, K> {
         const fieldBuilder = new FieldBuilder(field as K, this);
         (fieldBuilder as any).collection = (this as any).collection;
         return fieldBuilder;
@@ -178,7 +184,7 @@ export class QueryBuilder<T> {
     }
 
     // Sorting
-    orderBy<K extends keyof T>(
+    orderBy<K extends OrderablePaths<T>>(
         field: K,
         direction?: 'asc' | 'desc'
     ): QueryBuilder<T>;
@@ -186,7 +192,7 @@ export class QueryBuilder<T> {
         field: string,
         direction?: 'asc' | 'desc'
     ): QueryBuilder<T>;
-    orderBy<K extends keyof T>(
+    orderBy<K extends OrderablePaths<T>>(
         field: K | string,
         direction: 'asc' | 'desc' = 'asc'
     ): QueryBuilder<T> {
@@ -196,7 +202,7 @@ export class QueryBuilder<T> {
     }
 
     // Clear existing order and add new one
-    orderByOnly<K extends keyof T>(
+    orderByOnly<K extends OrderablePaths<T>>(
         field: K,
         direction?: 'asc' | 'desc'
     ): QueryBuilder<T>;
@@ -204,7 +210,7 @@ export class QueryBuilder<T> {
         field: string,
         direction?: 'asc' | 'desc'
     ): QueryBuilder<T>;
-    orderByOnly<K extends keyof T>(
+    orderByOnly<K extends OrderablePaths<T>>(
         field: K | string,
         direction: 'asc' | 'desc' = 'asc'
     ): QueryBuilder<T> {
@@ -214,7 +220,7 @@ export class QueryBuilder<T> {
 
     // Multiple field sorting shorthand
     orderByMultiple(
-        orders: { field: keyof T | string; direction?: 'asc' | 'desc' }[]
+        orders: { field: OrderablePaths<T> | string; direction?: 'asc' | 'desc' }[]
     ): QueryBuilder<T> {
         this.options.orderBy = orders.map((order) => ({
             field: order.field as string,
@@ -247,7 +253,7 @@ export class QueryBuilder<T> {
     }
 
     // Grouping and distinct
-    groupBy<K extends keyof T>(...fields: K[]): QueryBuilder<T> {
+    groupBy<K extends OrderablePaths<T>>(...fields: K[]): QueryBuilder<T> {
         this.options.groupBy = fields.map((f) => f as string);
         return this;
     }

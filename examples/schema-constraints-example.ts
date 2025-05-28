@@ -1,6 +1,11 @@
 import { z } from 'zod';
 import { Database } from '../src/database';
-import { unique, foreignKey, index, compositeUnique } from '../src/schema-constraints';
+import {
+    unique,
+    foreignKey,
+    index,
+    compositeUnique,
+} from '../src/schema-constraints';
 
 // Create database
 const db = new Database({ path: ':memory:' });
@@ -90,7 +95,10 @@ const memberships = db.collection('memberships', membershipSchema, {
         constraints: {
             userId: foreignKey('users', 'id'),
             organizationId: foreignKey('organizations', 'id'),
-            userOrg: compositeUnique(['userId', 'organizationId'], 'user_org_unique'),
+            userOrg: compositeUnique(
+                ['userId', 'organizationId'],
+                'user_org_unique'
+            ),
         },
         indexes: {
             userId: index('userId'),
@@ -177,7 +185,9 @@ try {
         role: 'admin',
         createdAt: new Date(),
     });
-    console.log(`Created membership: ${user1.username} as ${membership1.role} in ${org.name}`);
+    console.log(
+        `Created membership: ${user1.username} as ${membership1.role} in ${org.name}`
+    );
 
     const membership2 = memberships.insert({
         userId: user2.id,
@@ -185,7 +195,9 @@ try {
         role: 'member',
         createdAt: new Date(),
     });
-    console.log(`Created membership: ${user2.username} as ${membership2.role} in ${org.name}`);
+    console.log(
+        `Created membership: ${user2.username} as ${membership2.role} in ${org.name}`
+    );
 
     // Test composite unique constraint
     console.log('\n7. Testing composite unique constraints...');
@@ -202,11 +214,15 @@ try {
 
     // Query with constraints-optimized indexes
     console.log('\n8. Querying with optimized indexes...');
-    
+
     const activeUsers = users.where('isActive').eq(true).toArray();
     console.log(`Found ${activeUsers.length} active users`);
 
-    const userPosts = posts.where('authorId').eq(user1.id).orderBy('createdAt', 'desc').toArray();
+    const userPosts = posts
+        .where('authorId')
+        .eq(user1.id)
+        .orderBy('createdAt', 'desc')
+        .toArray();
     console.log(`Found ${userPosts.length} posts by ${user1.username}`);
 
     const orgMembers = memberships.where('organizationId').eq(org.id).toArray();
@@ -221,7 +237,6 @@ try {
     console.log(`Updated user email: ${updatedUser.email}`);
 
     console.log('\n✓ All constraint tests passed successfully!');
-
 } catch (error) {
     console.error('❌ Error:', error.message);
 } finally {

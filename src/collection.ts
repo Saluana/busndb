@@ -10,6 +10,7 @@ import {
     UniqueConstraintError,
 } from './errors.js';
 import { parseDoc } from './json-utils.js';
+import type { QueryablePaths, OrderablePaths } from './types/nested-paths';
 
 export class Collection<T extends z.ZodSchema> {
     private driver: Driver;
@@ -353,7 +354,7 @@ export class Collection<T extends z.ZodSchema> {
         // If we can't determine valid fields, don't validate (backward compatibility)
     }
 
-    where<K extends keyof InferSchema<T>>(
+    where<K extends QueryablePaths<InferSchema<T>>>(
         field: K
     ): import('./query-builder.js').FieldBuilder<InferSchema<T>, K> & {
         collection: Collection<T>;
@@ -364,7 +365,7 @@ export class Collection<T extends z.ZodSchema> {
     > & {
         collection: Collection<T>;
     };
-    where<K extends keyof InferSchema<T>>(
+    where<K extends QueryablePaths<InferSchema<T>>>(
         field: K | string
     ): import('./query-builder.js').FieldBuilder<InferSchema<T>, K> & {
         collection: Collection<T>;
@@ -393,7 +394,7 @@ export class Collection<T extends z.ZodSchema> {
     }
 
     // Add direct sorting and pagination methods to Collection
-    orderBy<K extends keyof InferSchema<T>>(
+    orderBy<K extends OrderablePaths<InferSchema<T>>>(
         field: K,
         direction?: 'asc' | 'desc'
     ): QueryBuilder<InferSchema<T>>;
@@ -401,7 +402,7 @@ export class Collection<T extends z.ZodSchema> {
         field: string,
         direction?: 'asc' | 'desc'
     ): QueryBuilder<InferSchema<T>>;
-    orderBy<K extends keyof InferSchema<T>>(
+    orderBy<K extends OrderablePaths<InferSchema<T>>>(
         field: K | string,
         direction: 'asc' | 'desc' = 'asc'
     ): QueryBuilder<InferSchema<T>> {
@@ -464,7 +465,7 @@ declare module './query-builder.js' {
         count(): number;
     }
 
-    interface FieldBuilder<T, K extends keyof T> {
+    interface FieldBuilder<T, K extends QueryablePaths<T> | string> {
         toArray(): T[];
         first(): T | null;
         count(): number;
