@@ -153,7 +153,26 @@ export class Collection<T extends z.ZodSchema> {
     }
 
     insert(doc: Omit<InferSchema<T>, 'id'>): InferSchema<T> {
-        const id = this.generateId();
+        // Check if id is provided in doc (via type assertion)
+        const docWithPossibleId = doc as any;
+        let id: string;
+
+        if (docWithPossibleId.id) {
+            // If id is provided, validate it and check for duplicates
+            id = docWithPossibleId.id;
+
+            // Check if this id already exists
+            const existing = this.findById(id);
+            if (existing) {
+                throw new UniqueConstraintError(
+                    `Document with id '${id}' already exists`,
+                    'id'
+                );
+            }
+        } else {
+            id = this.generateId();
+        }
+
         const fullDoc = { ...doc, id };
         const validatedDoc = this.validateDocument(fullDoc);
 
@@ -302,6 +321,32 @@ export class Collection<T extends z.ZodSchema> {
         return parseDoc(rows[0].doc);
     }
 
+    private validateFieldName(fieldName: string): void {
+        // Get field names from Zod schema shape
+        const schema = this.collectionSchema.schema as any;
+        let validFields: string[] = [];
+
+        // Try to get fields from shape property (for ZodObject)
+        if (schema.shape) {
+            validFields = Object.keys(schema.shape);
+        } else if (schema._def && schema._def.shape) {
+            validFields = Object.keys(schema._def.shape);
+        } else if (schema._def && typeof schema._def.shape === 'function') {
+            validFields = Object.keys(schema._def.shape());
+        }
+
+        // Only validate if we successfully extracted field names
+        if (validFields.length > 0 && !validFields.includes(fieldName)) {
+            throw new ValidationError(
+                `Field '${fieldName}' does not exist in schema. Valid fields: ${validFields.join(
+                    ', '
+                )}`
+            );
+        }
+
+        // If we can't determine valid fields, don't validate (backward compatibility)
+    }
+
     where<K extends keyof InferSchema<T>>(
         field: K
     ): import('./query-builder.js').FieldBuilder<InferSchema<T>, K> & {
@@ -318,6 +363,9 @@ export class Collection<T extends z.ZodSchema> {
     ): import('./query-builder.js').FieldBuilder<InferSchema<T>, K> & {
         collection: Collection<T>;
     } {
+        // Validate field name exists in schema
+        this.validateFieldName(field as string);
+
         const builder = new QueryBuilder<InferSchema<T>>();
         (builder as any).collection = this;
         const fieldBuilder = builder.where(field as K);
@@ -351,6 +399,9 @@ export class Collection<T extends z.ZodSchema> {
         field: K | string,
         direction: 'asc' | 'desc' = 'asc'
     ): QueryBuilder<InferSchema<T>> {
+        // Validate field name exists in schema
+        this.validateFieldName(field as string);
+
         const builder = new QueryBuilder<InferSchema<T>>();
         (builder as any).collection = this;
         return builder.orderBy(field as K, direction);
