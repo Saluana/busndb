@@ -166,4 +166,116 @@ describe('Transactions', () => {
         expect(count).toBe(1);
         expect(users.toArray()).toHaveLength(1);
     });
+
+    test('commits an empty transaction', async () => {
+        const result = await db.transaction(async () => {
+            // No operations
+            return 'empty';
+        });
+        expect(result).toBe('empty');
+    });
+
+    test('throws if non-Error value is thrown in transaction', async () => {
+        let error;
+        try {
+            await db.transaction(async () => {
+                throw 'string error';
+            });
+        } catch (e) {
+            error = e;
+        }
+        expect(error).toBe('string error');
+    });
+
+    test('transaction rejects on async error', async () => {
+        let error;
+        try {
+            await db.transaction(async () => {
+                await Promise.reject(new Error('async fail'));
+            });
+        } catch (e) {
+            error = e;
+        }
+        expect(error instanceof Error ? error.message : error).toBe(
+            'async fail'
+        );
+    });
+
+    test('writing to non-existent collection in transaction throws', async () => {
+        let error;
+        try {
+            await db.transaction(async () => {
+                (db as any).collection('ghosts').insert({ foo: 'bar' });
+            });
+        } catch (e) {
+            error = e;
+        }
+        expect(error).toBeInstanceOf(Error);
+    });
+
+    test('nested transaction: inner commit, outer rollback', async () => {
+        const users = db.collection('users', userSchema);
+        let error;
+        try {
+            await db.transaction(async () => {
+                users.insert({ name: 'Outer', email: 'outer@example.com' });
+                await db.transaction(async () => {
+                    users.insert({ name: 'Inner', email: 'inner@example.com' });
+                });
+                throw new Error('fail outer');
+            });
+        } catch (e) {
+            error = e;
+        }
+        expect(error).toBeTruthy();
+        expect(users.toArray()).toHaveLength(0);
+    });
+
+    test('transaction with no operations does not throw', async () => {
+        await expect(db.transaction(async () => {})).resolves.toBeUndefined();
+    });
+
+    test('transaction with simultaneous reads and writes to multiple collections', async () => {
+        const users = db.collection('users', userSchema);
+        const posts = db.collection('posts', postSchema);
+        users.insert({ name: 'A', email: 'a@example.com' });
+        const author = users.toArray()[0];
+        expect(author).toBeTruthy();
+        await db.transaction(async () => {
+            users.insert({ name: 'B', email: 'b@example.com' });
+            posts.insert({ title: 'T', content: 'C', authorId: author.id! });
+            expect(users.toArray()).toHaveLength(2);
+            expect(posts.toArray()).toHaveLength(1);
+        });
+        expect(users.toArray()).toHaveLength(2);
+        expect(posts.toArray()).toHaveLength(1);
+    });
+
+    test('transaction with schema validation edge case: missing required field', async () => {
+        const users = db.collection('users', userSchema);
+        let error;
+        try {
+            await db.transaction(async () => {
+                users.insert({ email: 'missingname@example.com' } as any);
+            });
+        } catch (e) {
+            error = e;
+        }
+        expect(error).toBeInstanceOf(ValidationError);
+        expect(users.toArray()).toHaveLength(0);
+    });
+
+    test('transaction with schema validation edge case: invalid type', async () => {
+        const users = db.collection('users', userSchema);
+        let error;
+        try {
+            await db.transaction(async () => {
+                users.insert({ name: 'Bad', email: 12345 } as any);
+            });
+        } catch (e) {
+            error = e;
+        }
+        expect(error).toBeInstanceOf(ValidationError);
+        expect(users.toArray()).toHaveLength(0);
+    });
 });
