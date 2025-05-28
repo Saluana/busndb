@@ -243,6 +243,56 @@ export class Collection<T extends z.ZodSchema> {
         }
         return count;
     }
+    upsert(id: string, doc: Omit<InferSchema<T>, 'id'>): InferSchema<T> {
+        // Use the optimized SQL-level upsert for best performance
+        return this.upsertOptimized(id, doc);
+    }
+
+    // Add an even more optimized version using SQL UPSERT
+    upsertOptimized(
+        id: string,
+        doc: Omit<InferSchema<T>, 'id'>
+    ): InferSchema<T> {
+        const fullDoc = { ...doc, id };
+        const validatedDoc = this.validateDocument(fullDoc);
+
+        // For maximum performance, use SQL-level UPSERT (INSERT OR REPLACE)
+        // This eliminates the need for existence checks entirely
+        try {
+            // Check constraints before upsert
+            this.validateUniqueConstraints(validatedDoc, id);
+            this.validateForeignKeyConstraints(validatedDoc);
+
+            // Use INSERT OR REPLACE for atomic upsert
+            const sql = `INSERT OR REPLACE INTO ${this.collectionSchema.name} (id, doc) VALUES (?, ?)`;
+            const params = [id, JSON.stringify(validatedDoc)];
+
+            this.driver.exec(sql, params);
+            return validatedDoc;
+        } catch (error) {
+            if (
+                error instanceof Error &&
+                error.message.includes('UNIQUE constraint')
+            ) {
+                throw new UniqueConstraintError(
+                    'Document violates unique constraint',
+                    id
+                );
+            }
+            throw error;
+        }
+    }
+
+    upsertBulk(
+        updates: { id: string; doc: Omit<InferSchema<T>, 'id'> }[]
+    ): InferSchema<T>[] {
+        // Use optimized approach for bulk operations
+        const results: InferSchema<T>[] = [];
+        for (const update of updates) {
+            results.push(this.upsertOptimized(update.id, update.doc));
+        }
+        return results;
+    }
 
     findById(id: string): InferSchema<T> | null {
         const { sql, params } = SQLTranslator.buildSelectQuery(
