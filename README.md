@@ -66,6 +66,69 @@ bun add busndb zod
 npm install busndb zod
 ```
 
+### Database Drivers
+
+BusNDB supports multiple database drivers depending on your runtime and requirements:
+
+#### Bun Driver (Default for Bun)
+```bash
+# No additional installation needed - uses built-in bun:sqlite
+```
+
+#### Node.js Drivers
+
+**LibSQL (Recommended - Universal)**
+```bash
+npm install @libsql/client
+# Works with: SQLite files, LibSQL files, Turso remote, embedded replicas
+```
+
+**Better SQLite3 (SQLite Only)**
+```bash
+npm install better-sqlite3
+# Works with: SQLite files only (high performance)
+```
+
+**Legacy SQLite3**
+```bash
+npm install sqlite3  # Limited support (callback-based)
+```
+
+#### Driver Configuration
+
+```typescript
+// Auto-detect driver (Bun in Bun runtime, Node.js in Node runtime)
+const db = createDB({ path: './data.db' });
+
+// Explicit driver selection
+const db = createDB({ 
+    driver: 'node',
+    path: './data.db' 
+});
+
+// LibSQL local file
+const db = createDB({
+    driver: 'node',
+    path: 'file:./data.db',
+    libsql: true
+});
+
+// LibSQL remote (Turso)
+const db = createDB({
+    driver: 'node',
+    path: 'libsql://your-db.turso.io',
+    authToken: 'your-auth-token'
+});
+
+// LibSQL with sync (embedded replica)
+const db = createDB({
+    driver: 'node',
+    path: 'file:./replica.db',
+    syncUrl: 'libsql://your-db.turso.io',
+    authToken: 'your-auth-token'
+});
+```
+
 ## API Reference
 
 ### Database

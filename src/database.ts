@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { DBConfig, Driver, InferSchema } from './types';
 import type { SchemaConstraints } from './schema-constraints';
 import { BunDriver } from './drivers/bun';
+import { NodeDriver } from './drivers/node';
 import { Collection } from './collection';
 import { Registry } from './registry';
 
@@ -22,7 +23,7 @@ export class Database {
             case 'bun':
                 return new BunDriver(config);
             case 'node':
-                throw new Error('Node.js driver not implemented yet');
+                return new NodeDriver(config);
             default:
                 throw new Error(`Unknown driver: ${driver}`);
         }

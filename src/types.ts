@@ -5,6 +5,10 @@ export interface DBConfig {
     path?: string;
     memory?: boolean;
     driver?: 'bun' | 'node';
+    // LibSQL-specific options
+    authToken?: string;
+    syncUrl?: string;
+    libsql?: boolean;
 }
 
 export interface Driver {
