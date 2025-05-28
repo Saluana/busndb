@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createDB } from '../src/index.js';
+import { createDB } from '../src/database.js';
 import { index } from '../src/schema-constraints.js';
 
 // Define a comprehensive schema with both shallow and deep fields

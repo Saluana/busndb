@@ -322,6 +322,12 @@ export class Collection<T extends z.ZodSchema> {
     }
 
     private validateFieldName(fieldName: string): void {
+        // Skip validation for nested field paths (containing dots)
+        // These are handled at the SQL level with json_extract
+        if (fieldName.includes('.')) {
+            return;
+        }
+
         // Get field names from Zod schema shape
         const schema = this.collectionSchema.schema as any;
         let validFields: string[] = [];
