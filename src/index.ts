@@ -16,3 +16,8 @@ export type {
     QueryOptions,
     ConstrainedFieldDefinition,
 } from './types';
+
+// Plugin system exports
+export { PluginManager } from './plugin-system';
+export type { Plugin, PluginContext } from './plugin-system';
+export * from './plugins';

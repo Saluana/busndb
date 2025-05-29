@@ -10,14 +10,21 @@ import {
 } from './errors.js';
 import { parseDoc } from './json-utils.js';
 import type { QueryablePaths, OrderablePaths } from './types/nested-paths';
+import type { PluginManager } from './plugin-system';
 
 export class Collection<T extends z.ZodSchema> {
     private driver: Driver;
     private collectionSchema: CollectionSchema<InferSchema<T>>;
+    private pluginManager?: PluginManager;
 
-    constructor(driver: Driver, schema: CollectionSchema<InferSchema<T>>) {
+    constructor(
+        driver: Driver, 
+        schema: CollectionSchema<InferSchema<T>>,
+        pluginManager?: PluginManager
+    ) {
         this.driver = driver;
         this.collectionSchema = schema;
+        this.pluginManager = pluginManager;
         this.createTable();
     }
 
@@ -52,32 +59,42 @@ export class Collection<T extends z.ZodSchema> {
 
 
     insert(doc: Omit<InferSchema<T>, 'id'>): InferSchema<T> {
-        // Check if id is provided in doc (via type assertion)
-        const docWithPossibleId = doc as any;
-        let id: string;
+        const context = {
+            collectionName: this.collectionSchema.name,
+            schema: this.collectionSchema,
+            operation: 'insert',
+            data: doc
+        };
 
-        if (docWithPossibleId.id) {
-            // If id is provided, validate it and check for duplicates
-            id = docWithPossibleId.id;
-
-            // Check if this id already exists
-            const existing = this.findById(id);
-            if (existing) {
-                throw new UniqueConstraintError(
-                    `Document with id '${id}' already exists`,
-                    'id'
-                );
-            }
-        } else {
-            id = this.generateId();
-        }
-
-        const fullDoc = { ...doc, id };
-        const validatedDoc = this.validateDocument(fullDoc);
-
-        // Constraints are now enforced at the SQL level via constrainedFields
+        // Execute before hook (non-blocking to maintain sync API)
+        this.pluginManager?.executeHookSafe('onBeforeInsert', context).catch(console.warn);
 
         try {
+            // Check if id is provided in doc (via type assertion)
+            const docWithPossibleId = doc as any;
+            let id: string;
+
+            if (docWithPossibleId.id) {
+                // If id is provided, validate it and check for duplicates
+                id = docWithPossibleId.id;
+
+                // Check if this id already exists
+                const existing = this.findById(id);
+                if (existing) {
+                    throw new UniqueConstraintError(
+                        `Document with id '${id}' already exists`,
+                        'id'
+                    );
+                }
+            } else {
+                id = this.generateId();
+            }
+
+            const fullDoc = { ...doc, id };
+            const validatedDoc = this.validateDocument(fullDoc);
+
+            // Constraints are now enforced at the SQL level via constrainedFields
+
             const { sql, params } = SQLTranslator.buildInsertQuery(
                 this.collectionSchema.name,
                 validatedDoc,
@@ -86,15 +103,24 @@ export class Collection<T extends z.ZodSchema> {
                 this.collectionSchema.schema
             );
             this.driver.exec(sql, params);
+            
+            // Execute after hook (non-blocking)
+            const resultContext = { ...context, result: validatedDoc };
+            this.pluginManager?.executeHookSafe('onAfterInsert', resultContext).catch(console.warn);
+            
             return validatedDoc;
         } catch (error) {
+            // Execute error hook (non-blocking)
+            const errorContext = { ...context, error: error as Error };
+            this.pluginManager?.executeHookSafe('onError', errorContext).catch(console.warn);
+            
             if (
                 error instanceof Error &&
                 error.message.includes('UNIQUE constraint')
             ) {
                 throw new UniqueConstraintError(
                     'Document violates unique constraint',
-                    id
+                    (doc as any).id || 'unknown'
                 );
             }
             throw error;
