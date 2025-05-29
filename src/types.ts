@@ -22,12 +22,23 @@ export interface Row {
     [key: string]: any;
 }
 
+export interface ConstrainedFieldDefinition {
+    type?: 'TEXT' | 'INTEGER' | 'REAL' | 'BLOB';
+    unique?: boolean;
+    foreignKey?: string; // 'table.column'
+    onDelete?: 'CASCADE' | 'SET NULL' | 'RESTRICT';
+    onUpdate?: 'CASCADE' | 'SET NULL' | 'RESTRICT';
+    nullable?: boolean;
+    checkConstraint?: string;
+}
+
 export interface CollectionSchema<T = any> {
     name: string;
     schema: z.ZodSchema<T>;
     primaryKey: string;
     indexes?: string[];
     constraints?: SchemaConstraints;
+    constrainedFields?: { [fieldPath: string]: ConstrainedFieldDefinition };
 }
 
 export type InferSchema<T> = T extends z.ZodSchema<infer U> ? U : never;

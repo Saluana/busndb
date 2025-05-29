@@ -14,4 +14,5 @@ export type {
     InferSchema,
     QueryFilter,
     QueryOptions,
+    ConstrainedFieldDefinition,
 } from './types';

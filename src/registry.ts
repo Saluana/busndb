@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { CollectionSchema, InferSchema } from './types';
+import type { CollectionSchema, InferSchema, ConstrainedFieldDefinition } from './types';
 import type { SchemaConstraints } from './schema-constraints';
 
 export class Registry {
@@ -12,6 +12,7 @@ export class Registry {
             primaryKey?: string;
             indexes?: string[];
             constraints?: SchemaConstraints;
+            constrainedFields?: { [fieldPath: string]: ConstrainedFieldDefinition };
         } = {}
     ): CollectionSchema<InferSchema<T>> {
         if (this.collections.has(name)) {
@@ -24,6 +25,7 @@ export class Registry {
             primaryKey: options.primaryKey || 'id',
             indexes: options.indexes || [],
             constraints: options.constraints,
+            constrainedFields: options.constrainedFields,
         };
 
         this.collections.set(name, collectionSchema);

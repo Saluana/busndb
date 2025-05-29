@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { DBConfig, Driver, InferSchema } from './types';
+import type { DBConfig, Driver, InferSchema, ConstrainedFieldDefinition, Row } from './types';
 import type { SchemaConstraints } from './schema-constraints';
 import { BunDriver } from './drivers/bun';
 import { NodeDriver } from './drivers/node';
@@ -36,6 +36,7 @@ export class Database {
             primaryKey?: string; 
             indexes?: string[];
             constraints?: SchemaConstraints;
+            constrainedFields?: { [fieldPath: string]: ConstrainedFieldDefinition };
         }
     ): Collection<T> {
         if (schema) {
@@ -71,6 +72,14 @@ export class Database {
 
     listCollections(): string[] {
         return this.registry.list();
+    }
+
+    exec(sql: string, params?: any[]): void {
+        return this.driver.exec(sql, params);
+    }
+
+    query(sql: string, params?: any[]): Row[] {
+        return this.driver.query(sql, params);
     }
 }
 

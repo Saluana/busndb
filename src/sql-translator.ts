@@ -1,5 +1,12 @@
-import type { QueryOptions, QueryFilter, QueryGroup } from './types';
+import type { QueryOptions, QueryFilter, QueryGroup, ConstrainedFieldDefinition } from './types';
 import { stringifyDoc } from './json-utils';
+import { 
+    extractConstrainedValues, 
+    fieldPathToColumnName, 
+    convertValueForStorage,
+    inferSQLiteType,
+    getZodTypeForPath
+} from './constrained-fields';
 
 /**
  * Small helper: cache `"json_extract(doc,'$.field')"` strings so we build
@@ -15,12 +22,25 @@ const jsonPath = (field: string) => {
     return cached;
 };
 
+/**
+ * Choose optimal field access method based on whether field is constrained
+ */
+const getFieldAccess = (field: string, constrainedFields?: { [fieldPath: string]: ConstrainedFieldDefinition }): string => {
+    if (constrainedFields && constrainedFields[field]) {
+        // Use dedicated column for constrained fields
+        return fieldPathToColumnName(field);
+    }
+    // Use JSON extraction for non-constrained fields
+    return jsonPath(field);
+};
+
 export class SQLTranslator {
     /* ░░░░░░ unchanged buildSelect / buildInsert / buildUpdate / buildDelete ░░░░░░ */
 
     static buildSelectQuery(
         tableName: string,
-        options: QueryOptions
+        options: QueryOptions,
+        constrainedFields?: { [fieldPath: string]: ConstrainedFieldDefinition }
     ): { sql: string; params: any[] } {
         let sql = options.distinct
             ? `SELECT DISTINCT doc FROM ${tableName}`
@@ -29,7 +49,9 @@ export class SQLTranslator {
 
         if (options.filters.length > 0) {
             const { whereClause, whereParams } = this.buildWhereClause(
-                options.filters
+                options.filters,
+                'AND',
+                constrainedFields
             );
             sql += ` WHERE ${whereClause}`;
             params.push(...whereParams);
@@ -37,7 +59,7 @@ export class SQLTranslator {
 
         if (options.groupBy && options.groupBy.length > 0) {
             const groupClauses = options.groupBy.map(
-                (field) => `json_extract(doc, '$.${field}')`
+                (field) => getFieldAccess(field, constrainedFields)
             );
             sql += ` GROUP BY ${groupClauses.join(', ')}`;
         }
@@ -45,9 +67,7 @@ export class SQLTranslator {
         if (options.orderBy && options.orderBy.length > 0) {
             const orderClauses = options.orderBy.map(
                 (order) =>
-                    `json_extract(doc, '$.${
-                        order.field
-                    }') ${order.direction.toUpperCase()}`
+                    `${getFieldAccess(order.field, constrainedFields)} ${order.direction.toUpperCase()}`
             );
             sql += ` ORDER BY ${orderClauses.join(', ')}`;
         }
@@ -72,19 +92,75 @@ export class SQLTranslator {
     static buildInsertQuery(
         tableName: string,
         doc: any,
-        id: string
+        id: string,
+        constrainedFields?: { [fieldPath: string]: ConstrainedFieldDefinition },
+        schema?: any
     ): { sql: string; params: any[] } {
-        const sql = `INSERT INTO ${tableName} (_id, doc) VALUES (?, ?)`;
-        return { sql, params: [id, stringifyDoc(doc)] };
+        if (!constrainedFields || Object.keys(constrainedFields).length === 0) {
+            // Original behavior for collections without constrained fields
+            const sql = `INSERT INTO ${tableName} (_id, doc) VALUES (?, ?)`;
+            return { sql, params: [id, stringifyDoc(doc)] };
+        }
+        
+        // Build insert with constrained field columns
+        const columns = ['_id', 'doc'];
+        const params: any[] = [id, stringifyDoc(doc)];
+        
+        const constrainedValues = extractConstrainedValues(doc, constrainedFields);
+        
+        for (const [fieldPath, fieldDef] of Object.entries(constrainedFields)) {
+            const columnName = fieldPathToColumnName(fieldPath);
+            const value = constrainedValues[fieldPath];
+            
+            // Infer SQLite type for proper value conversion
+            const zodType = schema ? getZodTypeForPath(schema, fieldPath) : null;
+            const sqliteType = zodType ? inferSQLiteType(zodType, fieldDef) : 'TEXT';
+            
+            columns.push(columnName);
+            params.push(convertValueForStorage(value, sqliteType));
+        }
+        
+        const placeholders = columns.map(() => '?').join(', ');
+        const sql = `INSERT INTO ${tableName} (${columns.join(', ')}) VALUES (${placeholders})`;
+        
+        return { sql, params };
     }
 
     static buildUpdateQuery(
         tableName: string,
         doc: any,
-        id: string
+        id: string,
+        constrainedFields?: { [fieldPath: string]: ConstrainedFieldDefinition },
+        schema?: any
     ): { sql: string; params: any[] } {
-        const sql = `UPDATE ${tableName} SET doc = ? WHERE _id = ?`;
-        return { sql, params: [stringifyDoc(doc), id] };
+        if (!constrainedFields || Object.keys(constrainedFields).length === 0) {
+            // Original behavior for collections without constrained fields
+            const sql = `UPDATE ${tableName} SET doc = ? WHERE _id = ?`;
+            return { sql, params: [stringifyDoc(doc), id] };
+        }
+        
+        // Build update with constrained field columns
+        const setClauses = ['doc = ?'];
+        const params: any[] = [stringifyDoc(doc)];
+        
+        const constrainedValues = extractConstrainedValues(doc, constrainedFields);
+        
+        for (const [fieldPath, fieldDef] of Object.entries(constrainedFields)) {
+            const columnName = fieldPathToColumnName(fieldPath);
+            const value = constrainedValues[fieldPath];
+            
+            // Infer SQLite type for proper value conversion
+            const zodType = schema ? getZodTypeForPath(schema, fieldPath) : null;
+            const sqliteType = zodType ? inferSQLiteType(zodType, fieldDef) : 'TEXT';
+            
+            setClauses.push(`${columnName} = ?`);
+            params.push(convertValueForStorage(value, sqliteType));
+        }
+        
+        params.push(id); // WHERE clause parameter
+        const sql = `UPDATE ${tableName} SET ${setClauses.join(', ')} WHERE _id = ?`;
+        
+        return { sql, params };
     }
 
     static buildDeleteQuery(
@@ -105,7 +181,8 @@ export class SQLTranslator {
     /** ----------  1. **O(n)** WHERE‑clause builder  ---------- */
     static buildWhereClause(
         filters: (QueryFilter | QueryGroup)[],
-        joinOp: 'AND' | 'OR' = 'AND'
+        joinOp: 'AND' | 'OR' = 'AND',
+        constrainedFields?: { [fieldPath: string]: ConstrainedFieldDefinition }
     ): { whereClause: string; whereParams: any[] } {
         const parts: string[] = [];
         const params: any[] = [];
@@ -116,7 +193,8 @@ export class SQLTranslator {
                 const grp = f as QueryGroup;
                 const { whereClause, whereParams } = this.buildWhereClause(
                     grp.filters,
-                    grp.type.toUpperCase() as 'AND' | 'OR'
+                    grp.type.toUpperCase() as 'AND' | 'OR',
+                    constrainedFields
                 );
                 if (whereClause) {
                     parts.push(`(${whereClause})`);
@@ -125,7 +203,8 @@ export class SQLTranslator {
             } else {
                 /* QueryFilter */
                 const { whereClause, whereParams } = this.buildFilterClause(
-                    f as QueryFilter
+                    f as QueryFilter,
+                    constrainedFields
                 );
                 parts.push(whereClause);
                 params.push(...whereParams);
@@ -138,11 +217,14 @@ export class SQLTranslator {
     }
 
     /** ----------  2. Cheap single‑pass filter builder ---------- */
-    private static buildFilterClause(filter: QueryFilter): {
+    private static buildFilterClause(
+        filter: QueryFilter,
+        constrainedFields?: { [fieldPath: string]: ConstrainedFieldDefinition }
+    ): {
         whereClause: string;
         whereParams: any[];
     } {
-        const col = jsonPath(filter.field); // cached string
+        const col = getFieldAccess(filter.field, constrainedFields);
         const p: any[] = [];
         let c = '';
 

@@ -6,6 +6,14 @@ import type {
     ForeignKeyConstraint,
     CheckConstraint,
 } from './schema-constraints';
+import type { ConstrainedFieldDefinition } from './types';
+import { 
+    fieldPathToColumnName,
+    inferSQLiteType,
+    getZodTypeForPath,
+    parseForeignKeyReference,
+    validateConstrainedFields
+} from './constrained-fields';
 
 export class SchemaSQLGenerator {
     /**
@@ -13,13 +21,66 @@ export class SchemaSQLGenerator {
      */
     static buildCreateTableWithConstraints(
         tableName: string,
-        constraints?: SchemaConstraints
+        constraints?: SchemaConstraints,
+        constrainedFields?: { [fieldPath: string]: ConstrainedFieldDefinition },
+        schema?: any
     ): { sql: string; additionalSQL: string[] } {
         let sql = `CREATE TABLE IF NOT EXISTS ${tableName} (\n`;
         sql += `  _id TEXT PRIMARY KEY,\n`;
         sql += `  doc TEXT NOT NULL`;
 
         const additionalSQL: string[] = [];
+        
+        // Add constrained field columns
+        if (constrainedFields && schema) {
+            // Validate constrained fields exist in schema
+            const validationErrors = validateConstrainedFields(schema, constrainedFields);
+            if (validationErrors.length > 0) {
+                throw new Error(`Invalid constrained fields: ${validationErrors.join(', ')}`);
+            }
+            
+            for (const [fieldPath, fieldDef] of Object.entries(constrainedFields)) {
+                const columnName = fieldPathToColumnName(fieldPath);
+                const zodType = getZodTypeForPath(schema, fieldPath);
+                const sqliteType = zodType ? inferSQLiteType(zodType, fieldDef) : 'TEXT';
+                
+                // Build column definition
+                let columnDef = `${columnName} ${sqliteType}`;
+                
+                // Add NOT NULL if not nullable (default is nullable for constrained fields)
+                if (fieldDef.nullable === false) {
+                    columnDef += ' NOT NULL';
+                }
+                
+                // Add UNIQUE constraint
+                if (fieldDef.unique) {
+                    columnDef += ' UNIQUE';
+                }
+                
+                // Add foreign key constraint
+                if (fieldDef.foreignKey) {
+                    const fkRef = parseForeignKeyReference(fieldDef.foreignKey);
+                    if (fkRef) {
+                        columnDef += ` REFERENCES ${fkRef.table}(${fkRef.column})`;
+                        
+                        if (fieldDef.onDelete) {
+                            columnDef += ` ON DELETE ${fieldDef.onDelete}`;
+                        }
+                        
+                        if (fieldDef.onUpdate) {
+                            columnDef += ` ON UPDATE ${fieldDef.onUpdate}`;
+                        }
+                    }
+                }
+                
+                // Add check constraint
+                if (fieldDef.checkConstraint) {
+                    columnDef += ` CHECK (${fieldDef.checkConstraint.replace(new RegExp(`\\b${fieldPath}\\b`, 'g'), columnName)})`;
+                }
+                
+                sql += `,\n  ${columnDef}`;
+            }
+        }
 
         if (constraints) {
             // Add field-level constraints
@@ -63,10 +124,23 @@ export class SchemaSQLGenerator {
             // Add table-level constraints
             if (constraints.tableLevelConstraints) {
                 for (const constraint of constraints.tableLevelConstraints) {
-                    sql += `,\n  ${this.buildConstraintSQL(
-                        constraint,
-                        tableName
-                    )}`;
+                    if (constraint.type === 'unique') {
+                        // For unique constraints on JSON fields, create unique indexes instead
+                        const uniqueConstraint = constraint as UniqueConstraint;
+                        const indexName = uniqueConstraint.name || 
+                            `${tableName}_unique_${uniqueConstraint.fields.join('_')}`;
+                        const fields = uniqueConstraint.fields
+                            .map((f) => `json_extract(doc, '$.${f}')`)
+                            .join(', ');
+                        additionalSQL.push(
+                            `CREATE UNIQUE INDEX IF NOT EXISTS ${indexName} ON ${tableName} (${fields})`
+                        );
+                    } else {
+                        const constraintSQL = this.buildConstraintSQL(constraint, tableName);
+                        if (constraintSQL) {
+                            sql += `,\n  ${constraintSQL}`;
+                        }
+                    }
                 }
             }
 

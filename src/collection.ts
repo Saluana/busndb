@@ -26,7 +26,9 @@ export class Collection<T extends z.ZodSchema> {
         const { sql, additionalSQL } =
             SchemaSQLGenerator.buildCreateTableWithConstraints(
                 this.collectionSchema.name,
-                this.collectionSchema.constraints
+                this.collectionSchema.constraints,
+                this.collectionSchema.constrainedFields,
+                this.collectionSchema.schema
             );
 
         this.driver.exec(sql);
@@ -187,7 +189,9 @@ export class Collection<T extends z.ZodSchema> {
             const { sql, params } = SQLTranslator.buildInsertQuery(
                 this.collectionSchema.name,
                 validatedDoc,
-                id
+                id,
+                this.collectionSchema.constrainedFields,
+                this.collectionSchema.schema
             );
             this.driver.exec(sql, params);
             return validatedDoc;
@@ -231,7 +235,9 @@ export class Collection<T extends z.ZodSchema> {
         const { sql, params } = SQLTranslator.buildUpdateQuery(
             this.collectionSchema.name,
             validatedDoc,
-            id
+            id,
+            this.collectionSchema.constrainedFields,
+            this.collectionSchema.schema
         );
         this.driver.exec(sql, params);
         return validatedDoc;
@@ -284,10 +290,25 @@ export class Collection<T extends z.ZodSchema> {
             this.validateForeignKeyConstraints(validatedDoc);
 
             // Use INSERT OR REPLACE for atomic upsert
-            const sql = `INSERT OR REPLACE INTO ${this.collectionSchema.name} (_id, doc) VALUES (?, ?)`;
-            const params = [id, JSON.stringify(validatedDoc)];
+            if (!this.collectionSchema.constrainedFields || Object.keys(this.collectionSchema.constrainedFields).length === 0) {
+                // Original behavior for collections without constrained fields
+                const sql = `INSERT OR REPLACE INTO ${this.collectionSchema.name} (_id, doc) VALUES (?, ?)`;
+                const params = [id, JSON.stringify(validatedDoc)];
+                this.driver.exec(sql, params);
+            } else {
+                // Build upsert with constrained field columns
+                const { sql, params } = SQLTranslator.buildInsertQuery(
+                    this.collectionSchema.name,
+                    validatedDoc,
+                    id,
+                    this.collectionSchema.constrainedFields,
+                    this.collectionSchema.schema
+                );
+                // Convert INSERT to INSERT OR REPLACE
+                const upsertSQL = sql.replace('INSERT INTO', 'INSERT OR REPLACE INTO');
+                this.driver.exec(upsertSQL, params);
+            }
 
-            this.driver.exec(sql, params);
             return validatedDoc;
         } catch (error) {
             if (
@@ -387,7 +408,8 @@ export class Collection<T extends z.ZodSchema> {
     toArray(): InferSchema<T>[] {
         const { sql, params } = SQLTranslator.buildSelectQuery(
             this.collectionSchema.name,
-            { filters: [] }
+            { filters: [] },
+            this.collectionSchema.constrainedFields
         );
         const rows = this.driver.query(sql, params);
         return rows.map((row) => parseDoc(row.doc));
@@ -480,7 +502,8 @@ QueryBuilder.prototype.toArray = function <T>(
 
     const { sql, params } = SQLTranslator.buildSelectQuery(
         this.collection['collectionSchema'].name,
-        this.getOptions()
+        this.getOptions(),
+        this.collection['collectionSchema'].constrainedFields
     );
     const rows = this.collection['driver'].query(sql, params);
     return rows.map((row) => parseDoc(row.doc));
@@ -503,7 +526,9 @@ QueryBuilder.prototype.count = function <T>(
 
     if (options.filters.length > 0) {
         const { whereClause, whereParams } = SQLTranslator.buildWhereClause(
-            options.filters
+            options.filters,
+            'AND',
+            this.collection['collectionSchema'].constrainedFields
         );
         sql += ` WHERE ${whereClause}`;
         params.push(...whereParams);
