@@ -11,12 +11,41 @@ export class BunDriver implements Driver {
             this.db = new Database(
                 config.memory ? ':memory:' : config.path || 'database.db'
             );
-            this.exec('PRAGMA journal_mode = WAL');
-            this.exec('PRAGMA foreign_keys = ON');
-            this.exec('PRAGMA synchronous = NORMAL');
+            this.configureSQLite(config);
         } catch (error) {
             throw new DatabaseError(`Failed to initialize database: ${error}`);
         }
+    }
+
+    private configureSQLite(config: DBConfig): void {
+        // Optimized defaults
+        const sqliteConfig = {
+            journalMode: 'WAL',
+            synchronous: 'NORMAL',
+            busyTimeout: 5000,
+            cacheSize: -64000, // 64MB
+            tempStore: 'MEMORY',
+            lockingMode: 'NORMAL',
+            autoVacuum: 'NONE',
+            walCheckpoint: 1000,
+            ...config.sqlite
+        };
+
+        // Apply configuration
+        this.exec(`PRAGMA journal_mode = ${sqliteConfig.journalMode}`);
+        this.exec(`PRAGMA synchronous = ${sqliteConfig.synchronous}`);
+        this.exec(`PRAGMA busy_timeout = ${sqliteConfig.busyTimeout}`);
+        this.exec(`PRAGMA cache_size = ${sqliteConfig.cacheSize}`);
+        this.exec(`PRAGMA temp_store = ${sqliteConfig.tempStore}`);
+        this.exec(`PRAGMA locking_mode = ${sqliteConfig.lockingMode}`);
+        this.exec(`PRAGMA auto_vacuum = ${sqliteConfig.autoVacuum}`);
+        
+        if (sqliteConfig.journalMode === 'WAL') {
+            this.exec(`PRAGMA wal_autocheckpoint = ${sqliteConfig.walCheckpoint}`);
+        }
+
+        // Always enable foreign keys
+        this.exec('PRAGMA foreign_keys = ON');
     }
 
     exec(sql: string, params: any[] = []): void {

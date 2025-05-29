@@ -32,6 +32,47 @@ export class NodeDriver implements Driver {
                 );
             }
         }
+        
+        // Configure SQLite pragmas (only for SQLite, not LibSQL)
+        if (this.dbType === 'sqlite') {
+            this.configureSQLite(config);
+        }
+    }
+
+    private configureSQLite(config: DBConfig): void {
+        // Optimized defaults
+        const sqliteConfig = {
+            journalMode: 'WAL',
+            synchronous: 'NORMAL',
+            busyTimeout: 5000,
+            cacheSize: -64000, // 64MB
+            tempStore: 'MEMORY',
+            lockingMode: 'NORMAL',
+            autoVacuum: 'NONE',
+            walCheckpoint: 1000,
+            ...config.sqlite
+        };
+
+        try {
+            // Apply configuration
+            this.exec(`PRAGMA journal_mode = ${sqliteConfig.journalMode}`);
+            this.exec(`PRAGMA synchronous = ${sqliteConfig.synchronous}`);
+            this.exec(`PRAGMA busy_timeout = ${sqliteConfig.busyTimeout}`);
+            this.exec(`PRAGMA cache_size = ${sqliteConfig.cacheSize}`);
+            this.exec(`PRAGMA temp_store = ${sqliteConfig.tempStore}`);
+            this.exec(`PRAGMA locking_mode = ${sqliteConfig.lockingMode}`);
+            this.exec(`PRAGMA auto_vacuum = ${sqliteConfig.autoVacuum}`);
+            
+            if (sqliteConfig.journalMode === 'WAL') {
+                this.exec(`PRAGMA wal_autocheckpoint = ${sqliteConfig.walCheckpoint}`);
+            }
+
+            // Always enable foreign keys
+            this.exec('PRAGMA foreign_keys = ON');
+        } catch (error) {
+            // Configuration errors shouldn't be fatal, just warn
+            console.warn('Warning: Failed to apply some SQLite configuration:', error);
+        }
     }
 
     private detectDatabaseType(config: DBConfig, path: string): 'sqlite' | 'libsql' {

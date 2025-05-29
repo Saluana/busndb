@@ -9,6 +9,17 @@ export interface DBConfig {
     authToken?: string;
     syncUrl?: string;
     libsql?: boolean;
+    // SQLite optimization options
+    sqlite?: {
+        journalMode?: 'DELETE' | 'TRUNCATE' | 'PERSIST' | 'MEMORY' | 'WAL';
+        synchronous?: 'OFF' | 'NORMAL' | 'FULL' | 'EXTRA';
+        busyTimeout?: number; // milliseconds
+        cacheSize?: number; // pages (negative = KB)
+        tempStore?: 'DEFAULT' | 'FILE' | 'MEMORY';
+        lockingMode?: 'NORMAL' | 'EXCLUSIVE';
+        autoVacuum?: 'NONE' | 'FULL' | 'INCREMENTAL';
+        walCheckpoint?: number; // pages before auto-checkpoint
+    };
 }
 
 export interface Driver {
