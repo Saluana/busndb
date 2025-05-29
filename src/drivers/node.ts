@@ -282,13 +282,13 @@ export class NodeDriver implements Driver {
                 return transaction();
             } else {
                 // Fallback transaction implementation
-                this.exec('BEGIN TRANSACTION');
+                await this.exec('BEGIN TRANSACTION');
                 try {
                     const result = await fn();
-                    this.exec('COMMIT');
+                    await this.exec('COMMIT');
                     return result;
                 } catch (error) {
-                    this.exec('ROLLBACK');
+                    await this.exec('ROLLBACK');
                     throw error;
                 }
             }

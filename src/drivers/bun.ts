@@ -103,14 +103,14 @@ export class BunDriver implements Driver {
             await new Promise((r) => setImmediate(r));
 
             this.isInTransaction = true;
-            this.exec('BEGIN');
+            await this.exec('BEGIN');
             try {
                 const result = await fn();
-                this.exec('COMMIT');
+                await this.exec('COMMIT');
                 this.isInTransaction = false;
                 resolve(result);
             } catch (error) {
-                this.exec('ROLLBACK');
+                await this.exec('ROLLBACK');
                 this.isInTransaction = false;
                 reject(error);
             }

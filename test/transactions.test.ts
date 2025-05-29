@@ -33,11 +33,11 @@ describe('Transactions', () => {
         const users = db.collection('users', userSchema);
         const posts = db.collection('posts', postSchema);
         const result = await db.transaction(async () => {
-            const user = users.insert({
+            const user = await users.insert({
                 name: 'John',
                 email: 'john@example.com',
             });
-            const post = posts.insert({
+            const post = await posts.insert({
                 title: 'Hello',
                 content: 'World',
                 authorId: user.id!,
@@ -54,7 +54,7 @@ describe('Transactions', () => {
         let error;
         try {
             await db.transaction(async () => {
-                users.insert({ name: 'A', email: 'a@example.com' });
+                await users.insert({ name: 'A', email: 'a@example.com' });
                 throw new Error('fail');
             });
         } catch (e) {
@@ -69,7 +69,7 @@ describe('Transactions', () => {
         let error;
         try {
             await db.transaction(async () => {
-                users.insert({ name: '', email: 'bad' } as any);
+                await users.insert({ name: '', email: 'bad' } as any);
             });
         } catch (e) {
             error = e;
@@ -81,7 +81,7 @@ describe('Transactions', () => {
     test('returns value from transaction', async () => {
         const users = db.collection('users', userSchema);
         const id = await db.transaction(async () => {
-            const user = users.insert({
+            const user = await users.insert({
                 name: 'Jane',
                 email: 'jane@example.com',
             });
@@ -96,9 +96,9 @@ describe('Transactions', () => {
         let error;
         try {
             await db.transaction(async () => {
-                users.insert({ name: 'Outer', email: 'outer@example.com' });
+                await users.insert({ name: 'Outer', email: 'outer@example.com' });
                 await db.transaction(async () => {
-                    users.insert({ name: 'Inner', email: 'inner@example.com' });
+                    await users.insert({ name: 'Inner', email: 'inner@example.com' });
                 });
                 throw new Error('fail outer');
             });
@@ -112,7 +112,7 @@ describe('Transactions', () => {
     test('bulk operations are atomic', async () => {
         const users = db.collection('users', userSchema);
         await db.transaction(async () => {
-            users.insertBulk([
+            await users.insertBulk([
                 { name: 'A', email: 'a@example.com' },
                 { name: 'B', email: 'b@example.com' },
             ]);
@@ -125,7 +125,7 @@ describe('Transactions', () => {
         let error;
         try {
             await db.transaction(async () => {
-                users.insertBulk([
+                await users.insertBulk([
                     { name: 'A', email: 'a@example.com' },
                     { name: '', email: 'bad' } as any,
                 ]);
@@ -139,10 +139,10 @@ describe('Transactions', () => {
 
     test('supports reads and writes in transaction', async () => {
         const users = db.collection('users', userSchema);
-        users.insert({ name: 'X', email: 'x@example.com' });
+        await users.insert({ name: 'X', email: 'x@example.com' });
         const result = await db.transaction(async () => {
             const before = users.toArraySync().length;
-            users.insert({ name: 'Y', email: 'y@example.com' });
+            await users.insert({ name: 'Y', email: 'y@example.com' });
             const after = users.toArraySync().length;
             return { before, after };
         });
@@ -155,7 +155,7 @@ describe('Transactions', () => {
         const users = db.collection('users', userSchema);
         let txDone = false;
         const tx = db.transaction(async () => {
-            users.insert({ name: 'Z', email: 'z@example.com' });
+            await users.insert({ name: 'Z', email: 'z@example.com' });
             await new Promise((r) => setTimeout(r, 20));
             txDone = true;
             return users.toArraySync().length;
@@ -205,7 +205,7 @@ describe('Transactions', () => {
         let error;
         try {
             await db.transaction(async () => {
-                (db as any).collection('ghosts').insert({ foo: 'bar' });
+                await (db as any).collection('ghosts').insert({ foo: 'bar' });
             });
         } catch (e) {
             error = e;
@@ -218,9 +218,9 @@ describe('Transactions', () => {
         let error;
         try {
             await db.transaction(async () => {
-                users.insert({ name: 'Outer', email: 'outer@example.com' });
+                await users.insert({ name: 'Outer', email: 'outer@example.com' });
                 await db.transaction(async () => {
-                    users.insert({ name: 'Inner', email: 'inner@example.com' });
+                    await users.insert({ name: 'Inner', email: 'inner@example.com' });
                 });
                 throw new Error('fail outer');
             });
@@ -238,12 +238,12 @@ describe('Transactions', () => {
     test('transaction with simultaneous reads and writes to multiple collections', async () => {
         const users = db.collection('users', userSchema);
         const posts = db.collection('posts', postSchema);
-        users.insert({ name: 'A', email: 'a@example.com' });
+        await users.insert({ name: 'A', email: 'a@example.com' });
         const author = users.toArraySync()[0];
         expect(author).toBeTruthy();
         await db.transaction(async () => {
-            users.insert({ name: 'B', email: 'b@example.com' });
-            posts.insert({ title: 'T', content: 'C', authorId: author.id! });
+            await users.insert({ name: 'B', email: 'b@example.com' });
+            await posts.insert({ title: 'T', content: 'C', authorId: author.id! });
             expect(users.toArraySync()).toHaveLength(2);
             expect(posts.toArraySync()).toHaveLength(1);
         });
@@ -256,7 +256,7 @@ describe('Transactions', () => {
         let error;
         try {
             await db.transaction(async () => {
-                users.insert({ email: 'missingname@example.com' } as any);
+                await users.insert({ email: 'missingname@example.com' } as any);
             });
         } catch (e) {
             error = e;
@@ -270,7 +270,7 @@ describe('Transactions', () => {
         let error;
         try {
             await db.transaction(async () => {
-                users.insert({ name: 'Bad', email: 12345 } as any);
+                await users.insert({ name: 'Bad', email: 12345 } as any);
             });
         } catch (e) {
             error = e;
