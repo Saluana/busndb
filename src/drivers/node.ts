@@ -155,7 +155,58 @@ export class NodeDriver implements Driver {
         }
     }
 
-    exec(sql: string, params: any[] = []): void {
+    // Default async methods
+    async exec(sql: string, params: any[] = []): Promise<void> {
+        try {
+            if (this.dbType === 'libsql') {
+                // LibSQL native async support
+                await this.db.execute({ sql, args: params });
+            } else {
+                // Make sync operations async for consistency
+                await new Promise(resolve => setImmediate(resolve));
+                if (this.db.prepare) {
+                    // better-sqlite3
+                    const stmt = this.db.prepare(sql);
+                    stmt.run(params);
+                } else {
+                    throw new Error('sqlite3 driver requires async operations. Use better-sqlite3 for sync interface.');
+                }
+            }
+        } catch (error) {
+            throw new DatabaseError(
+                `Failed to execute: ${error instanceof Error ? error.message : String(error)}`,
+                sql
+            );
+        }
+    }
+
+    async query(sql: string, params: any[] = []): Promise<Row[]> {
+        try {
+            if (this.dbType === 'libsql') {
+                // LibSQL native async support
+                const result = await this.db.execute({ sql, args: params });
+                return result.rows.map((row: any) => this.convertLibSQLRow(row, result.columns));
+            } else {
+                // Make sync operations async for consistency
+                await new Promise(resolve => setImmediate(resolve));
+                if (this.db.prepare) {
+                    // better-sqlite3
+                    const stmt = this.db.prepare(sql);
+                    return stmt.all(params);
+                } else {
+                    throw new Error('sqlite3 driver requires async operations. Use better-sqlite3 for sync interface.');
+                }
+            }
+        } catch (error) {
+            throw new DatabaseError(
+                `Failed to query: ${error instanceof Error ? error.message : String(error)}`,
+                sql
+            );
+        }
+    }
+
+    // Sync methods for backward compatibility
+    execSync(sql: string, params: any[] = []): void {
         try {
             if (this.dbType === 'libsql') {
                 // LibSQL uses execute method
@@ -180,7 +231,7 @@ export class NodeDriver implements Driver {
         }
     }
 
-    query(sql: string, params: any[] = []): Row[] {
+    querySync(sql: string, params: any[] = []): Row[] {
         try {
             if (this.dbType === 'libsql') {
                 const result = this.db.executeSync({ sql, args: params });
@@ -244,15 +295,16 @@ export class NodeDriver implements Driver {
         }
     }
 
-    close(): void {
+    async close(): Promise<void> {
         try {
             if (this.db) {
                 if (this.dbType === 'libsql') {
                     if (this.db.close) {
-                        this.db.close();
+                        await this.db.close();
                     }
                 } else {
-                    // SQLite drivers
+                    // Make sync close async for consistency
+                    await new Promise(resolve => setImmediate(resolve));
                     if (this.db.close) {
                         this.db.close();
                     }
@@ -264,66 +316,15 @@ export class NodeDriver implements Driver {
         }
     }
 
-    // Async methods for non-blocking operations
-    async execAsync(sql: string, params: any[] = []): Promise<void> {
-        try {
-            if (this.dbType === 'libsql') {
-                // LibSQL native async support
-                await this.db.execute({ sql, args: params });
-            } else {
-                // Make sync operations async for consistency
-                await new Promise(resolve => setImmediate(resolve));
-                if (this.db.prepare) {
-                    // better-sqlite3
-                    const stmt = this.db.prepare(sql);
-                    stmt.run(params);
-                } else {
-                    throw new Error('sqlite3 driver requires async operations. Use better-sqlite3 for sync interface.');
-                }
-            }
-        } catch (error) {
-            throw new DatabaseError(
-                `Failed to execute: ${error instanceof Error ? error.message : String(error)}`,
-                sql
-            );
-        }
-    }
-
-    async queryAsync(sql: string, params: any[] = []): Promise<Row[]> {
-        try {
-            if (this.dbType === 'libsql') {
-                // LibSQL native async support
-                const result = await this.db.execute({ sql, args: params });
-                return result.rows.map((row: any) => this.convertLibSQLRow(row, result.columns));
-            } else {
-                // Make sync operations async for consistency
-                await new Promise(resolve => setImmediate(resolve));
-                if (this.db.prepare) {
-                    // better-sqlite3
-                    const stmt = this.db.prepare(sql);
-                    return stmt.all(params);
-                } else {
-                    throw new Error('sqlite3 driver requires async operations. Use better-sqlite3 for sync interface.');
-                }
-            }
-        } catch (error) {
-            throw new DatabaseError(
-                `Failed to query: ${error instanceof Error ? error.message : String(error)}`,
-                sql
-            );
-        }
-    }
-
-    async closeAsync(): Promise<void> {
+    closeSync(): void {
         try {
             if (this.db) {
                 if (this.dbType === 'libsql') {
                     if (this.db.close) {
-                        await this.db.close();
+                        this.db.close();
                     }
                 } else {
-                    // Make sync close async for consistency
-                    await new Promise(resolve => setImmediate(resolve));
+                    // SQLite drivers
                     if (this.db.close) {
                         this.db.close();
                     }

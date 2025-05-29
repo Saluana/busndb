@@ -77,42 +77,42 @@ describe('Query Builder - Feature Complete Tests', () => {
             },
         ];
 
-        collection.insertBulk(testData);
+        collection.insertBulkSync(testData);
     });
 
     describe('Basic Comparison Operators', () => {
         test('eq - equals', () => {
-            const results = collection.where('age').eq(30).toArray();
+            const results = collection.where('age').eq(30).toArraySync();
             expect(results).toHaveLength(1);
             expect(results[0].name).toBe('Bob Johnson');
         });
 
         test('neq - not equals', () => {
-            const results = collection.where('age').neq(30).toArray();
+            const results = collection.where('age').neq(30).toArraySync();
             expect(results).toHaveLength(4);
             expect(results.every((r) => r.age !== 30)).toBe(true);
         });
 
         test('gt - greater than', () => {
-            const results = collection.where('age').gt(30).toArray();
+            const results = collection.where('age').gt(30).toArraySync();
             expect(results).toHaveLength(2);
             expect(results.every((r) => r.age > 30)).toBe(true);
         });
 
         test('gte - greater than or equal', () => {
-            const results = collection.where('age').gte(30).toArray();
+            const results = collection.where('age').gte(30).toArraySync();
             expect(results).toHaveLength(3);
             expect(results.every((r) => r.age >= 30)).toBe(true);
         });
 
         test('lt - less than', () => {
-            const results = collection.where('age').lt(30).toArray();
+            const results = collection.where('age').lt(30).toArraySync();
             expect(results).toHaveLength(2);
             expect(results.every((r) => r.age < 30)).toBe(true);
         });
 
         test('lte - less than or equal', () => {
-            const results = collection.where('age').lte(30).toArray();
+            const results = collection.where('age').lte(30).toArraySync();
             expect(results).toHaveLength(3);
             expect(results.every((r) => r.age <= 30)).toBe(true);
         });
@@ -120,7 +120,7 @@ describe('Query Builder - Feature Complete Tests', () => {
 
     describe('Range Operators', () => {
         test('between - range query', () => {
-            const results = collection.where('age').between(28, 32).toArray();
+            const results = collection.where('age').between(28, 32).toArraySync();
             expect(results).toHaveLength(3);
             expect(results.every((r) => r.age >= 28 && r.age <= 32)).toBe(true);
         });
@@ -129,7 +129,7 @@ describe('Query Builder - Feature Complete Tests', () => {
             const results = collection
                 .where('score')
                 .between(700, 900)
-                .toArray();
+                .toArraySync();
             expect(results).toHaveLength(2);
             expect(results.every((r) => r.score >= 700 && r.score <= 900)).toBe(
                 true
@@ -139,38 +139,38 @@ describe('Query Builder - Feature Complete Tests', () => {
 
     describe('Array Operators', () => {
         test('in - value in array', () => {
-            const results = collection.where('age').in([25, 35]).toArray();
+            const results = collection.where('age').in([25, 35]).toArraySync();
             expect(results).toHaveLength(2);
             expect(results.every((r) => [25, 35].includes(r.age))).toBe(true);
         });
 
         test('nin - value not in array', () => {
-            const results = collection.where('age').nin([25, 35]).toArray();
+            const results = collection.where('age').nin([25, 35]).toArraySync();
             expect(results).toHaveLength(3);
             expect(results.every((r) => ![25, 35].includes(r.age))).toBe(true);
         });
 
         test('in with single value', () => {
-            const results = collection.where('age').in([30]).toArray();
+            const results = collection.where('age').in([30]).toArraySync();
             expect(results).toHaveLength(1);
             expect(results[0].age).toBe(30);
         });
 
         test('in with empty array returns no results', () => {
-            const results = collection.where('age').in([]).toArray();
+            const results = collection.where('age').in([]).toArraySync();
             expect(results).toHaveLength(0);
         });
     });
 
     describe('String Operators', () => {
         test('like - pattern matching', () => {
-            const results = collection.where('name').like('Alice%').toArray();
+            const results = collection.where('name').like('Alice%').toArraySync();
             expect(results).toHaveLength(1);
             expect(results[0].name).toBe('Alice Smith');
         });
 
         test('ilike - case insensitive pattern matching', () => {
-            const results = collection.where('name').ilike('alice%').toArray();
+            const results = collection.where('name').ilike('alice%').toArraySync();
             expect(results).toHaveLength(1);
             expect(results[0].name).toBe('Alice Smith');
         });
@@ -179,7 +179,7 @@ describe('Query Builder - Feature Complete Tests', () => {
             const results = collection
                 .where('name')
                 .startsWith('Bob')
-                .toArray();
+                .toArraySync();
             expect(results).toHaveLength(1);
             expect(results[0].name).toBe('Bob Johnson');
         });
@@ -188,7 +188,7 @@ describe('Query Builder - Feature Complete Tests', () => {
             const results = collection
                 .where('name')
                 .endsWith('Brown')
-                .toArray();
+                .toArraySync();
             expect(results).toHaveLength(1);
             expect(results[0].name).toBe('Charlie Brown');
         });
@@ -197,7 +197,7 @@ describe('Query Builder - Feature Complete Tests', () => {
             const results = collection
                 .where('email')
                 .contains('example')
-                .toArray();
+                .toArraySync();
             expect(results).toHaveLength(5);
         });
 
@@ -205,7 +205,7 @@ describe('Query Builder - Feature Complete Tests', () => {
             const results = collection
                 .where('name')
                 .contains('Johnson')
-                .toArray();
+                .toArraySync();
             expect(results).toHaveLength(1);
             expect(results[0].name).toBe('Bob Johnson');
         });
@@ -213,13 +213,13 @@ describe('Query Builder - Feature Complete Tests', () => {
 
     describe('Existence Operators', () => {
         test('exists - field has value', () => {
-            const results = collection.where('metadata').exists().toArray();
+            const results = collection.where('metadata').exists().toArraySync();
             expect(results).toHaveLength(4);
             expect(results.every((r) => r.metadata !== undefined)).toBe(true);
         });
 
         test('notExists - field is null/undefined', () => {
-            const results = collection.where('metadata').notExists().toArray();
+            const results = collection.where('metadata').notExists().toArraySync();
             expect(results).toHaveLength(1);
             expect(results[0].name).toBe('Eve Davis');
         });
@@ -236,7 +236,7 @@ describe('Query Builder - Feature Complete Tests', () => {
                 .and()
                 .where('isActive')
                 .eq(true)
-                .toArray();
+                .toArraySync();
 
             expect(results).toHaveLength(3); // Alice (25), Diana (28), Bob (30) - all active
             expect(
@@ -250,7 +250,7 @@ describe('Query Builder - Feature Complete Tests', () => {
                 .gt(700)
                 .where('isActive')
                 .eq(true)
-                .toArray();
+                .toArraySync();
 
             expect(results).toHaveLength(3); // Alice (850.5), Diana (920.75), Bob (750.0) - all active and > 700
             expect(results.every((r) => r.score > 700 && r.isActive)).toBe(
@@ -264,7 +264,7 @@ describe('Query Builder - Feature Complete Tests', () => {
                 .startsWith('A')
                 .where('score')
                 .gte(800)
-                .toArray();
+                .toArraySync();
 
             expect(results).toHaveLength(1);
             expect(results[0].name).toBe('Alice Smith');
@@ -273,7 +273,7 @@ describe('Query Builder - Feature Complete Tests', () => {
 
     describe('Sorting', () => {
         test('orderBy single field ascending', () => {
-            const results = collection.orderBy('age', 'asc').toArray();
+            const results = collection.orderBy('age', 'asc').toArraySync();
             expect(results).toHaveLength(5);
             for (let i = 1; i < results.length; i++) {
                 expect(results[i].age).toBeGreaterThanOrEqual(
@@ -283,7 +283,7 @@ describe('Query Builder - Feature Complete Tests', () => {
         });
 
         test('orderBy single field descending', () => {
-            const results = collection.orderBy('score', 'desc').toArray();
+            const results = collection.orderBy('score', 'desc').toArraySync();
             expect(results).toHaveLength(5);
             for (let i = 1; i < results.length; i++) {
                 expect(results[i].score).toBeLessThanOrEqual(
@@ -296,7 +296,7 @@ describe('Query Builder - Feature Complete Tests', () => {
             const results = collection
                 .orderBy('isActive', 'desc')
                 .orderBy('age', 'asc')
-                .toArray();
+                .toArraySync();
 
             expect(results).toHaveLength(5);
             // First should be active users sorted by age
@@ -316,7 +316,7 @@ describe('Query Builder - Feature Complete Tests', () => {
 
         test('orderByOnly - replace existing order', () => {
             const builder = collection.orderBy('age', 'asc');
-            const results = builder.orderByOnly('score', 'desc').toArray();
+            const results = builder.orderByOnly('score', 'desc').toArraySync();
 
             expect(results).toHaveLength(5);
             for (let i = 1; i < results.length; i++) {
@@ -332,7 +332,7 @@ describe('Query Builder - Feature Complete Tests', () => {
                     { field: 'isActive', direction: 'desc' },
                     { field: 'score', direction: 'desc' },
                 ])
-                .toArray();
+                .toArraySync();
 
             expect(results).toHaveLength(5);
             expect(results[0].isActive).toBe(true);
@@ -342,12 +342,12 @@ describe('Query Builder - Feature Complete Tests', () => {
 
     describe('Pagination', () => {
         test('limit only', () => {
-            const results = collection.orderBy('age').limit(3).toArray();
+            const results = collection.orderBy('age').limit(3).toArraySync();
             expect(results).toHaveLength(3);
         });
 
         test('offset only', () => {
-            const results = collection.orderBy('age').offset(2).toArray();
+            const results = collection.orderBy('age').offset(2).toArraySync();
             expect(results).toHaveLength(3);
         });
 
@@ -356,21 +356,21 @@ describe('Query Builder - Feature Complete Tests', () => {
                 .orderBy('age')
                 .limit(2)
                 .offset(1)
-                .toArray();
+                .toArraySync();
             expect(results).toHaveLength(2);
         });
 
         test('page helper method', () => {
             // Page 1, size 2
-            const page1 = collection.orderBy('age').page(1, 2).toArray();
+            const page1 = collection.orderBy('age').page(1, 2).toArraySync();
             expect(page1).toHaveLength(2);
 
             // Page 2, size 2
-            const page2 = collection.orderBy('age').page(2, 2).toArray();
+            const page2 = collection.orderBy('age').page(2, 2).toArraySync();
             expect(page2).toHaveLength(2);
 
             // Page 3, size 2
-            const page3 = collection.orderBy('age').page(3, 2).toArray();
+            const page3 = collection.orderBy('age').page(3, 2).toArraySync();
             expect(page3).toHaveLength(1);
 
             // Ensure no overlap
@@ -407,7 +407,7 @@ describe('Query Builder - Feature Complete Tests', () => {
     describe('Advanced Features', () => {
         test('distinct results', () => {
             // Add duplicate ages
-            collection.insert({
+            collection.insertSync({
                 name: 'Another 25 year old',
                 email: 'another25@example.com',
                 age: 25,
@@ -416,13 +416,13 @@ describe('Query Builder - Feature Complete Tests', () => {
                 tags: ['user'],
             });
 
-            const results = collection.distinct().toArray();
+            const results = collection.distinct().toArraySync();
             // All records should still be returned since docs are different
             expect(results.length).toBeGreaterThan(5);
         });
 
         test('count with filters', () => {
-            const count = collection.where('isActive').eq(true).count();
+            const count = collection.where('isActive').eq(true).countSync();
             expect(count).toBe(3);
         });
 
@@ -431,14 +431,14 @@ describe('Query Builder - Feature Complete Tests', () => {
                 .where('score')
                 .gt(800)
                 .orderBy('score', 'desc')
-                .first();
+                .firstSync();
 
             expect(result?.name).toBe('Diana Wilson');
             expect(result?.score).toBe(920.75);
         });
 
         test('first returns null when no results', () => {
-            const result = collection.where('age').gt(100).first();
+            const result = collection.where('age').gt(100).firstSync();
             expect(result).toBeNull();
         });
     });
@@ -497,16 +497,16 @@ describe('Query Builder - Feature Complete Tests', () => {
             const cloned = original.clone();
 
             // Both should return same results
-            const originalResults = original.toArray();
-            const clonedResults = cloned.toArray();
+            const originalResults = original.toArraySync();
+            const clonedResults = cloned.toArraySync();
 
             expect(originalResults).toHaveLength(clonedResults.length);
             expect(originalResults[0].id).toBe(clonedResults[0].id);
 
             // Modifying clone shouldn't affect original
             cloned.where('isActive').eq(true);
-            const newClonedResults = cloned.toArray();
-            const newOriginalResults = original.toArray();
+            const newClonedResults = cloned.toArraySync();
+            const newOriginalResults = original.toArraySync();
 
             expect(newClonedResults.length).toBeLessThanOrEqual(
                 newOriginalResults.length
@@ -534,13 +534,13 @@ describe('Query Builder - Feature Complete Tests', () => {
         test('FieldBuilder execution methods throw errors', () => {
             const fieldBuilder = collection.where('age');
 
-            expect(() => fieldBuilder.toArray()).toThrow(
+            expect(() => fieldBuilder.toArraySync()).toThrow(
                 'should not be called on FieldBuilder'
             );
-            expect(() => fieldBuilder.first()).toThrow(
+            expect(() => fieldBuilder.firstSync()).toThrow(
                 'should not be called on FieldBuilder'
             );
-            expect(() => fieldBuilder.count()).toThrow(
+            expect(() => fieldBuilder.countSync()).toThrow(
                 'should not be called on FieldBuilder'
             );
         });
@@ -548,31 +548,31 @@ describe('Query Builder - Feature Complete Tests', () => {
 
     describe('Performance and Edge Cases', () => {
         test('large limit values', () => {
-            const results = collection.limit(1000).toArray();
+            const results = collection.limit(1000).toArraySync();
             expect(results).toHaveLength(5); // Only 5 records exist
         });
 
         test('large offset values', () => {
-            const results = collection.offset(1000).toArray();
+            const results = collection.offset(1000).toArraySync();
             expect(results).toHaveLength(0);
         });
 
         test('empty string searches', () => {
-            const results = collection.where('name').contains('').toArray();
+            const results = collection.where('name').contains('').toArraySync();
             expect(results).toHaveLength(5); // All records contain empty string
         });
 
         test('null value comparisons', () => {
-            const results = collection.where('metadata').exists().toArray();
+            const results = collection.where('metadata').exists().toArraySync();
             expect(results).toHaveLength(4);
         });
 
         test('boolean field queries', () => {
-            const activeCount = collection.where('isActive').eq(true).count();
+            const activeCount = collection.where('isActive').eq(true).countSync();
             const inactiveCount = collection
                 .where('isActive')
                 .eq(false)
-                .count();
+                .countSync();
 
             expect(activeCount).toBe(3);
             expect(inactiveCount).toBe(2);

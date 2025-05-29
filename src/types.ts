@@ -23,15 +23,16 @@ export interface DBConfig {
 }
 
 export interface Driver {
-    exec(sql: string, params?: any[]): void;
-    query(sql: string, params?: any[]): Row[];
+    // Default async methods
+    exec(sql: string, params?: any[]): Promise<void>;
+    query(sql: string, params?: any[]): Promise<Row[]>;
     transaction<T>(fn: () => Promise<T>): Promise<T>;
-    close(): void;
+    close(): Promise<void>;
     
-    // Async methods
-    execAsync(sql: string, params?: any[]): Promise<void>;
-    queryAsync(sql: string, params?: any[]): Promise<Row[]>;
-    closeAsync(): Promise<void>;
+    // Sync methods (for backward compatibility)
+    execSync(sql: string, params?: any[]): void;
+    querySync(sql: string, params?: any[]): Row[];
+    closeSync(): void;
 }
 
 export interface Row {

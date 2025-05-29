@@ -109,16 +109,12 @@ export class Database {
             schema: {} as any,
             operation: 'database_close'
         });
-        this.driver.close();
+        await this.driver.close();
     }
 
-    async closeAsync(): Promise<void> {
-        await this.plugins.executeHookSafe('onDatabaseClose', {
-            collectionName: '',
-            schema: {} as any,
-            operation: 'database_close'
-        });
-        await this.driver.closeAsync();
+    closeSync(): void {
+        // Note: Plugin hooks are async, so we can't properly await them in sync mode
+        this.driver.closeSync();
     }
 
     // Plugin management methods
@@ -144,21 +140,21 @@ export class Database {
         return this.registry.list();
     }
 
-    exec(sql: string, params?: any[]): void {
+    async exec(sql: string, params?: any[]): Promise<void> {
         return this.driver.exec(sql, params);
     }
 
-    query(sql: string, params?: any[]): Row[] {
+    async query(sql: string, params?: any[]): Promise<Row[]> {
         return this.driver.query(sql, params);
     }
 
-    // Async versions
-    async execAsync(sql: string, params?: any[]): Promise<void> {
-        return this.driver.execAsync(sql, params);
+    // Sync versions for backward compatibility
+    execSync(sql: string, params?: any[]): void {
+        return this.driver.execSync(sql, params);
     }
 
-    async queryAsync(sql: string, params?: any[]): Promise<Row[]> {
-        return this.driver.queryAsync(sql, params);
+    querySync(sql: string, params?: any[]): Row[] {
+        return this.driver.querySync(sql, params);
     }
 }
 

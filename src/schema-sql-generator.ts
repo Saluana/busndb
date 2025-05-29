@@ -57,7 +57,9 @@ export class SchemaSQLGenerator {
                 if (fieldDef.foreignKey) {
                     const fkRef = parseForeignKeyReference(fieldDef.foreignKey);
                     if (fkRef) {
-                        columnDef += ` REFERENCES ${fkRef.table}(${fkRef.column})`;
+                        // Map 'id' references to '_id' since that's the actual primary key column in BusNDB
+                        const actualColumn = fkRef.column === 'id' ? '_id' : fkRef.column;
+                        columnDef += ` REFERENCES ${fkRef.table}(${actualColumn})`;
                         
                         if (fieldDef.onDelete) {
                             columnDef += ` ON DELETE ${fieldDef.onDelete}`;

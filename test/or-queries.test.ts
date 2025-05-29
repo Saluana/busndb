@@ -72,7 +72,7 @@ describe('OR Query Operations', () => {
       }
     ];
 
-    collection.insertBulk(testData);
+    collection.insertBulkSync(testData);
   });
 
   describe('Basic OR Operations', () => {
@@ -80,7 +80,7 @@ describe('OR Query Operations', () => {
       const results = collection
         .where('department').eq('Engineering')
         .or(builder => builder.where('department').eq('Marketing'))
-        .toArray();
+        .toArraySync();
       
       expect(results).toHaveLength(4); // 3 Engineering + 1 Marketing
       const departments = results.map(r => r.department);
@@ -95,7 +95,7 @@ describe('OR Query Operations', () => {
           builder.where('department').eq('Engineering')
             .where('salary').gt(90000)
         )
-        .toArray();
+        .toArraySync();
       
       // Current implementation: (Age < 30) OR (Engineering AND salary > 90k)
       // Age < 30: Alice (25), David (28) 
@@ -111,7 +111,7 @@ describe('OR Query Operations', () => {
           builder => builder.where('department').eq('Engineering').where('salary').gt(90000),
           builder => builder.where('age').gt(35)
         ])
-        .toArray();
+        .toArraySync();
       
       // Current: Active OR (Engineering with >90k salary) OR (age > 35)
       // Active: Alice, Bob, David = 3
@@ -128,7 +128,7 @@ describe('OR Query Operations', () => {
         .where('isActive').eq(true)
         .where('salary').gte(70000)
         .or(builder => builder.where('department').eq('Engineering'))
-        .toArray();
+        .toArraySync();
       
       // Current implementation: (Active AND salary >= 70k) OR Engineering
       // Active + 70k+: Alice (85k), David (70k) = 2
@@ -142,7 +142,7 @@ describe('OR Query Operations', () => {
         .where('age').lt(28)
         .or(builder => builder.where('department').eq('Marketing'))
         .or(builder => builder.where('salary').gt(90000))
-        .toArray();
+        .toArraySync();
       
       // Age < 28: Alice (25)
       // Marketing: Bob
@@ -159,7 +159,7 @@ describe('OR Query Operations', () => {
           builder.where('department').eq('Engineering')
             .or(subBuilder => subBuilder.where('salary').gt(85000))
         )
-        .toArray();
+        .toArraySync();
       
       // This should get all active users OR Engineering users OR high salary users
       expect(results.length).toBeGreaterThan(0);
@@ -171,7 +171,7 @@ describe('OR Query Operations', () => {
       const results = collection
         .where('name').startsWith('A')
         .or(builder => builder.where('email').contains('bob'))
-        .toArray();
+        .toArraySync();
       
       expect(results).toHaveLength(2); // Alice + Bob
       const names = results.map(r => r.name).sort();
@@ -182,7 +182,7 @@ describe('OR Query Operations', () => {
       const results = collection
         .where('age').between(25, 28)
         .or(builder => builder.where('salary').gt(90000))
-        .toArray();
+        .toArraySync();
       
       // Age 25-28: Alice (25), David (28)
       // Salary > 90k: Carol (95k)
@@ -193,7 +193,7 @@ describe('OR Query Operations', () => {
       const results = collection
         .where('department').in(['Sales', 'Marketing'])
         .or(builder => builder.where('age').nin([25, 30, 35]))
-        .toArray();
+        .toArraySync();
       
       // Sales or Marketing: Bob (Marketing), David (Sales)
       // Age not in [25,30,35]: David (28), Eve (32)
@@ -204,7 +204,7 @@ describe('OR Query Operations', () => {
       const results = collection
         .where('skills').exists()
         .or(builder => builder.where('department').eq('NonExistent'))
-        .toArray();
+        .toArraySync();
       
       // All users have skills, so should return all 5
       expect(results).toHaveLength(5);
@@ -217,7 +217,7 @@ describe('OR Query Operations', () => {
       const results = collection
         .where('name').ilike(`%${searchTerm}%`)
         .or(builder => builder.where('email').contains(searchTerm))
-        .toArray();
+        .toArraySync();
       
       expect(results).toHaveLength(1);
       expect(results[0].name).toBe('Alice Johnson');
@@ -231,7 +231,7 @@ describe('OR Query Operations', () => {
           builder.where('department').eq('Sales')
             .where('salary').gte(70000)
         )
-        .toArray();
+        .toArraySync();
       
       // Current: (Engineering AND Active) OR (Sales AND Salary >= 70k)
       // Engineering + Active: Alice = 1
@@ -252,7 +252,7 @@ describe('OR Query Operations', () => {
           builder.where('age').lt(26)
             .where('skills').contains('JavaScript')
         )
-        .toArray();
+        .toArraySync();
       
       // With multiple OR calls, this becomes complex
       // Let's just check we get results
@@ -266,7 +266,7 @@ describe('OR Query Operations', () => {
         .where('department').eq('Engineering')
         .or(builder => builder.where('age').lt(30))
         .orderBy('salary', 'desc')
-        .toArray();
+        .toArraySync();
       
       expect(results.length).toBeGreaterThan(0);
       // Check that results are sorted by salary descending
@@ -281,14 +281,14 @@ describe('OR Query Operations', () => {
         .or(builder => builder.where('salary').gt(80000))
         .orderBy('name')
         .page(1, 2)
-        .toArray();
+        .toArraySync();
       
       const page2 = collection
         .where('isActive').eq(true)
         .or(builder => builder.where('salary').gt(80000))
         .orderBy('name')
         .page(2, 2)
-        .toArray();
+        .toArraySync();
       
       expect(page1).toHaveLength(2);
       expect(page2.length).toBeGreaterThan(0);
@@ -306,7 +306,7 @@ describe('OR Query Operations', () => {
       const count = collection
         .where('department').eq('Engineering')
         .or(builder => builder.where('isActive').eq(false))
-        .count();
+        .countSync();
       
       // Engineering: 3, Inactive: 2 (Carol, Eve both Engineering and inactive)
       // So unique count should be 3 (all Engineering users)
@@ -318,7 +318,7 @@ describe('OR Query Operations', () => {
         .where('age').gt(100) // No matches
         .or(builder => builder.where('department').eq('Engineering'))
         .orderBy('salary', 'desc')
-        .first();
+        .firstSync();
       
       expect(result).not.toBeNull();
       expect(result?.department).toBe('Engineering');
@@ -332,7 +332,7 @@ describe('OR Query Operations', () => {
       const results = collection
         .where('department').eq('Engineering')
         .or(builder => builder) // Empty OR
-        .toArray();
+        .toArraySync();
       
       // Should still work, essentially just the first condition
       expect(results).toHaveLength(3); // Just Engineering
@@ -341,7 +341,7 @@ describe('OR Query Operations', () => {
     test('OR with no base conditions', () => {
       const results = collection
         .or(builder => builder.where('department').eq('Engineering'))
-        .toArray();
+        .toArraySync();
       
       expect(results).toHaveLength(3); // Engineering users
     });
@@ -350,7 +350,7 @@ describe('OR Query Operations', () => {
       const results = collection
         .where('isActive').eq(true)
         .orWhere([])
-        .toArray();
+        .toArraySync();
       
       expect(results).toHaveLength(3); // Just active users
     });

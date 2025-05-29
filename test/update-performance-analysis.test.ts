@@ -78,7 +78,7 @@ async function analyzeUpdatePerformance() {
     }));
 
     simpleCollection.insertBulk(simpleData);
-    const simpleIds = simpleCollection.toArray().map((doc) => doc.id);
+    const simpleIds = simpleCollection.toArraySync().map((doc) => doc.id);
 
     const simpleUpdateResult = benchmark(
         'Simple Updates (No Constraints)',
@@ -113,7 +113,7 @@ async function analyzeUpdatePerformance() {
     }));
 
     constrainedCollection.insertBulk(constrainedData);
-    const constrainedIds = constrainedCollection.toArray().map((doc) => doc.id);
+    const constrainedIds = constrainedCollection.toArraySync().map((doc) => doc.id);
 
     const constrainedUpdateResult = benchmark(
         'Updates with Unique Constraints',
@@ -160,7 +160,7 @@ async function analyzeUpdatePerformance() {
     }));
 
     complexCollection.insertBulk(complexData);
-    const complexIds = complexCollection.toArray().map((doc) => doc.id);
+    const complexIds = complexCollection.toArraySync().map((doc) => doc.id);
 
     const complexUpdateResult = benchmark(
         'Complex Updates (Schema + Constraints)',

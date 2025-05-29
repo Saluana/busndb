@@ -128,7 +128,7 @@ describe('Upsert Optimization Verification', () => {
 
         // Verify data integrity
         console.log('\n=== DATA INTEGRITY VERIFICATION ===\n');
-        const finalDocs = collection.toArray();
+        const finalDocs = collection.toArraySync();
         const expectedCount = 1000;
 
         console.log(`Expected documents: ${expectedCount}`);
@@ -183,7 +183,7 @@ describe('Upsert Optimization Verification', () => {
         );
 
         // Verify results
-        const finalCount = collection.toArray().length;
+        const finalCount = collection.toArraySync().length;
         console.log(`Final document count: ${finalCount} (expected: 1000)`);
         console.log(
             `Mixed operation integrity: ${

@@ -1,9 +1,55 @@
 import { z } from 'zod';
 import type { CollectionSchema, InferSchema, ConstrainedFieldDefinition } from './types';
-import type { SchemaConstraints } from './schema-constraints';
+import type { SchemaConstraints, Constraint } from './schema-constraints';
 
 export class Registry {
     private collections = new Map<string, CollectionSchema>();
+
+    private convertConstraintsToConstrainedFields(
+        constraints: SchemaConstraints
+    ): { [fieldPath: string]: ConstrainedFieldDefinition } {
+        const result: { [fieldPath: string]: ConstrainedFieldDefinition } = {};
+        
+        if (constraints?.constraints) {
+            for (const [fieldPath, constraint] of Object.entries(constraints.constraints)) {
+                const constraintArray = Array.isArray(constraint) ? constraint : [constraint];
+                
+                for (const c of constraintArray) {
+                    switch (c.type) {
+                        case 'unique':
+                            // Handle composite unique constraints
+                            if (c.fields && c.fields.length > 1) {
+                                // For composite constraints, skip for now (needs table-level constraint)
+                                console.warn(`Composite unique constraint on ${c.fields.join(', ')} not yet supported`);
+                                continue;
+                            } else if (c.fields && c.fields.length === 1) {
+                                // Single field from composite constraint definition
+                                const actualField = c.fields[0];
+                                if (!result[actualField]) result[actualField] = {};
+                                result[actualField].unique = true;
+                            } else {
+                                // Regular single field constraint
+                                if (!result[fieldPath]) result[fieldPath] = {};
+                                result[fieldPath].unique = true;
+                            }
+                            break;
+                        case 'foreign_key':
+                            if (!result[fieldPath]) result[fieldPath] = {};
+                            result[fieldPath].foreignKey = `${c.referencedTable}.${c.referencedFields[0]}`;
+                            if (c.onDelete) result[fieldPath].onDelete = c.onDelete.toUpperCase() as any;
+                            if (c.onUpdate) result[fieldPath].onUpdate = c.onUpdate.toUpperCase() as any;
+                            break;
+                        case 'check':
+                            if (!result[fieldPath]) result[fieldPath] = {};
+                            result[fieldPath].checkConstraint = c.expression;
+                            break;
+                    }
+                }
+            }
+        }
+        
+        return result;
+    }
 
     register<T extends z.ZodSchema>(
         name: string,
@@ -19,13 +65,20 @@ export class Registry {
             throw new Error(`Collection '${name}' is already registered`);
         }
 
+        // Convert old constraints API to constrainedFields if needed
+        let finalConstrainedFields = options.constrainedFields || {};
+        if (options.constraints) {
+            const convertedFields = this.convertConstraintsToConstrainedFields(options.constraints);
+            finalConstrainedFields = { ...convertedFields, ...finalConstrainedFields };
+        }
+
         const collectionSchema: CollectionSchema<InferSchema<T>> = {
             name,
             schema,
             primaryKey: options.primaryKey || 'id',
             indexes: options.indexes || [],
             constraints: options.constraints,
-            constrainedFields: options.constrainedFields,
+            constrainedFields: finalConstrainedFields,
         };
 
         this.collections.set(name, collectionSchema);

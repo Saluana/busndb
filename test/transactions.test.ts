@@ -45,8 +45,8 @@ describe('Transactions', () => {
             return { user, post };
         });
         expect(result.user.name).toBe('John');
-        expect(users.toArray()).toHaveLength(1);
-        expect(posts.toArray()).toHaveLength(1);
+        expect(users.toArraySync()).toHaveLength(1);
+        expect(posts.toArraySync()).toHaveLength(1);
     });
 
     test('rolls back all changes on error', async () => {
@@ -61,7 +61,7 @@ describe('Transactions', () => {
             error = e;
         }
         expect(error).toBeTruthy();
-        expect(users.toArray()).toHaveLength(0);
+        expect(users.toArraySync()).toHaveLength(0);
     });
 
     test('rolls back on validation error', async () => {
@@ -75,7 +75,7 @@ describe('Transactions', () => {
             error = e;
         }
         expect(error).toBeInstanceOf(ValidationError);
-        expect(users.toArray()).toHaveLength(0);
+        expect(users.toArraySync()).toHaveLength(0);
     });
 
     test('returns value from transaction', async () => {
@@ -106,7 +106,7 @@ describe('Transactions', () => {
             error = e;
         }
         expect(error).toBeTruthy();
-        expect(users.toArray()).toHaveLength(0);
+        expect(users.toArraySync()).toHaveLength(0);
     });
 
     test('bulk operations are atomic', async () => {
@@ -117,7 +117,7 @@ describe('Transactions', () => {
                 { name: 'B', email: 'b@example.com' },
             ]);
         });
-        expect(users.toArray()).toHaveLength(2);
+        expect(users.toArraySync()).toHaveLength(2);
     });
 
     test('bulk operations rollback on error', async () => {
@@ -134,21 +134,21 @@ describe('Transactions', () => {
             error = e;
         }
         expect(error).toBeInstanceOf(ValidationError);
-        expect(users.toArray()).toHaveLength(0);
+        expect(users.toArraySync()).toHaveLength(0);
     });
 
     test('supports reads and writes in transaction', async () => {
         const users = db.collection('users', userSchema);
         users.insert({ name: 'X', email: 'x@example.com' });
         const result = await db.transaction(async () => {
-            const before = users.toArray().length;
+            const before = users.toArraySync().length;
             users.insert({ name: 'Y', email: 'y@example.com' });
-            const after = users.toArray().length;
+            const after = users.toArraySync().length;
             return { before, after };
         });
         expect(result.before).toBe(1);
         expect(result.after).toBe(2);
-        expect(users.toArray()).toHaveLength(2);
+        expect(users.toArraySync()).toHaveLength(2);
     });
 
     test('transaction isolation: changes not visible until commit', async () => {
@@ -158,13 +158,13 @@ describe('Transactions', () => {
             users.insert({ name: 'Z', email: 'z@example.com' });
             await new Promise((r) => setTimeout(r, 20));
             txDone = true;
-            return users.toArray().length;
+            return users.toArraySync().length;
         });
-        expect(users.toArray()).toHaveLength(0);
+        expect(users.toArraySync()).toHaveLength(0);
         const count = await tx;
         expect(txDone).toBe(true);
         expect(count).toBe(1);
-        expect(users.toArray()).toHaveLength(1);
+        expect(users.toArraySync()).toHaveLength(1);
     });
 
     test('commits an empty transaction', async () => {
@@ -228,7 +228,7 @@ describe('Transactions', () => {
             error = e;
         }
         expect(error).toBeTruthy();
-        expect(users.toArray()).toHaveLength(0);
+        expect(users.toArraySync()).toHaveLength(0);
     });
 
     test('transaction with no operations does not throw', async () => {
@@ -239,16 +239,16 @@ describe('Transactions', () => {
         const users = db.collection('users', userSchema);
         const posts = db.collection('posts', postSchema);
         users.insert({ name: 'A', email: 'a@example.com' });
-        const author = users.toArray()[0];
+        const author = users.toArraySync()[0];
         expect(author).toBeTruthy();
         await db.transaction(async () => {
             users.insert({ name: 'B', email: 'b@example.com' });
             posts.insert({ title: 'T', content: 'C', authorId: author.id! });
-            expect(users.toArray()).toHaveLength(2);
-            expect(posts.toArray()).toHaveLength(1);
+            expect(users.toArraySync()).toHaveLength(2);
+            expect(posts.toArraySync()).toHaveLength(1);
         });
-        expect(users.toArray()).toHaveLength(2);
-        expect(posts.toArray()).toHaveLength(1);
+        expect(users.toArraySync()).toHaveLength(2);
+        expect(posts.toArraySync()).toHaveLength(1);
     });
 
     test('transaction with schema validation edge case: missing required field', async () => {
@@ -262,7 +262,7 @@ describe('Transactions', () => {
             error = e;
         }
         expect(error).toBeInstanceOf(ValidationError);
-        expect(users.toArray()).toHaveLength(0);
+        expect(users.toArraySync()).toHaveLength(0);
     });
 
     test('transaction with schema validation edge case: invalid type', async () => {
@@ -276,6 +276,6 @@ describe('Transactions', () => {
             error = e;
         }
         expect(error).toBeInstanceOf(ValidationError);
-        expect(users.toArray()).toHaveLength(0);
+        expect(users.toArraySync()).toHaveLength(0);
     });
 });

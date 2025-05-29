@@ -56,12 +56,12 @@ describe('Integration: BusNDB End-to-End', () => {
     });
 
     test('insert and find user', () => {
-        const user = users.insert({
+        const user = users.insertSync({
             name: 'Alice',
             email: 'alice@example.com',
         });
         expect(user.id).toBeDefined();
-        const found = users.findById(user.id);
+        const found = users.findByIdSync(user.id);
         expect(found).toEqual(user);
     });
 
@@ -70,66 +70,66 @@ describe('Integration: BusNDB End-to-End', () => {
             { name: 'Bob', email: 'bob@example.com' },
             { name: 'Carol', email: 'carol@example.com' },
         ];
-        const inserted = users.insertBulk(docs);
+        const inserted = users.insertBulkSync(docs);
         expect(inserted).toHaveLength(2);
         expect(inserted[0].id).toBeDefined();
         expect(inserted[1].id).toBeDefined();
     });
 
     test('unique constraint violation', () => {
-        users.insert({ name: 'Dan', email: 'dan@example.com' });
+        users.insertSync({ name: 'Dan', email: 'dan@example.com' });
         expect(() =>
-            users.insert({ name: 'Dan2', email: 'dan@example.com' })
+            users.insertSync({ name: 'Dan2', email: 'dan@example.com' })
         ).toThrow(UniqueConstraintError);
     });
 
     test('validate email format', () => {
         expect(() =>
-            users.insert({ name: 'Eve', email: 'not-an-email' } as any)
+            users.insertSync({ name: 'Eve', email: 'not-an-email' } as any)
         ).toThrow(ValidationError);
     });
 
     test('put updates user', () => {
-        const user = users.insert({
+        const user = users.insertSync({
             name: 'Frank',
             email: 'frank@example.com',
         });
-        const updated = users.put(user.id, { name: 'Franklin' });
+        const updated = users.putSync(user.id, { name: 'Franklin' });
         expect(updated.name).toBe('Franklin');
         expect(updated.email).toBe('frank@example.com');
     });
 
     test('put throws on non-existent', () => {
-        expect(() => users.put('non-existent-id', { name: 'Ghost' })).toThrow(
+        expect(() => users.putSync('non-existent-id', { name: 'Ghost' })).toThrow(
             NotFoundError
         );
     });
 
     test('delete user', () => {
-        const user = users.insert({
+        const user = users.insertSync({
             name: 'Helen',
             email: 'helen@example.com',
         });
-        expect(users.delete(user.id)).toBe(true);
-        expect(users.findById(user.id)).toBeNull();
+        expect(users.deleteSync(user.id)).toBe(true);
+        expect(users.findByIdSync(user.id)).toBeNull();
     });
 
     test('delete bulk users', () => {
-        const u1 = users.insert({ name: 'Ivy', email: 'ivy@example.com' });
-        const u2 = users.insert({ name: 'Jack', email: 'jack@example.com' });
-        expect(users.deleteBulk([u1.id, u2.id])).toBe(2);
+        const u1 = users.insertSync({ name: 'Ivy', email: 'ivy@example.com' });
+        const u2 = users.insertSync({ name: 'Jack', email: 'jack@example.com' });
+        expect(users.deleteBulkSync([u1.id, u2.id])).toBe(2);
     });
 
     test('foreign key constraint', () => {
-        const user = users.insert({ name: 'Kim', email: 'kim@example.com' });
-        const post = posts.insert({
+        const user = users.insertSync({ name: 'Kim', email: 'kim@example.com' });
+        const post = posts.insertSync({
             title: 'Hello',
             content: 'World',
             authorId: user.id,
         });
         expect(post.authorId).toBe(user.id);
         expect(() =>
-            posts.insert({
+            posts.insertSync({
                 title: 'Bad',
                 content: 'No user',
                 authorId: 'bad-id',
@@ -138,69 +138,69 @@ describe('Integration: BusNDB End-to-End', () => {
     });
 
     test('query with where/eq', () => {
-        users.insert({ name: 'Leo', email: 'leo@example.com' });
-        const result = users.where('name').eq('Leo').toArray();
+        users.insertSync({ name: 'Leo', email: 'leo@example.com' });
+        const result = users.where('name').eq('Leo').toArraySync();
         expect(result).toHaveLength(1);
         expect(result[0].name).toBe('Leo');
     });
 
     test('query with gt/lt', () => {
-        users.insert({ name: 'Mia', email: 'mia@example.com', age: 30 });
-        users.insert({ name: 'Nina', email: 'nina@example.com', age: 40 });
-        const result = users.where('age').gt(35).toArray();
+        users.insertSync({ name: 'Mia', email: 'mia@example.com', age: 30 });
+        users.insertSync({ name: 'Nina', email: 'nina@example.com', age: 40 });
+        const result = users.where('age').gt(35).toArraySync();
         expect(result.length).toBeGreaterThan(0);
     });
 
     test('query with in/nin', () => {
-        users.insert({ name: 'Owen', email: 'owen@example.com', age: 20 });
-        users.insert({ name: 'Paul', email: 'paul@example.com', age: 25 });
-        const inRes = users.where('age').in([20, 25]).toArray();
+        users.insertSync({ name: 'Owen', email: 'owen@example.com', age: 20 });
+        users.insertSync({ name: 'Paul', email: 'paul@example.com', age: 25 });
+        const inRes = users.where('age').in([20, 25]).toArraySync();
         expect(inRes.length).toBe(2);
-        const ninRes = users.where('age').nin([20]).toArray();
+        const ninRes = users.where('age').nin([20]).toArraySync();
         expect(ninRes.some((u) => u.age !== 20)).toBe(true);
     });
 
     test('query with like/ilike', () => {
-        users.insert({ name: 'Quinn', email: 'quinn@example.com' });
-        const likeRes = users.where('name').like('Qui%').toArray();
+        users.insertSync({ name: 'Quinn', email: 'quinn@example.com' });
+        const likeRes = users.where('name').like('Qui%').toArraySync();
         expect(likeRes.length).toBeGreaterThan(0);
-        const ilikeRes = users.where('name').ilike('quinn%').toArray();
+        const ilikeRes = users.where('name').ilike('quinn%').toArraySync();
         expect(ilikeRes.length).toBeGreaterThan(0);
     });
 
     test('query with startsWith/endsWith/contains', () => {
-        users.insert({ name: 'Rita', email: 'rita@example.com' });
+        users.insertSync({ name: 'Rita', email: 'rita@example.com' });
         expect(
-            users.where('name').startsWith('Ri').toArray().length
+            users.where('name').startsWith('Ri').toArraySync().length
         ).toBeGreaterThan(0);
         expect(
-            users.where('name').endsWith('ta').toArray().length
+            users.where('name').endsWith('ta').toArraySync().length
         ).toBeGreaterThan(0);
         expect(
-            users.where('name').contains('it').toArray().length
+            users.where('name').contains('it').toArraySync().length
         ).toBeGreaterThan(0);
     });
 
     test('exists/notExists', () => {
-        users.insert({ name: 'Sam', email: 'sam@example.com', age: 50 });
-        expect(users.where('age').exists().toArray().length).toBeGreaterThan(0);
+        users.insertSync({ name: 'Sam', email: 'sam@example.com', age: 50 });
+        expect(users.where('age').exists().toArraySync().length).toBeGreaterThan(0);
         expect(
-            users.where('age').notExists().toArray().length
+            users.where('age').notExists().toArraySync().length
         ).toBeGreaterThanOrEqual(0);
     });
 
     test('between', () => {
-        users.insert({ name: 'Tom', email: 'tom@example.com', age: 35 });
-        users.insert({ name: 'Uma', email: 'uma@example.com', age: 37 });
-        const res = users.where('age').between(34, 38).toArray();
+        users.insertSync({ name: 'Tom', email: 'tom@example.com', age: 35 });
+        users.insertSync({ name: 'Uma', email: 'uma@example.com', age: 37 });
+        const res = users.where('age').between(34, 38).toArraySync();
         expect(res.length).toBeGreaterThan(0);
     });
 
     test('orderBy/orderByOnly/orderByMultiple', () => {
-        users.insert({ name: 'Vera', email: 'vera@example.com', age: 22 });
-        users.insert({ name: 'Will', email: 'will@example.com', age: 28 });
-        const asc = users.orderBy('age', 'asc').toArray();
-        const desc = users.orderBy('age', 'desc').toArray();
+        users.insertSync({ name: 'Vera', email: 'vera@example.com', age: 22 });
+        users.insertSync({ name: 'Will', email: 'will@example.com', age: 28 });
+        const asc = users.orderBy('age', 'asc').toArraySync();
+        const desc = users.orderBy('age', 'desc').toArraySync();
         expect(typeof asc[0].age).toBe('number');
         expect(typeof asc[1].age).toBe('number');
         expect(asc[0].age as number).toBeLessThanOrEqual(asc[1].age as number);
@@ -214,53 +214,53 @@ describe('Integration: BusNDB End-to-End', () => {
                 { field: 'isActive', direction: 'desc' },
                 { field: 'age', direction: 'asc' },
             ])
-            .toArray();
+            .toArraySync();
         expect(multi.length).toBeGreaterThan(0);
     });
 
     test('limit/offset/page', () => {
         for (let i = 0; i < 10; i++)
-            users.insert({ name: `User${i}`, email: `user${i}@ex.com` });
-        expect(users.limit(5).toArray().length).toBe(5);
-        expect(users.offset(5).toArray().length).toBeGreaterThanOrEqual(0);
-        expect(users.page(2, 3).toArray().length).toBe(3);
+            users.insertSync({ name: `User${i}`, email: `user${i}@ex.com` });
+        expect(users.limit(5).toArraySync().length).toBe(5);
+        expect(users.offset(5).toArraySync().length).toBeGreaterThanOrEqual(0);
+        expect(users.page(2, 3).toArraySync().length).toBe(3);
     });
 
     test('distinct', () => {
-        users.insert({ name: 'Xander', email: 'xander@example.com', age: 30 });
-        users.insert({ name: 'Xander', email: 'xander2@example.com', age: 30 });
-        const res = users.distinct().toArray();
+        users.insertSync({ name: 'Xander', email: 'xander@example.com', age: 30 });
+        users.insertSync({ name: 'Xander', email: 'xander2@example.com', age: 30 });
+        const res = users.distinct().toArraySync();
         expect(res.length).toBeGreaterThan(1);
     });
 
     test('count', () => {
-        users.insert({ name: 'Yara', email: 'yara@example.com' });
-        expect(users.where('name').eq('Yara').count()).toBe(1);
+        users.insertSync({ name: 'Yara', email: 'yara@example.com' });
+        expect(users.where('name').eq('Yara').countSync()).toBe(1);
     });
 
     test('first', () => {
-        users.insert({ name: 'Zane', email: 'zane@example.com' });
-        expect(users.where('name').eq('Zane').first()?.name).toBe('Zane');
-        expect(users.where('name').eq('NonExistent').first()).toBeNull();
+        users.insertSync({ name: 'Zane', email: 'zane@example.com' });
+        expect(users.where('name').eq('Zane').firstSync()?.name).toBe('Zane');
+        expect(users.where('name').eq('NonExistent').firstSync()).toBeNull();
     });
 
     test('putBulk/upsert/upsertBulk', () => {
-        const u = users.insert({ name: 'Bulk', email: 'bulk@example.com' });
-        const updated = users.putBulk([{ id: u.id, doc: { name: 'Bulk2' } }]);
+        const u = users.insertSync({ name: 'Bulk', email: 'bulk@example.com' });
+        const updated = users.putBulkSync([{ id: u.id, doc: { name: 'Bulk2' } }]);
         expect(updated[0].name).toBe('Bulk2');
-        const up = users.upsert(u.id, {
+        const up = users.upsertSync(u.id, {
             name: 'Bulk3',
             email: 'bulk3@example.com',
         });
         expect(up.name).toBe('Bulk3');
-        const upBulk = users.upsertBulk([
+        const upBulk = users.upsertBulkSync([
             { id: u.id, doc: { name: 'Bulk4', email: 'bulk4@example.com' } },
         ]);
         expect(upBulk[0].name).toBe('Bulk4');
     });
 
     test('edge: in with empty array', () => {
-        expect(users.where('age').in([]).toArray()).toHaveLength(0);
+        expect(users.where('age').in([]).toArraySync()).toHaveLength(0);
     });
 
     test('edge: limit/offset negative', () => {
@@ -274,38 +274,38 @@ describe('Integration: BusNDB End-to-End', () => {
     });
 
     test('edge: put with unique constraint', () => {
-        const u1 = users.insert({ name: 'Edge1', email: 'edge1@example.com' });
-        const u2 = users.insert({ name: 'Edge2', email: 'edge2@example.com' });
-        expect(() => users.put(u2.id, { email: 'edge1@example.com' })).toThrow(
+        const u1 = users.insertSync({ name: 'Edge1', email: 'edge1@example.com' });
+        const u2 = users.insertSync({ name: 'Edge2', email: 'edge2@example.com' });
+        expect(() => users.putSync(u2.id, { email: 'edge1@example.com' })).toThrow(
             UniqueConstraintError
         );
     });
 
     test('edge: upsert with unique constraint', () => {
-        const u1 = users.insert({ name: 'Edge3', email: 'edge3@example.com' });
+        const u1 = users.insertSync({ name: 'Edge3', email: 'edge3@example.com' });
         expect(() =>
-            users.upsert(u1.id, { name: 'Edge3', email: 'edge3@example.com' })
+            users.upsertSync(u1.id, { name: 'Edge3', email: 'edge3@example.com' })
         ).not.toThrow();
-        const u2 = users.insert({ name: 'Edge4', email: 'edge4@example.com' });
+        const u2 = users.insertSync({ name: 'Edge4', email: 'edge4@example.com' });
         expect(() =>
-            users.upsert(u2.id, { name: 'Edge4', email: 'edge3@example.com' })
+            users.upsertSync(u2.id, { name: 'Edge4', email: 'edge3@example.com' })
         ).toThrow(UniqueConstraintError);
     });
 
     test('edge: delete non-existent', () => {
-        expect(users.delete('non-existent-id')).toBe(true);
+        expect(users.deleteSync('non-existent-id')).toBe(true);
     });
 
     test('edge: deleteBulk with some non-existent', () => {
-        const u = users.insert({ name: 'Edge5', email: 'edge5@example.com' });
-        expect(users.deleteBulk([u.id, 'bad-id'])).toBe(2);
+        const u = users.insertSync({ name: 'Edge5', email: 'edge5@example.com' });
+        expect(users.deleteBulkSync([u.id, 'bad-id'])).toBe(2);
     });
 
     test('edge: upsertBulk with new and existing', () => {
-        const u = users.insert({ name: 'Edge6', email: 'edge6@example.com' });
+        const u = users.insertSync({ name: 'Edge6', email: 'edge6@example.com' });
         // Generate a valid uuid for the new id
         const newId = crypto.randomUUID();
-        const res = users.upsertBulk([
+        const res = users.upsertBulkSync([
             { id: u.id, doc: { name: 'Edge6-up', email: 'edge6@example.com' } },
             {
                 id: newId,
@@ -322,10 +322,10 @@ describe('Integration: BusNDB End-to-End', () => {
                 name: `Bulk${i}-${j}`,
                 email: `bulk${i}-${j}@ex.com`,
             }));
-            const inserted = users.insertBulk(docs);
+            const inserted = users.insertBulkSync(docs);
             expect(inserted.length).toBe(5);
             const ids = inserted.map((u) => u.id);
-            expect(users.deleteBulk(ids)).toBe(5);
+            expect(users.deleteBulkSync(ids)).toBe(5);
         });
     }
 
@@ -349,7 +349,7 @@ describe('Integration: BusNDB End-to-End', () => {
     test('query builder clone', () => {
         const builder = users.where('age').gte(25).orderBy('name').limit(3);
         const clone = builder.clone();
-        expect(clone.toArray()).toEqual(builder.toArray());
+        expect(clone.toArraySync()).toEqual(builder.toArraySync());
         clone.clearFilters();
         expect(clone.hasFilters()).toBe(false);
         expect(builder.hasFilters()).toBe(true);
@@ -358,13 +358,13 @@ describe('Integration: BusNDB End-to-End', () => {
     // Edge: FieldBuilder error methods
     test('FieldBuilder execution methods throw errors', () => {
         const fieldBuilder = users.where('age');
-        expect(() => fieldBuilder.toArray()).toThrow(
+        expect(() => fieldBuilder.toArraySync()).toThrow(
             'should not be called on FieldBuilder'
         );
-        expect(() => fieldBuilder.first()).toThrow(
+        expect(() => fieldBuilder.firstSync()).toThrow(
             'should not be called on FieldBuilder'
         );
-        expect(() => fieldBuilder.count()).toThrow(
+        expect(() => fieldBuilder.countSync()).toThrow(
             'should not be called on FieldBuilder'
         );
     });
@@ -372,20 +372,20 @@ describe('Integration: BusNDB End-to-End', () => {
     // Aggressive edge/breaking tests
     test('insert with missing required field should fail', () => {
         expect(() =>
-            users.insert({ email: 'fail@example.com' } as any)
+            users.insertSync({ email: 'fail@example.com' } as any)
         ).toThrow(ValidationError);
     });
 
     test('insert with wrong type should fail', () => {
         expect(() =>
-            users.insert({ name: 123, email: 'fail2@example.com' } as any)
+            users.insertSync({ name: 123, email: 'fail2@example.com' } as any)
         ).toThrow(ValidationError);
     });
 
     test('insert with duplicate id should fail', () => {
-        const u = users.insert({ name: 'Dup', email: 'dup@example.com' });
+        const u = users.insertSync({ name: 'Dup', email: 'dup@example.com' });
         expect(() =>
-            users.insert({
+            users.insertSync({
                 id: u.id,
                 name: 'Dup2',
                 email: 'dup2@example.com',
@@ -394,23 +394,23 @@ describe('Integration: BusNDB End-to-End', () => {
     });
 
     test('deleteBulk with empty array', () => {
-        expect(users.deleteBulk([])).toBe(0);
+        expect(users.deleteBulkSync([])).toBe(0);
     });
 
     test('put with invalid id type', () => {
-        expect(() => users.put(123 as any, { name: 'Bad' })).toThrow();
+        expect(() => users.putSync(123 as any, { name: 'Bad' })).toThrow();
     });
 
     test('upsert with invalid id type', () => {
         expect(() =>
-            users.upsert(123 as any, { name: 'Bad', email: 'bad@example.com' })
+            users.upsertSync(123 as any, { name: 'Bad', email: 'bad@example.com' })
         ).toThrow();
     });
 
     test('upsertBulk with invalid doc', () => {
         const id = crypto.randomUUID();
         expect(() =>
-            users.upsertBulk([
+            users.upsertBulkSync([
                 { id, doc: { name: 123, email: 'bad@example.com' } as any },
             ])
         ).toThrow(ValidationError);
@@ -421,32 +421,32 @@ describe('Integration: BusNDB End-to-End', () => {
             name: `Big${i}`,
             email: `big${i}@ex.com`,
         }));
-        const inserted = users.insertBulk(docs);
+        const inserted = users.insertBulkSync(docs);
         expect(inserted.length).toBe(1000);
     });
 
     test('insert with invalid email type', () => {
         expect(() =>
-            users.insert({ name: 'BadEmail', email: 12345 as any })
+            users.insertSync({ name: 'BadEmail', email: 12345 as any })
         ).toThrow(ValidationError);
     });
 
     test('findById with invalid id type', () => {
-        expect(users.findById(123 as any)).toBeNull();
+        expect(users.findByIdSync(123 as any)).toBeNull();
     });
 
     test('query with invalid field', () => {
         expect(() =>
-            (users as any).where('notAField').eq('foo').toArray()
+            (users as any).where('notAField').eq('foo').toArraySync()
         ).toThrow();
     });
 
     test('orderBy with invalid field', () => {
-        expect(() => users.orderBy('notAField' as any).toArray()).toThrow();
+        expect(() => users.orderBy('notAField' as any).toArraySync()).toThrow();
     });
 
     test('insert with extra fields (should strip or fail)', () => {
-        const user = users.insert({
+        const user = users.insertSync({
             name: 'Extra',
             email: 'extra@example.com',
             extra: 'field',
@@ -457,32 +457,32 @@ describe('Integration: BusNDB End-to-End', () => {
     });
 
     test('insert with nulls for required fields', () => {
-        expect(() => users.insert({ name: null, email: null } as any)).toThrow(
+        expect(() => users.insertSync({ name: null, email: null } as any)).toThrow(
             ValidationError
         );
     });
 
     test('insert with undefined for required fields', () => {
         expect(() =>
-            users.insert({ name: undefined, email: undefined } as any)
+            users.insertSync({ name: undefined, email: undefined } as any)
         ).toThrow(ValidationError);
     });
 
     test('insert with empty string for required fields', () => {
-        expect(() => users.insert({ name: '', email: '' })).toThrow(
+        expect(() => users.insertSync({ name: '', email: '' })).toThrow(
             ValidationError
         );
     });
 
     test('insert with whitespace string for required fields', () => {
-        expect(() => users.insert({ name: '   ', email: '   ' })).toThrow(
+        expect(() => users.insertSync({ name: '   ', email: '   ' })).toThrow(
             ValidationError
         );
     });
 
     test('insert with invalid uuid', () => {
         expect(() =>
-            users.insert({
+            users.insertSync({
                 id: 'not-a-uuid',
                 name: 'Bad',
                 email: 'bad@example.com',
@@ -492,7 +492,7 @@ describe('Integration: BusNDB End-to-End', () => {
 
     test('insert with valid uuid', () => {
         const id = crypto.randomUUID();
-        const user = users.upsert(id, {
+        const user = users.upsertSync(id, {
             name: 'Good',
             email: 'good@example.com',
         });

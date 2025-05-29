@@ -70,11 +70,11 @@ async function runBenchmarks() {
     });
     results.push(bulkInsertResult);
 
-    console.log(`Total documents: ${users.toArray().length}`);
+    console.log(`Total documents: ${users.toArraySync().length}`);
 
     // Benchmark: Point Queries (findById)
     console.log('3. Benchmarking point queries...');
-    const allDocs = users.toArray();
+    const allDocs = users.toArraySync();
     const randomIds = Array.from(
         { length: 1000 },
         () => allDocs[Math.floor(Math.random() * allDocs.length)].id
@@ -95,7 +95,7 @@ async function runBenchmarks() {
                 .gte(minAge)
                 .where('age')
                 .lt(minAge + 10)
-                .toArray();
+                .toArraySync();
         }
     });
     results.push(rangeQueryResult);
@@ -115,7 +115,7 @@ async function runBenchmarks() {
                 .eq(true)
                 .orderBy('score', 'desc')
                 .limit(10)
-                .toArray();
+                .toArraySync();
         }
     });
     results.push(complexQueryResult);

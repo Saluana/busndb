@@ -13,7 +13,7 @@ A developer-friendly, embeddable NoSQL database layer on top of SQLite that boot
 -   🎯 **Smart Constraints**: Database-level constraint enforcement
 -   🏎️ **Performance Optimized**: Column indexes for critical fields, JSON flexibility for others
 -   🌐 **Cross-Platform**: Works with both Bun and Node.js
--   ⚡ **Async Mode**: Non-blocking operations with full backward compatibility
+-   ⚡ **Async by Default**: Non-blocking operations by default, sync versions available
 
 ## What Makes BusNDB Special
 
@@ -87,17 +87,22 @@ const results = users
     .orderBy('email')                               // Column ordering
     .toArray();
 
-// 🚀 New: Async Mode Support (non-blocking operations)
-const asyncResults = await users
+// 🚀 Async by Default (non-blocking operations)
+const results = await users
     .where('departmentId').eq('dept-123')
     .where('age').gte(25)
-    .toArrayAsync();
+    .toArray();
     
-const newUser = await users.insertAsync({
+const newUser = await users.insert({
     name: 'New Employee',
     email: 'new@example.com',
     // ... other fields
 });
+
+// Sync versions available with 'Sync' suffix
+const syncResults = users
+    .where('departmentId').eq('dept-123')
+    .toArraySync();
 ```
 
 ## Installation
@@ -268,12 +273,12 @@ const users = db.collection('users', userSchema, {
 });
 
 await db.transaction(async () => { /* transactional operations */ });
-db.close();
+await db.close();
 
-// Async versions (non-blocking)
-await db.execAsync('CREATE INDEX ...');
-const rows = await db.queryAsync('SELECT * FROM ...');
-await db.closeAsync();
+// Sync versions (with Sync suffix)
+db.execSync('CREATE INDEX ...');
+const rows = db.querySync('SELECT * FROM ...');
+db.closeSync();
 ```
 
 ### Collections
@@ -325,16 +330,23 @@ const upBulk = users.upsertBulk([
     },
 ]);
 
-// Async versions (non-blocking)
-const newDoc = await users.insertAsync({ /* fields except id */ });
-const docs = await users.insertBulkAsync([{ /* ... */ }]);
-const found = await users.findByIdAsync(id);
-const updated = await users.putAsync(id, { /* partial fields */ });
-const deleted = await users.deleteAsync(id);
-const upserted = await users.upsertAsync(id, { /* fields */ });
-const all = await users.toArrayAsync();
-const count = await users.countAsync();
-const first = await users.firstAsync();
+// Default methods (async)
+const newDoc = await users.insert({ /* fields except id */ });
+const docs = await users.insertBulk([{ /* ... */ }]);
+const found = await users.findById(id);
+const updated = await users.put(id, { /* partial fields */ });
+const deleted = await users.delete(id);
+const upserted = await users.upsert(id, { /* fields */ });
+const all = await users.toArray();
+const count = await users.count();
+const first = await users.first();
+
+// Sync versions (with Sync suffix)
+const syncDoc = users.insertSync({ /* fields except id */ });
+const syncFound = users.findByIdSync(id);
+const syncAll = users.toArraySync();
+const syncCount = users.countSync();
+const syncFirst = users.firstSync();
 ```
 
 #### Query Builder Methods
@@ -399,15 +411,15 @@ users.hasOrdering();
 users.hasPagination();
 users.getFilterCount();
 
-// Execution
-users.toArray();
-users.first();
-users.count();
+// Default execution (async)
+await users.toArray();
+await users.first();
+await users.count();
 
-// Async execution (non-blocking)
-await users.toArrayAsync();
-await users.firstAsync();
-await users.countAsync();
+// Sync execution (with Sync suffix)
+users.toArraySync();
+users.firstSync();
+users.countSync();
 ```
 
 #### Direct Collection Shortcuts
@@ -436,16 +448,16 @@ interface ConstrainedFieldDefinition {
 }
 ```
 
-## Async Mode (Non-Blocking Operations)
+## Async by Default
 
-BusNDB now supports async mode for all operations, enabling non-blocking database access and better concurrency:
+BusNDB uses async operations by default, enabling non-blocking database access and better concurrency:
 
 ### Key Benefits
 
-- **Non-blocking**: Operations don't block the event loop
+- **Modern by default**: All operations are non-blocking by default
 - **Better concurrency**: Handle multiple database operations simultaneously  
 - **Plugin integration**: Plugin hooks are properly awaited
-- **Full compatibility**: Sync and async methods work together seamlessly
+- **Backward compatibility**: Sync versions available with 'Sync' suffix
 
 ### Basic Usage
 
@@ -455,36 +467,36 @@ import { createDB } from 'busndb';
 const db = createDB({ memory: true });
 const users = db.collection('users', userSchema);
 
-// Async CRUD operations
-const user = await users.insertAsync({
+// Default CRUD operations (async)
+const user = await users.insert({
     name: 'Alice',
     email: 'alice@example.com'
 });
 
-const found = await users.findByIdAsync(user.id);
-const updated = await users.putAsync(user.id, { name: 'Alice Smith' });
-const deleted = await users.deleteAsync(user.id);
+const found = await users.findById(user.id);
+const updated = await users.put(user.id, { name: 'Alice Smith' });
+const deleted = await users.delete(user.id);
 
-// Async queries
-const all = await users.toArrayAsync();
-const count = await users.countAsync();
-const filtered = await users.where('name').like('A%').toArrayAsync();
-const first = await users.orderBy('name').firstAsync();
+// Default queries (async)
+const all = await users.toArray();
+const count = await users.count();
+const filtered = await users.where('name').like('A%').toArray();
+const first = await users.orderBy('name').first();
 
-// Async database operations
-await db.execAsync('CREATE INDEX idx_name ON users(name)');
-const result = await db.queryAsync('SELECT COUNT(*) FROM users');
-await db.closeAsync();
+// Default database operations (async)
+await db.exec('CREATE INDEX idx_name ON users(name)');
+const result = await db.query('SELECT COUNT(*) FROM users');
+await db.close();
 ```
 
 ### Async Transactions
 
 ```typescript
 await db.transaction(async () => {
-    const user1 = await users.insertAsync({ name: 'User 1' });
-    const user2 = await users.insertAsync({ name: 'User 2' });
+    const user1 = await users.insert({ name: 'User 1' });
+    const user2 = await users.insert({ name: 'User 2' });
     
-    await users.putAsync(user1.id, { status: 'active' });
+    await users.put(user1.id, { status: 'active' });
     
     // All operations are atomic
 });
@@ -493,30 +505,30 @@ await db.transaction(async () => {
 ### Performance Comparison
 
 ```typescript
-// Sync operations (blocking)
+// Sync operations (with Sync suffix)
 for (const item of items) {
-    users.insert(item);  // Blocks on each insert
+    users.insertSync(item);  // Blocking operations
 }
 
-// Async operations (non-blocking)
+// Default operations (async, non-blocking)
 for (const item of items) {
-    await users.insertAsync(item);  // Allows other operations
+    await users.insert(item);  // Allows other operations
 }
 
 // Bulk operations (optimal)
-await users.insertBulkAsync(items);  // Best performance
+await users.insertBulk(items);  // Best performance
 ```
 
 ### Mixing Sync and Async
 
 ```typescript
 // Both sync and async operations work on the same data
-const syncUser = users.insert({ name: 'Sync User' });
-const asyncUser = await users.insertAsync({ name: 'Async User' });
+const syncUser = users.insertSync({ name: 'Sync User' });
+const asyncUser = await users.insert({ name: 'Async User' });
 
 // Results are immediately visible to both modes
-const syncCount = users.where('name').like('%User%').count();  // 2
-const asyncCount = await users.countAsync();  // 2
+const syncCount = users.where('name').like('%User%').countSync();  // 2
+const asyncCount = await users.count();  // 2
 ```
 
 ## Examples

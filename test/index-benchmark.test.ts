@@ -188,7 +188,7 @@ async function runIndexBenchmarks() {
     usersNonIndexed.insertBulk(testData);
 
     console.log(
-        `Total documents in each collection: ${usersIndexed.toArray().length}\n`
+        `Total documents in each collection: ${usersIndexed.toArraySync().length}\n`
     );
 
     // Benchmark 1: Point Queries (Equality) - Shallow Fields
@@ -240,7 +240,7 @@ async function runIndexBenchmarks() {
                         .where('metadata.level')
                         .eq(level)
                         .limit(10)
-                        .toArray();
+                        .toArraySync();
                 }
             });
         }
@@ -256,7 +256,7 @@ async function runIndexBenchmarks() {
                         .where('metadata.level')
                         .eq(level)
                         .limit(10)
-                        .toArray();
+                        .toArraySync();
                 }
             });
         }
@@ -287,7 +287,7 @@ async function runIndexBenchmarks() {
                     .gte(minAge)
                     .where('age')
                     .lt(minAge + 10)
-                    .toArray();
+                    .toArraySync();
             }
         }
     );
@@ -303,7 +303,7 @@ async function runIndexBenchmarks() {
                     .gte(minAge)
                     .where('age')
                     .lt(minAge + 10)
-                    .toArray();
+                    .toArraySync();
             }
         }
     );
@@ -332,7 +332,7 @@ async function runIndexBenchmarks() {
                     .where('metadata.performance.rating')
                     .gte(minRating)
                     .limit(20)
-                    .toArray();
+                    .toArraySync();
             }
         }
     );
@@ -347,7 +347,7 @@ async function runIndexBenchmarks() {
                     .where('metadata.performance.rating')
                     .gte(minRating)
                     .limit(20)
-                    .toArray();
+                    .toArraySync();
             }
         }
     );
@@ -376,7 +376,7 @@ async function runIndexBenchmarks() {
                     .eq(true)
                     .orderBy('salary', 'desc')
                     .limit(50)
-                    .toArray();
+                    .toArraySync();
             }
         }
     );
@@ -391,7 +391,7 @@ async function runIndexBenchmarks() {
                     .eq(true)
                     .orderBy('salary', 'desc')
                     .limit(50)
-                    .toArray();
+                    .toArraySync();
             }
         }
     );
@@ -425,7 +425,7 @@ async function runIndexBenchmarks() {
                 .eq(true)
                 .orderBy('metadata.performance.rating', 'desc')
                 .limit(10)
-                .toArray();
+                .toArraySync();
         }
     });
 
@@ -447,7 +447,7 @@ async function runIndexBenchmarks() {
                     .eq(true)
                     .orderBy('metadata.performance.rating', 'desc')
                     .limit(10)
-                    .toArray();
+                    .toArraySync();
             }
         }
     );

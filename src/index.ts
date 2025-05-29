@@ -22,9 +22,8 @@ export { PluginManager } from './plugin-system';
 export type { Plugin, PluginContext } from './plugin-system';
 export * from './plugins';
 
-// Note: Async methods are available on all classes:
-// Database: execAsync(), queryAsync(), closeAsync()
-// Collection: insertAsync(), insertBulkAsync(), putAsync(), putBulkAsync(), 
-//           deleteAsync(), deleteBulkAsync(), upsertAsync(), upsertBulkAsync(),
-//           findByIdAsync(), toArrayAsync(), countAsync(), firstAsync()
-// QueryBuilder: toArrayAsync(), firstAsync(), countAsync()
+// Note: All methods are async by default. Sync versions available with 'Sync' suffix:
+// Database: exec(), query(), close() (async) | execSync(), querySync(), closeSync() (sync)
+// Collection: insert(), put(), delete(), findById(), toArray(), count(), first() (async)
+//           insertSync(), findByIdSync(), toArraySync(), countSync(), firstSync() (sync)
+// QueryBuilder: toArray(), first(), count() (async) | toArraySync(), firstSync(), countSync() (sync)
