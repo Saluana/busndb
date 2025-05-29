@@ -1,0 +1,21 @@
+{
+  "name": "todo-cli-example",
+  "version": "1.0.0",
+  "description": "A simple todo list CLI app demonstrating BusNDB usage",
+  "type": "module",
+  "main": "todo.js",
+  "scripts": {
+    "start": "bun run todo.ts",
+    "build": "bun build todo.ts --outdir=dist",
+    "dev": "bun --watch todo.ts"
+  },
+  "keywords": ["todo", "cli", "database", "busndb"],
+  "author": "BusNDB Example",
+  "license": "MIT",
+  "dependencies": {
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0"
+  }
+}

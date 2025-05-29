@@ -6,54 +6,42 @@ This document describes the comprehensive schema constraint system implemented f
 
 The schema constraint system extends Zod schemas with database-level constraints including:
 
-- **Unique Constraints**: Enforce uniqueness on single or multiple fields
-- **Foreign Key Constraints**: Validate relationships between collections
-- **Index Management**: Automatic index creation for optimized queries
-- **Composite Constraints**: Complex constraints spanning multiple fields
+- **Unique Constraints**: Enforce uniqueness on individual fields
+- **Type Constraints**: SQLite type mapping for optimized storage
+- **Nullable Constraints**: Control null value handling
+- **Automatic Indexing**: Optimized indexes for constrained fields
 
 ## API Reference
 
-### Constraint Helper Functions
+### Constraint Field Types
 
 ```typescript
-import { unique, foreignKey, index, compositeUnique } from './schema-constraints';
+// Simple field constraints
+type ConstrainedField = {
+    unique?: boolean;           // Enforce uniqueness
+    nullable?: boolean;         // Allow null values
+    type?: 'TEXT' | 'INTEGER' | 'REAL' | 'BLOB';  // SQLite type mapping
+};
 
-// Unique constraint on single field
-const emailConstraint = unique('unique_email_constraint');
-
-// Foreign key constraint
-const organizationConstraint = foreignKey('organizations', 'id', {
-    onDelete: 'cascade',
-    onUpdate: 'restrict'
-});
-
-// Index for performance
-const emailIndex = index('email', { unique: true });
-
-// Composite unique constraint
-const userOrgConstraint = compositeUnique(['userId', 'organizationId']);
+// Example field definitions
+const fieldConstraints = {
+    email: { unique: true, nullable: false, type: 'TEXT' },
+    age: { type: 'INTEGER' },
+    score: { type: 'REAL' },
+    isActive: { nullable: false },
+};
 ```
 
 ### Collection Definition with Constraints
 
 ```typescript
+// Create collection with constrained fields
 const users = db.collection('users', userSchema, {
-    constraints: {
-        // Field-level constraints
-        constraints: {
-            email: unique(),
-            username: unique('unique_username'),
-            organizationId: foreignKey('organizations', 'id'),
-            userOrg: compositeUnique(['userId', 'organizationId']),
-        },
-        
-        // Indexes for performance
-        indexes: {
-            email: index('email'),
-            username: index('username'),
-            organizationId: index('organizationId'),
-            createdAt: index('createdAt'),
-        },
+    constrainedFields: {
+        email: { unique: true, nullable: false },
+        username: { unique: true, nullable: false },
+        age: { type: 'INTEGER' },
+        departmentId: { type: 'TEXT' },
     },
 });
 ```
@@ -66,72 +54,62 @@ Ensure field values are unique across the collection.
 
 ```typescript
 // Single field unique constraint
-email: unique()
-email: unique('custom_constraint_name')
-
-// Composite unique constraint
-userRole: compositeUnique(['userId', 'roleId'], 'user_role_unique')
+const users = db.collection('users', userSchema, {
+    constrainedFields: {
+        email: { unique: true, nullable: false },
+        username: { unique: true },
+    },
+});
 ```
 
 **Features:**
-- Supports single and composite field uniqueness
-- Allows NULL values (multiple NULLs are permitted)
+- Simple boolean flag for uniqueness
+- Allows NULL values when nullable: true (multiple NULLs are permitted)
 - Validates on both insert and update operations
 - Provides meaningful error messages with field information
 
-### 2. Foreign Key Constraints
+### 2. Type Constraints
 
-Validate relationships between collections at the application level.
+Specify SQLite data types for optimized storage and indexing.
 
 ```typescript
-// Basic foreign key
-organizationId: foreignKey('organizations', 'id')
-
-// Foreign key with cascade options
-parentId: foreignKey('categories', 'id', {
-    onDelete: 'cascade',
-    onUpdate: 'restrict'
-})
-
-// Composite foreign key
-composite: compositeForeignKey(
-    ['userId', 'roleId'],
-    'user_roles',
-    ['user_id', 'role_id']
-)
+// Type-specific constraints
+const products = db.collection('products', productSchema, {
+    constrainedFields: {
+        price: { type: 'REAL' },        // Floating point numbers
+        quantity: { type: 'INTEGER' },   // Whole numbers
+        name: { type: 'TEXT' },         // Text strings
+        data: { type: 'BLOB' },         // Binary data
+    },
+});
 ```
 
 **Features:**
-- Application-level validation (SQLite limitation with JSON fields)
-- Support for cascade operations (planned)
-- Validates referenced records exist before insert/update
-- Composite foreign key support
+- SQLite type mapping for better performance
+- Automatic index optimization based on type
+- Validates data types at database level
+- Improved query performance with proper types
 
-### 3. Index Management
+### 3. Nullable Constraints
 
-Automatic index creation for optimized query performance.
+Control whether fields can contain null values.
 
 ```typescript
-// Simple index
-createdAt: index('createdAt')
-
-// Named index
-email: index('email', { name: 'idx_user_email' })
-
-// Unique index
-username: index('username', { unique: true })
-
-// Partial index (planned)
-activeUsers: index('isActive', { 
-    partial: 'isActive = true' 
-})
+// Nullable field constraints
+const users = db.collection('users', userSchema, {
+    constrainedFields: {
+        email: { nullable: false },      // Required field
+        phone: { nullable: true },       // Optional field
+        age: { nullable: false, type: 'INTEGER' },
+    },
+});
 ```
 
 **Features:**
-- Automatic SQL index generation
-- Support for single and composite field indexes
-- Unique index support
-- JSON field path extraction for SQLite compatibility
+- Simple boolean flag for null handling
+- Works with unique constraints
+- Validates at insert and update time
+- Clear error messages for null violations
 
 ## Implementation Details
 
@@ -143,21 +121,20 @@ The system generates optimized SQLite queries using JSON field extraction:
 -- Unique constraint becomes:
 CREATE UNIQUE INDEX user_email_unique ON users (json_extract(doc, '$.email'))
 
--- Foreign key validation becomes:
-SELECT COUNT(*) FROM organizations WHERE json_extract(doc, '$.id') = ?
+-- Type-specific index:
+CREATE INDEX user_age_idx ON users (CAST(json_extract(doc, '$.age') AS INTEGER))
 
--- Composite unique constraint becomes:
-SELECT COUNT(*) FROM memberships 
-WHERE json_extract(doc, '$.userId') = ? 
-  AND json_extract(doc, '$.organizationId') = ?
+-- Nullable validation:
+SELECT COUNT(*) FROM users WHERE json_extract(doc, '$.email') IS NULL
 ```
 
 ### Validation Flow
 
 1. **Document Validation**: Zod schema validation
 2. **Unique Constraint Check**: Query existing records for duplicates
-3. **Foreign Key Validation**: Verify referenced records exist
-4. **SQL Execution**: Insert/update with error handling
+3. **Nullable Validation**: Verify required fields are not null
+4. **Type Validation**: Ensure fields match specified SQLite types
+5. **SQL Execution**: Insert/update with error handling
 
 ### Error Handling
 
@@ -180,84 +157,85 @@ try {
 
 ```typescript
 import { z } from 'zod';
-import { Database } from './database';
-import { unique, foreignKey, index } from './schema-constraints';
+import { createDB } from './index';
 
-const db = new Database({ path: './app.db' });
+const db = createDB({ path: './app.db' });
 
 const userSchema = z.object({
     id: z.string(),
     email: z.string().email(),
     username: z.string(),
-    organizationId: z.string(),
+    age: z.number().int(),
     createdAt: z.date(),
 });
 
 const users = db.collection('users', userSchema, {
-    constraints: {
-        constraints: {
-            email: unique(),
-            username: unique(),
-            organizationId: foreignKey('organizations', 'id'),
-        },
-        indexes: {
-            email: index('email'),
-            organizationId: index('organizationId'),
-            createdAt: index('createdAt'),
-        },
+    constrainedFields: {
+        email: { unique: true, nullable: false, type: 'TEXT' },
+        username: { unique: true, nullable: false, type: 'TEXT' },
+        age: { type: 'INTEGER', nullable: false },
     },
 });
 ```
 
-### Complex Relationships
+### Complex Constraints
 
 ```typescript
-// Many-to-many relationship with composite unique constraint
-const memberships = db.collection('memberships', membershipSchema, {
-    constraints: {
-        constraints: {
-            userId: foreignKey('users', 'id'),
-            organizationId: foreignKey('organizations', 'id'),
-            userOrg: compositeUnique(['userId', 'organizationId']),
-        },
-        indexes: {
-            userId: index('userId'),
-            organizationId: index('organizationId'),
-            role: index('role'),
-        },
+// Product catalog with multiple constraint types
+const products = db.collection('products', productSchema, {
+    constrainedFields: {
+        sku: { unique: true, nullable: false, type: 'TEXT' },
+        name: { nullable: false, type: 'TEXT' },
+        price: { type: 'REAL', nullable: false },
+        categoryId: { type: 'INTEGER' },
+        inStock: { nullable: false },
+        description: { type: 'TEXT' },
+    },
+});
+
+// User profiles with mixed constraints
+const profiles = db.collection('profiles', profileSchema, {
+    constrainedFields: {
+        userId: { unique: true, nullable: false, type: 'TEXT' },
+        email: { unique: true, nullable: false, type: 'TEXT' },
+        displayName: { type: 'TEXT' },
+        age: { type: 'INTEGER' },
+        bio: { type: 'TEXT', nullable: true },
     },
 });
 ```
 
 ## Performance Considerations
 
-1. **Index Usage**: All constraint validations are optimized with appropriate indexes
-2. **Query Efficiency**: Unique checks use COUNT queries with early termination
-3. **Batch Operations**: Constraints are validated per-document in bulk operations
-4. **JSON Extraction**: SQLite json_extract() is used for efficient field access
+1. **Index Usage**: Unique constraints automatically create optimized indexes
+2. **Type Optimization**: SQLite type hints improve query performance
+3. **Query Efficiency**: Unique checks use COUNT queries with early termination
+4. **Batch Operations**: Constraints are validated per-document in bulk operations
+5. **JSON Extraction**: SQLite json_extract() is used for efficient field access
 
 ## Limitations and Future Enhancements
 
 ### Current Limitations
 
-1. **Check Constraints**: Not yet implemented due to SQLite JSON field complexity
-2. **Cascade Operations**: Foreign key cascades are planned but not implemented
-3. **Cross-Collection Transactions**: Complex constraint validation across collections
+1. **Composite Constraints**: Multiple field constraints not yet supported
+2. **Custom Validators**: Custom validation functions not implemented
+3. **Advanced Types**: Limited to basic SQLite types
 
 ### Planned Features
 
-1. **Application-level Check Constraints**: Custom validation functions
-2. **Cascade Delete/Update**: Automatic related record management
-3. **Constraint Triggers**: Custom hooks for constraint violations
+1. **Composite Unique Constraints**: Multi-field uniqueness validation
+2. **Custom Validators**: User-defined constraint validation functions  
+3. **Check Constraints**: Field value validation rules
 4. **Performance Monitoring**: Constraint validation metrics
 
 ## Best Practices
 
-1. **Index Strategy**: Create indexes for all frequently queried fields
-2. **Constraint Naming**: Use descriptive names for complex constraints
-3. **Error Handling**: Implement specific error handling for constraint violations
-4. **Performance Testing**: Monitor constraint validation performance in production
-5. **Schema Migration**: Plan constraint changes carefully to avoid data issues
+1. **Type Specification**: Always specify types for fields that will be queried frequently
+2. **Unique Constraints**: Use unique constraints for natural keys and business identifiers
+3. **Nullable Strategy**: Be explicit about nullable vs non-nullable fields
+4. **Error Handling**: Implement specific error handling for constraint violations
+5. **Performance Testing**: Monitor constraint validation performance in production
+6. **Schema Migration**: Plan constraint changes carefully to avoid data issues
 
 ## Integration with TypeScript
 
@@ -266,12 +244,22 @@ The constraint system maintains full TypeScript compatibility:
 ```typescript
 // Type-safe constraint definition
 type UserConstraints = {
-    email: UniqueConstraint;
-    organizationId: ForeignKeyConstraint;
+    constrainedFields: {
+        email: { unique: true; nullable: false; type: 'TEXT' };
+        age: { type: 'INTEGER'; nullable: false };
+    };
 };
 
 // Inferred schema types work with constraints
-type User = InferSchema<typeof userSchema>; // Includes constraint validation
+type User = z.infer<typeof userSchema>; // Full type safety
+
+// Collection with typed constraints
+const users: Collection<User> = db.collection('users', userSchema, {
+    constrainedFields: {
+        email: { unique: true, nullable: false, type: 'TEXT' },
+        age: { type: 'INTEGER', nullable: false },
+    },
+});
 ```
 
-This schema constraint system provides a robust foundation for data integrity while maintaining the flexibility and performance characteristics of a NoSQL document store.
+This streamlined constraint system provides essential data integrity features while maintaining simplicity and performance characteristics of a NoSQL document store.
