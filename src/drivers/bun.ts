@@ -134,24 +134,18 @@ export class BunDriver implements Driver {
             return await fn();
         }
 
-        // Return a promise that will execute the transaction when awaited
-        return new Promise(async (resolve, reject) => {
-            // Use a small delay to ensure the transaction doesn't start immediately
-            await new Promise((r) => setImmediate(r));
-
-            this.isInTransaction = true;
-            await this.exec('BEGIN');
-            try {
-                const result = await fn();
-                await this.exec('COMMIT');
-                this.isInTransaction = false;
-                resolve(result);
-            } catch (error) {
-                await this.exec('ROLLBACK');
-                this.isInTransaction = false;
-                reject(error);
-            }
-        });
+        this.isInTransaction = true;
+        await this.exec('BEGIN');
+        try {
+            const result = await fn();
+            await this.exec('COMMIT');
+            this.isInTransaction = false;
+            return result;
+        } catch (error) {
+            await this.exec('ROLLBACK');
+            this.isInTransaction = false;
+            throw error;
+        }
     }
 
     async close(): Promise<void> {
