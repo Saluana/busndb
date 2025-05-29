@@ -5,6 +5,7 @@ import { DatabaseError } from '../errors.js';
 export class BunDriver implements Driver {
     private db: Database;
     private isInTransaction = false;
+    private isClosed = false;
 
     constructor(config: DBConfig) {
         try {
@@ -50,42 +51,78 @@ export class BunDriver implements Driver {
 
     // Default async methods
     async exec(sql: string, params: any[] = []): Promise<void> {
+        if (this.isClosed) {
+            return; // Silently ignore operations on closed database
+        }
         try {
             // Use setImmediate to make it truly async
             await new Promise(resolve => setImmediate(resolve));
+            // Check again after async operation
+            if (this.isClosed) {
+                return;
+            }
             const stmt = this.db.prepare(sql);
             stmt.run(...params);
         } catch (error) {
+            // Ignore closed database errors
+            if (error instanceof Error && error.message.includes('closed database')) {
+                return;
+            }
             throw new DatabaseError(`Failed to execute: ${error}`);
         }
     }
 
     async query(sql: string, params: any[] = []): Promise<Row[]> {
+        if (this.isClosed) {
+            return []; // Return empty array for closed database
+        }
         try {
             // Use setImmediate to make it truly async
             await new Promise(resolve => setImmediate(resolve));
+            // Check again after async operation
+            if (this.isClosed) {
+                return [];
+            }
             const stmt = this.db.prepare(sql);
             return stmt.all(...params) as Row[];
         } catch (error) {
+            // Ignore closed database errors
+            if (error instanceof Error && error.message.includes('closed database')) {
+                return [];
+            }
             throw new DatabaseError(`Failed to query: ${error}`);
         }
     }
 
     // Sync methods for backward compatibility
     execSync(sql: string, params: any[] = []): void {
+        if (this.isClosed) {
+            return; // Silently ignore operations on closed database
+        }
         try {
             const stmt = this.db.prepare(sql);
             stmt.run(...params);
         } catch (error) {
+            // Ignore closed database errors
+            if (error instanceof Error && error.message.includes('closed database')) {
+                return;
+            }
             throw new DatabaseError(`Failed to execute: ${error}`);
         }
     }
 
     querySync(sql: string, params: any[] = []): Row[] {
+        if (this.isClosed) {
+            return []; // Return empty array for closed database
+        }
         try {
             const stmt = this.db.prepare(sql);
             return stmt.all(...params) as Row[];
         } catch (error) {
+            // Ignore closed database errors
+            if (error instanceof Error && error.message.includes('closed database')) {
+                return [];
+            }
             throw new DatabaseError(`Failed to query: ${error}`);
         }
     }
@@ -118,12 +155,16 @@ export class BunDriver implements Driver {
     }
 
     async close(): Promise<void> {
+        if (this.isClosed) return;
         // Use setImmediate to make it truly async
         await new Promise(resolve => setImmediate(resolve));
+        this.isClosed = true;
         this.db.close();
     }
 
     closeSync(): void {
+        if (this.isClosed) return;
+        this.isClosed = true;
         this.db.close();
     }
 }

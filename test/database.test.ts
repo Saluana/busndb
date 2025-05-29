@@ -1,4 +1,4 @@
-import { test, expect, describe, beforeEach } from 'bun:test';
+import { test, expect, describe, beforeEach, afterEach } from 'bun:test';
 import { z } from 'zod';
 import { createDB, ValidationError, UniqueConstraintError, NotFoundError } from '../src/index.js';
 import type { Database } from '../src/database.js';
@@ -23,6 +23,12 @@ describe('BusNDB', () => {
 
   beforeEach(() => {
     db = createDB({ memory: true });
+  });
+
+  afterEach(() => {
+    if (db) {
+      db.close();
+    }
   });
 
   describe('Database Creation', () => {

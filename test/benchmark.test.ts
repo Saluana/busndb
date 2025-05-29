@@ -75,8 +75,15 @@ async function runBenchmarks() {
     // Benchmark: Point Queries (findById)
     console.log('3. Benchmarking point queries...');
     const allDocs = users.toArraySync();
+    
+    // Guard against empty docs array
+    if (allDocs.length === 0) {
+        console.log('No documents found, skipping point queries benchmark');
+        return;
+    }
+    
     const randomIds = Array.from(
-        { length: 1000 },
+        { length: Math.min(1000, allDocs.length) },
         () => allDocs[Math.floor(Math.random() * allDocs.length)].id
     );
 
