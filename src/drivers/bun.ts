@@ -96,4 +96,33 @@ export class BunDriver implements Driver {
     close(): void {
         this.db.close();
     }
+
+    // Async methods for non-blocking operations
+    async execAsync(sql: string, params: any[] = []): Promise<void> {
+        try {
+            // Use setImmediate to make it truly async
+            await new Promise(resolve => setImmediate(resolve));
+            const stmt = this.db.prepare(sql);
+            stmt.run(...params);
+        } catch (error) {
+            throw new DatabaseError(`Failed to execute: ${error}`);
+        }
+    }
+
+    async queryAsync(sql: string, params: any[] = []): Promise<Row[]> {
+        try {
+            // Use setImmediate to make it truly async
+            await new Promise(resolve => setImmediate(resolve));
+            const stmt = this.db.prepare(sql);
+            return stmt.all(...params) as Row[];
+        } catch (error) {
+            throw new DatabaseError(`Failed to query: ${error}`);
+        }
+    }
+
+    async closeAsync(): Promise<void> {
+        // Use setImmediate to make it truly async
+        await new Promise(resolve => setImmediate(resolve));
+        this.db.close();
+    }
 }

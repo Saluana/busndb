@@ -27,6 +27,11 @@ export interface Driver {
     query(sql: string, params?: any[]): Row[];
     transaction<T>(fn: () => Promise<T>): Promise<T>;
     close(): void;
+    
+    // Async methods
+    execAsync(sql: string, params?: any[]): Promise<void>;
+    queryAsync(sql: string, params?: any[]): Promise<Row[]>;
+    closeAsync(): Promise<void>;
 }
 
 export interface Row {

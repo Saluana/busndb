@@ -263,6 +263,77 @@ export class NodeDriver implements Driver {
             console.warn('Warning: Error closing database connection:', error);
         }
     }
+
+    // Async methods for non-blocking operations
+    async execAsync(sql: string, params: any[] = []): Promise<void> {
+        try {
+            if (this.dbType === 'libsql') {
+                // LibSQL native async support
+                await this.db.execute({ sql, args: params });
+            } else {
+                // Make sync operations async for consistency
+                await new Promise(resolve => setImmediate(resolve));
+                if (this.db.prepare) {
+                    // better-sqlite3
+                    const stmt = this.db.prepare(sql);
+                    stmt.run(params);
+                } else {
+                    throw new Error('sqlite3 driver requires async operations. Use better-sqlite3 for sync interface.');
+                }
+            }
+        } catch (error) {
+            throw new DatabaseError(
+                `Failed to execute: ${error instanceof Error ? error.message : String(error)}`,
+                sql
+            );
+        }
+    }
+
+    async queryAsync(sql: string, params: any[] = []): Promise<Row[]> {
+        try {
+            if (this.dbType === 'libsql') {
+                // LibSQL native async support
+                const result = await this.db.execute({ sql, args: params });
+                return result.rows.map((row: any) => this.convertLibSQLRow(row, result.columns));
+            } else {
+                // Make sync operations async for consistency
+                await new Promise(resolve => setImmediate(resolve));
+                if (this.db.prepare) {
+                    // better-sqlite3
+                    const stmt = this.db.prepare(sql);
+                    return stmt.all(params);
+                } else {
+                    throw new Error('sqlite3 driver requires async operations. Use better-sqlite3 for sync interface.');
+                }
+            }
+        } catch (error) {
+            throw new DatabaseError(
+                `Failed to query: ${error instanceof Error ? error.message : String(error)}`,
+                sql
+            );
+        }
+    }
+
+    async closeAsync(): Promise<void> {
+        try {
+            if (this.db) {
+                if (this.dbType === 'libsql') {
+                    if (this.db.close) {
+                        await this.db.close();
+                    }
+                } else {
+                    // Make sync close async for consistency
+                    await new Promise(resolve => setImmediate(resolve));
+                    if (this.db.close) {
+                        this.db.close();
+                    }
+                }
+            }
+        } catch (error) {
+            // Ignore close errors
+            console.warn('Warning: Error closing database connection:', error);
+        }
+    }
 }
 
 // Export a factory function for easier testing and configuration

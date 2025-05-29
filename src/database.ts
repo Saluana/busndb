@@ -112,6 +112,15 @@ export class Database {
         this.driver.close();
     }
 
+    async closeAsync(): Promise<void> {
+        await this.plugins.executeHookSafe('onDatabaseClose', {
+            collectionName: '',
+            schema: {} as any,
+            operation: 'database_close'
+        });
+        await this.driver.closeAsync();
+    }
+
     // Plugin management methods
     use(plugin: Plugin): this {
         this.plugins.register(plugin);
@@ -141,6 +150,15 @@ export class Database {
 
     query(sql: string, params?: any[]): Row[] {
         return this.driver.query(sql, params);
+    }
+
+    // Async versions
+    async execAsync(sql: string, params?: any[]): Promise<void> {
+        return this.driver.execAsync(sql, params);
+    }
+
+    async queryAsync(sql: string, params?: any[]): Promise<Row[]> {
+        return this.driver.queryAsync(sql, params);
     }
 }
 

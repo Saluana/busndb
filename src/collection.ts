@@ -389,6 +389,238 @@ export class Collection<T extends z.ZodSchema> {
         (builder as any).collection = this;
         return builder.or(builderFn);
     }
+
+    // Async versions of direct collection query methods  
+    async orderByAsync<K extends OrderablePaths<InferSchema<T>>>(
+        field: K | string,
+        direction: 'asc' | 'desc' = 'asc'
+    ): Promise<QueryBuilder<InferSchema<T>>> {
+        const builder = new QueryBuilder<InferSchema<T>>();
+        (builder as any).collection = this;
+        return builder.orderBy(field as K, direction);
+    }
+
+    async limitAsync(count: number): Promise<QueryBuilder<InferSchema<T>>> {
+        const builder = new QueryBuilder<InferSchema<T>>();
+        (builder as any).collection = this;
+        return builder.limit(count);
+    }
+
+    async offsetAsync(count: number): Promise<QueryBuilder<InferSchema<T>>> {
+        const builder = new QueryBuilder<InferSchema<T>>();
+        (builder as any).collection = this;
+        return builder.offset(count);
+    }
+
+    // Async versions of all CRUD operations
+    async insertAsync(doc: Omit<InferSchema<T>, 'id'>): Promise<InferSchema<T>> {
+        const context = {
+            collectionName: this.collectionSchema.name,
+            schema: this.collectionSchema,
+            operation: 'insert',
+            data: doc
+        };
+
+        // Execute before hook (now properly awaited)
+        await this.pluginManager?.executeHookSafe('onBeforeInsert', context);
+
+        try {
+            // Check if id is provided in doc (via type assertion)
+            const docWithPossibleId = doc as any;
+            let id: string;
+
+            if (docWithPossibleId.id) {
+                // If id is provided, validate it and check for duplicates
+                id = docWithPossibleId.id;
+
+                // Check if this id already exists
+                const existing = await this.findByIdAsync(id);
+                if (existing) {
+                    throw new UniqueConstraintError(
+                        `Document with id '${id}' already exists`,
+                        'id'
+                    );
+                }
+            } else {
+                id = this.generateId();
+            }
+
+            const fullDoc = { ...doc, id };
+            const validatedDoc = this.validateDocument(fullDoc);
+
+            const { sql, params } = SQLTranslator.buildInsertQuery(
+                this.collectionSchema.name,
+                validatedDoc,
+                id,
+                this.collectionSchema.constrainedFields,
+                this.collectionSchema.schema
+            );
+            await this.driver.execAsync(sql, params);
+            
+            // Execute after hook (now properly awaited)
+            const resultContext = { ...context, result: validatedDoc };
+            await this.pluginManager?.executeHookSafe('onAfterInsert', resultContext);
+            
+            return validatedDoc;
+        } catch (error) {
+            // Execute error hook (now properly awaited)
+            const errorContext = { ...context, error: error as Error };
+            await this.pluginManager?.executeHookSafe('onError', errorContext);
+            
+            if (
+                error instanceof Error &&
+                error.message.includes('UNIQUE constraint')
+            ) {
+                throw new UniqueConstraintError(
+                    'Document violates unique constraint',
+                    (doc as any).id || 'unknown'
+                );
+            }
+            throw error;
+        }
+    }
+
+    async insertBulkAsync(docs: Omit<InferSchema<T>, 'id'>[]): Promise<InferSchema<T>[]> {
+        const results: InferSchema<T>[] = [];
+        for (const doc of docs) {
+            results.push(await this.insertAsync(doc));
+        }
+        return results;
+    }
+
+    async putAsync(id: string, doc: Partial<InferSchema<T>>): Promise<InferSchema<T>> {
+        const existing = await this.findByIdAsync(id);
+        if (!existing) {
+            throw new NotFoundError('Document not found', id);
+        }
+
+        const updatedDoc = { ...existing, ...doc, id };
+        const validatedDoc = this.validateDocument(updatedDoc);
+
+        const { sql, params } = SQLTranslator.buildUpdateQuery(
+            this.collectionSchema.name,
+            validatedDoc,
+            id,
+            this.collectionSchema.constrainedFields,
+            this.collectionSchema.schema
+        );
+        await this.driver.execAsync(sql, params);
+        return validatedDoc;
+    }
+
+    async putBulkAsync(
+        updates: { id: string; doc: Partial<InferSchema<T>> }[]
+    ): Promise<InferSchema<T>[]> {
+        const results: InferSchema<T>[] = [];
+        for (const update of updates) {
+            results.push(await this.putAsync(update.id, update.doc));
+        }
+        return results;
+    }
+
+    async deleteAsync(id: string): Promise<boolean> {
+        const { sql, params } = SQLTranslator.buildDeleteQuery(
+            this.collectionSchema.name,
+            id
+        );
+        await this.driver.execAsync(sql, params);
+        return true;
+    }
+
+    async deleteBulkAsync(ids: string[]): Promise<number> {
+        let count = 0;
+        for (const id of ids) {
+            if (await this.deleteAsync(id)) count++;
+        }
+        return count;
+    }
+
+    async upsertAsync(id: string, doc: Omit<InferSchema<T>, 'id'>): Promise<InferSchema<T>> {
+        return this.upsertOptimizedAsync(id, doc);
+    }
+
+    async upsertOptimizedAsync(
+        id: string,
+        doc: Omit<InferSchema<T>, 'id'>
+    ): Promise<InferSchema<T>> {
+        const fullDoc = { ...doc, id };
+        const validatedDoc = this.validateDocument(fullDoc);
+
+        try {
+            if (!this.collectionSchema.constrainedFields || Object.keys(this.collectionSchema.constrainedFields).length === 0) {
+                const sql = `INSERT OR REPLACE INTO ${this.collectionSchema.name} (_id, doc) VALUES (?, ?)`;
+                const params = [id, JSON.stringify(validatedDoc)];
+                await this.driver.execAsync(sql, params);
+            } else {
+                const { sql, params } = SQLTranslator.buildInsertQuery(
+                    this.collectionSchema.name,
+                    validatedDoc,
+                    id,
+                    this.collectionSchema.constrainedFields,
+                    this.collectionSchema.schema
+                );
+                const upsertSQL = sql.replace('INSERT INTO', 'INSERT OR REPLACE INTO');
+                await this.driver.execAsync(upsertSQL, params);
+            }
+
+            return validatedDoc;
+        } catch (error) {
+            if (
+                error instanceof Error &&
+                error.message.includes('UNIQUE constraint')
+            ) {
+                throw new UniqueConstraintError(
+                    'Document violates unique constraint',
+                    id
+                );
+            }
+            throw error;
+        }
+    }
+
+    async upsertBulkAsync(
+        updates: { id: string; doc: Omit<InferSchema<T>, 'id'> }[]
+    ): Promise<InferSchema<T>[]> {
+        const results: InferSchema<T>[] = [];
+        for (const update of updates) {
+            results.push(await this.upsertOptimizedAsync(update.id, update.doc));
+        }
+        return results;
+    }
+
+    async findByIdAsync(id: string): Promise<InferSchema<T> | null> {
+        const sql = `SELECT doc FROM ${this.collectionSchema.name} WHERE _id = ?`;
+        const params = [id];
+        const rows = await this.driver.queryAsync(sql, params);
+        if (rows.length === 0) return null;
+        return parseDoc(rows[0].doc);
+    }
+
+    async toArrayAsync(): Promise<InferSchema<T>[]> {
+        const { sql, params } = SQLTranslator.buildSelectQuery(
+            this.collectionSchema.name,
+            { filters: [] },
+            this.collectionSchema.constrainedFields
+        );
+        const rows = await this.driver.queryAsync(sql, params);
+        return rows.map((row) => parseDoc(row.doc));
+    }
+
+    async countAsync(): Promise<number> {
+        const sql = `SELECT COUNT(*) as count FROM ${this.collectionSchema.name}`;
+        const result = await this.driver.queryAsync(sql, []);
+        return result[0].count;
+    }
+
+    async firstAsync(): Promise<InferSchema<T> | null> {
+        const { sql, params } = SQLTranslator.buildSelectQuery(
+            this.collectionSchema.name,
+            { filters: [], limit: 1 },
+            this.collectionSchema.constrainedFields
+        );
+        const rows = await this.driver.queryAsync(sql, params);
+        return rows.length > 0 ? parseDoc(rows[0].doc) : null;
+    }
 }
 
 // Extend QueryBuilder to support collection operations
@@ -397,12 +629,20 @@ declare module './query-builder.js' {
         toArray(): T[];
         first(): T | null;
         count(): number;
+        // Async versions
+        toArrayAsync(): Promise<T[]>;
+        firstAsync(): Promise<T | null>;
+        countAsync(): Promise<number>;
     }
 
     interface FieldBuilder<T, K extends QueryablePaths<T> | string> {
         toArray(): T[];
         first(): T | null;
         count(): number;
+        // Async versions
+        toArrayAsync(): Promise<T[]>;
+        firstAsync(): Promise<T | null>;
+        countAsync(): Promise<number>;
     }
 }
 
@@ -473,5 +713,75 @@ FieldBuilder.prototype.count = function <T>(
 ): number {
     throw new Error(
         'count() should not be called on FieldBuilder. Use a comparison operator first.'
+    );
+};
+
+// Async prototype methods for QueryBuilder
+QueryBuilder.prototype.toArrayAsync = async function <T>(
+    this: QueryBuilder<T> & { collection?: Collection<any> }
+): Promise<T[]> {
+    if (!this.collection)
+        throw new Error('Collection not bound to query builder');
+
+    const { sql, params } = SQLTranslator.buildSelectQuery(
+        this.collection['collectionSchema'].name,
+        this.getOptions(),
+        this.collection['collectionSchema'].constrainedFields
+    );
+    const rows = await this.collection['driver'].queryAsync(sql, params);
+    return rows.map((row) => parseDoc(row.doc));
+};
+
+QueryBuilder.prototype.firstAsync = async function <T>(this: QueryBuilder<T>): Promise<T | null> {
+    const results = await this.limit(1).toArrayAsync();
+    return results[0] || null;
+};
+
+QueryBuilder.prototype.countAsync = async function <T>(
+    this: QueryBuilder<T> & { collection?: Collection<any> }
+): Promise<number> {
+    if (!this.collection)
+        throw new Error('Collection not bound to query builder');
+
+    const options = this.getOptions();
+    let sql = `SELECT COUNT(*) as count FROM ${this.collection['collectionSchema'].name}`;
+    const params: any[] = [];
+
+    if (options.filters.length > 0) {
+        const { whereClause, whereParams } = SQLTranslator.buildWhereClause(
+            options.filters,
+            'AND',
+            this.collection['collectionSchema'].constrainedFields
+        );
+        sql += ` WHERE ${whereClause}`;
+        params.push(...whereParams);
+    }
+
+    const result = await this.collection['driver'].queryAsync(sql, params);
+    return result[0].count;
+};
+
+// Async prototype methods for FieldBuilder (error handlers)
+FieldBuilder.prototype.toArrayAsync = async function <T>(
+    this: FieldBuilder<T, any> & { collection?: Collection<any> }
+): Promise<T[]> {
+    throw new Error(
+        'toArrayAsync() should not be called on FieldBuilder. Use a comparison operator first.'
+    );
+};
+
+FieldBuilder.prototype.firstAsync = async function <T>(
+    this: FieldBuilder<T, any>
+): Promise<T | null> {
+    throw new Error(
+        'firstAsync() should not be called on FieldBuilder. Use a comparison operator first.'
+    );
+};
+
+FieldBuilder.prototype.countAsync = async function <T>(
+    this: FieldBuilder<T, any> & { collection?: Collection<any> }
+): Promise<number> {
+    throw new Error(
+        'countAsync() should not be called on FieldBuilder. Use a comparison operator first.'
     );
 };

@@ -21,3 +21,10 @@ export type {
 export { PluginManager } from './plugin-system';
 export type { Plugin, PluginContext } from './plugin-system';
 export * from './plugins';
+
+// Note: Async methods are available on all classes:
+// Database: execAsync(), queryAsync(), closeAsync()
+// Collection: insertAsync(), insertBulkAsync(), putAsync(), putBulkAsync(), 
+//           deleteAsync(), deleteBulkAsync(), upsertAsync(), upsertBulkAsync(),
+//           findByIdAsync(), toArrayAsync(), countAsync(), firstAsync()
+// QueryBuilder: toArrayAsync(), firstAsync(), countAsync()

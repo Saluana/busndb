@@ -30,6 +30,7 @@
         "test": "bun test",
         "dev": "bun run index.ts",
         "example": "bun run example.ts",
+        "example:async": "bun run example-async.ts",
         "benchmark": "bun run benchmark.ts",
         "benchmark:sql": "bun run benchmark-sql-translator.ts"
     },
