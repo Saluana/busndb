@@ -1,11 +1,16 @@
-import type { QueryOptions, QueryFilter, QueryGroup, ConstrainedFieldDefinition } from './types';
+import type {
+    QueryOptions,
+    QueryFilter,
+    QueryGroup,
+    ConstrainedFieldDefinition,
+} from './types';
 import { stringifyDoc } from './json-utils';
-import { 
-    extractConstrainedValues, 
-    fieldPathToColumnName, 
+import {
+    extractConstrainedValues,
+    fieldPathToColumnName,
     convertValueForStorage,
     inferSQLiteType,
-    getZodTypeForPath
+    getZodTypeForPath,
 } from './constrained-fields';
 
 /**
@@ -25,7 +30,10 @@ const jsonPath = (field: string) => {
 /**
  * Choose optimal field access method based on whether field is constrained
  */
-const getFieldAccess = (field: string, constrainedFields?: { [fieldPath: string]: ConstrainedFieldDefinition }): string => {
+const getFieldAccess = (
+    field: string,
+    constrainedFields?: { [fieldPath: string]: ConstrainedFieldDefinition }
+): string => {
     if (constrainedFields && constrainedFields[field]) {
         // Use dedicated column for constrained fields
         return fieldPathToColumnName(field);
@@ -58,8 +66,8 @@ export class SQLTranslator {
         }
 
         if (options.groupBy && options.groupBy.length > 0) {
-            const groupClauses = options.groupBy.map(
-                (field) => getFieldAccess(field, constrainedFields)
+            const groupClauses = options.groupBy.map((field) =>
+                getFieldAccess(field, constrainedFields)
             );
             sql += ` GROUP BY ${groupClauses.join(', ')}`;
         }
@@ -67,7 +75,10 @@ export class SQLTranslator {
         if (options.orderBy && options.orderBy.length > 0) {
             const orderClauses = options.orderBy.map(
                 (order) =>
-                    `${getFieldAccess(order.field, constrainedFields)} ${order.direction.toUpperCase()}`
+                    `${getFieldAccess(
+                        order.field,
+                        constrainedFields
+                    )} ${order.direction.toUpperCase()}`
             );
             sql += ` ORDER BY ${orderClauses.join(', ')}`;
         }
@@ -101,28 +112,37 @@ export class SQLTranslator {
             const sql = `INSERT INTO ${tableName} (_id, doc) VALUES (?, ?)`;
             return { sql, params: [id, stringifyDoc(doc)] };
         }
-        
+
         // Build insert with constrained field columns
         const columns = ['_id', 'doc'];
         const params: any[] = [id, stringifyDoc(doc)];
-        
-        const constrainedValues = extractConstrainedValues(doc, constrainedFields);
-        
+
+        const constrainedValues = extractConstrainedValues(
+            doc,
+            constrainedFields
+        );
+
         for (const [fieldPath, fieldDef] of Object.entries(constrainedFields)) {
             const columnName = fieldPathToColumnName(fieldPath);
             const value = constrainedValues[fieldPath];
-            
+
             // Infer SQLite type for proper value conversion
-            const zodType = schema ? getZodTypeForPath(schema, fieldPath) : null;
-            const sqliteType = zodType ? inferSQLiteType(zodType, fieldDef) : 'TEXT';
-            
+            const zodType = schema
+                ? getZodTypeForPath(schema, fieldPath)
+                : null;
+            const sqliteType = zodType
+                ? inferSQLiteType(zodType, fieldDef)
+                : 'TEXT';
+
             columns.push(columnName);
             params.push(convertValueForStorage(value, sqliteType));
         }
-        
+
         const placeholders = columns.map(() => '?').join(', ');
-        const sql = `INSERT INTO ${tableName} (${columns.join(', ')}) VALUES (${placeholders})`;
-        
+        const sql = `INSERT INTO ${tableName} (${columns.join(
+            ', '
+        )}) VALUES (${placeholders})`;
+
         return { sql, params };
     }
 
@@ -138,28 +158,37 @@ export class SQLTranslator {
             const sql = `UPDATE ${tableName} SET doc = ? WHERE _id = ?`;
             return { sql, params: [stringifyDoc(doc), id] };
         }
-        
+
         // Build update with constrained field columns
         const setClauses = ['doc = ?'];
         const params: any[] = [stringifyDoc(doc)];
-        
-        const constrainedValues = extractConstrainedValues(doc, constrainedFields);
-        
+
+        const constrainedValues = extractConstrainedValues(
+            doc,
+            constrainedFields
+        );
+
         for (const [fieldPath, fieldDef] of Object.entries(constrainedFields)) {
             const columnName = fieldPathToColumnName(fieldPath);
             const value = constrainedValues[fieldPath];
-            
+
             // Infer SQLite type for proper value conversion
-            const zodType = schema ? getZodTypeForPath(schema, fieldPath) : null;
-            const sqliteType = zodType ? inferSQLiteType(zodType, fieldDef) : 'TEXT';
-            
+            const zodType = schema
+                ? getZodTypeForPath(schema, fieldPath)
+                : null;
+            const sqliteType = zodType
+                ? inferSQLiteType(zodType, fieldDef)
+                : 'TEXT';
+
             setClauses.push(`${columnName} = ?`);
             params.push(convertValueForStorage(value, sqliteType));
         }
-        
+
         params.push(id); // WHERE clause parameter
-        const sql = `UPDATE ${tableName} SET ${setClauses.join(', ')} WHERE _id = ?`;
-        
+        const sql = `UPDATE ${tableName} SET ${setClauses.join(
+            ', '
+        )} WHERE _id = ?`;
+
         return { sql, params };
     }
 
@@ -228,34 +257,42 @@ export class SQLTranslator {
         const p: any[] = [];
         let c = '';
 
+        // Helper function to convert JavaScript values to SQLite-compatible values
+        const convertValue = (value: any): any => {
+            if (typeof value === 'boolean') {
+                return value ? 1 : 0;
+            }
+            return value;
+        };
+
         switch (filter.operator) {
             case 'eq':
                 c = `${col} = ?`;
-                p.push(filter.value);
+                p.push(convertValue(filter.value));
                 break;
             case 'neq':
                 c = `${col} != ?`;
-                p.push(filter.value);
+                p.push(convertValue(filter.value));
                 break;
             case 'gt':
                 c = `${col} > ?`;
-                p.push(filter.value);
+                p.push(convertValue(filter.value));
                 break;
             case 'gte':
                 c = `${col} >= ?`;
-                p.push(filter.value);
+                p.push(convertValue(filter.value));
                 break;
             case 'lt':
                 c = `${col} < ?`;
-                p.push(filter.value);
+                p.push(convertValue(filter.value));
                 break;
             case 'lte':
                 c = `${col} <= ?`;
-                p.push(filter.value);
+                p.push(convertValue(filter.value));
                 break;
             case 'between':
                 c = `${col} BETWEEN ? AND ?`;
-                p.push(filter.value, filter.value2);
+                p.push(convertValue(filter.value), convertValue(filter.value2));
                 break;
             case 'in':
             case 'nin': {
@@ -264,28 +301,28 @@ export class SQLTranslator {
                 c = `${col}${
                     filter.operator === 'nin' ? ' NOT' : ''
                 } IN (${placeholders})`;
-                p.push(...filter.value);
+                p.push(...filter.value.map(convertValue));
                 break;
             }
             case 'like':
                 c = `${col} LIKE ?`;
-                p.push(filter.value);
+                p.push(convertValue(filter.value));
                 break;
             case 'ilike':
                 c = `UPPER(${col}) LIKE UPPER(?)`;
-                p.push(filter.value);
+                p.push(convertValue(filter.value));
                 break;
             case 'startswith':
                 c = `${col} LIKE ?`;
-                p.push(`${filter.value}%`);
+                p.push(`${convertValue(filter.value)}%`);
                 break;
             case 'endswith':
                 c = `${col} LIKE ?`;
-                p.push(`%${filter.value}`);
+                p.push(`%${convertValue(filter.value)}`);
                 break;
             case 'contains':
                 c = `${col} LIKE ?`;
-                p.push(`%${filter.value}%`);
+                p.push(`%${convertValue(filter.value)}%`);
                 break;
             case 'exists':
                 c = filter.value ? `${col} IS NOT NULL` : `${col} IS NULL`;

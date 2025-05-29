@@ -1,7 +1,14 @@
 import { z } from 'zod';
-import type { DBConfig, Driver, InferSchema, ConstrainedFieldDefinition, Row } from './types';
+import type {
+    DBConfig,
+    Driver,
+    InferSchema,
+    ConstrainedFieldDefinition,
+    Row,
+} from './types';
 import type { SchemaConstraints } from './schema-constraints';
-import { BunDriver } from './drivers/bun';
+// Conditional import to avoid Node.js trying to resolve bun: protocol
+// import { BunDriver } from './drivers/bun';
 import { NodeDriver } from './drivers/node';
 import { Collection } from './collection';
 import { Registry } from './registry';
@@ -22,7 +29,7 @@ export class Database {
         await this.plugins.executeHookSafe('onDatabaseInit', {
             collectionName: '',
             schema: {} as any,
-            operation: 'database_init'
+            operation: 'database_init',
         });
     }
 
@@ -32,7 +39,15 @@ export class Database {
 
         switch (driver) {
             case 'bun':
-                return new BunDriver(config);
+                // Dynamic import to avoid Node.js resolving bun: protocol during static analysis
+                try {
+                    const { BunDriver } = require('./drivers/bun');
+                    return new BunDriver(config);
+                } catch (e) {
+                    throw new Error(
+                        'BunDriver is only available in Bun runtime. Use driver: "node" instead.'
+                    );
+                }
             case 'node':
                 return new NodeDriver(config);
             default:
@@ -43,11 +58,13 @@ export class Database {
     collection<T extends z.ZodSchema>(
         name: string,
         schema?: T,
-        options?: { 
-            primaryKey?: string; 
+        options?: {
+            primaryKey?: string;
             indexes?: string[];
             constraints?: SchemaConstraints;
-            constrainedFields?: { [fieldPath: string]: ConstrainedFieldDefinition };
+            constrainedFields?: {
+                [fieldPath: string]: ConstrainedFieldDefinition;
+            };
         }
     ): Collection<T> {
         if (schema) {
@@ -60,16 +77,22 @@ export class Database {
                 schema,
                 options
             );
-            const collection = new Collection<T>(this.driver, collectionSchema, this.plugins);
+            const collection = new Collection<T>(
+                this.driver,
+                collectionSchema,
+                this.plugins
+            );
             this.collections.set(name, collection);
-            
+
             // Execute collection creation hook (non-blocking)
-            this.plugins.executeHookSafe('onCollectionCreate', {
-                collectionName: name,
-                schema: collectionSchema,
-                operation: 'collection_create'
-            }).catch(console.warn);
-            
+            this.plugins
+                .executeHookSafe('onCollectionCreate', {
+                    collectionName: name,
+                    schema: collectionSchema,
+                    operation: 'collection_create',
+                })
+                .catch(console.warn);
+
             return collection;
         }
 
@@ -85,19 +108,22 @@ export class Database {
         const context = {
             collectionName: '',
             schema: {} as any,
-            operation: 'transaction'
+            operation: 'transaction',
         };
 
         await this.plugins.executeHookSafe('onBeforeTransaction', context);
-        
+
         try {
             const result = await this.driver.transaction(fn);
-            await this.plugins.executeHookSafe('onAfterTransaction', { ...context, result });
+            await this.plugins.executeHookSafe('onAfterTransaction', {
+                ...context,
+                result,
+            });
             return result;
         } catch (error) {
-            await this.plugins.executeHookSafe('onTransactionError', { 
-                ...context, 
-                error: error as Error 
+            await this.plugins.executeHookSafe('onTransactionError', {
+                ...context,
+                error: error as Error,
             });
             throw error;
         }
@@ -107,7 +133,7 @@ export class Database {
         await this.plugins.executeHookSafe('onDatabaseClose', {
             collectionName: '',
             schema: {} as any,
-            operation: 'database_close'
+            operation: 'database_close',
         });
         await this.driver.close();
     }
