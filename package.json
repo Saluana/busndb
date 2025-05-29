@@ -37,6 +37,9 @@
     },
     "scripts": {
         "test": "bun test",
+        "test:node": "tsx --test test/*.node.test.ts",
+        "test:node:benchmark": "tsx test/driver-benchmark.node.test.ts",
+        "test:node:benchmark:js": "node --test test/driver-benchmark.node.test.cjs",
         "dev": "bun run index.ts",
         "example": "bun run example.ts",
         "example:async": "bun run example-async.ts",

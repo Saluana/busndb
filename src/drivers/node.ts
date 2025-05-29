@@ -105,23 +105,23 @@ export class NodeDriver implements Driver {
         };
 
         try {
-            // Apply configuration
-            this.exec(`PRAGMA journal_mode = ${sqliteConfig.journalMode}`);
-            this.exec(`PRAGMA synchronous = ${sqliteConfig.synchronous}`);
-            this.exec(`PRAGMA busy_timeout = ${sqliteConfig.busyTimeout}`);
-            this.exec(`PRAGMA cache_size = ${sqliteConfig.cacheSize}`);
-            this.exec(`PRAGMA temp_store = ${sqliteConfig.tempStore}`);
-            this.exec(`PRAGMA locking_mode = ${sqliteConfig.lockingMode}`);
-            this.exec(`PRAGMA auto_vacuum = ${sqliteConfig.autoVacuum}`);
+            // Apply configuration using sync methods since this is called from constructor
+            this.execSync(`PRAGMA journal_mode = ${sqliteConfig.journalMode}`);
+            this.execSync(`PRAGMA synchronous = ${sqliteConfig.synchronous}`);
+            this.execSync(`PRAGMA busy_timeout = ${sqliteConfig.busyTimeout}`);
+            this.execSync(`PRAGMA cache_size = ${sqliteConfig.cacheSize}`);
+            this.execSync(`PRAGMA temp_store = ${sqliteConfig.tempStore}`);
+            this.execSync(`PRAGMA locking_mode = ${sqliteConfig.lockingMode}`);
+            this.execSync(`PRAGMA auto_vacuum = ${sqliteConfig.autoVacuum}`);
 
             if (sqliteConfig.journalMode === 'WAL') {
-                this.exec(
+                this.execSync(
                     `PRAGMA wal_autocheckpoint = ${sqliteConfig.walCheckpoint}`
                 );
             }
 
             // Always enable foreign keys
-            this.exec('PRAGMA foreign_keys = ON');
+            this.execSync('PRAGMA foreign_keys = ON');
         } catch (error) {
             // Configuration errors shouldn't be fatal, just warn
             console.warn(
@@ -258,7 +258,10 @@ export class NodeDriver implements Driver {
             }
         } catch (error) {
             // Ignore closed database errors
-            if (error instanceof Error && error.message.includes('closed database')) {
+            if (
+                error instanceof Error &&
+                error.message.includes('closed database')
+            ) {
                 return;
             }
             throw new DatabaseError(
@@ -300,7 +303,10 @@ export class NodeDriver implements Driver {
             }
         } catch (error) {
             // Ignore closed database errors
-            if (error instanceof Error && error.message.includes('closed database')) {
+            if (
+                error instanceof Error &&
+                error.message.includes('closed database')
+            ) {
                 return [];
             }
             throw new DatabaseError(
@@ -324,11 +330,15 @@ export class NodeDriver implements Driver {
                     this.db.executeSync({ sql, args: params });
                 } else {
                     // Fallback for LibSQL versions without sync support
-                    console.warn('LibSQL sync operations not supported, falling back to async with blocking');
+                    console.warn(
+                        'LibSQL sync operations not supported, falling back to async with blocking'
+                    );
                     // This is not ideal but provides compatibility
                     let error: any = null;
                     let completed = false;
-                    this.exec(sql, params).then(() => completed = true).catch(e => error = e);
+                    this.exec(sql, params)
+                        .then(() => (completed = true))
+                        .catch((e) => (error = e));
                     // Simple blocking wait - not recommended for production
                     while (!completed && !error) {
                         // Busy wait - should be replaced with proper sync implementation
@@ -350,7 +360,10 @@ export class NodeDriver implements Driver {
             }
         } catch (error) {
             // Ignore closed database errors
-            if (error instanceof Error && error.message.includes('closed database')) {
+            if (
+                error instanceof Error &&
+                error.message.includes('closed database')
+            ) {
                 return;
             }
             throw new DatabaseError(
@@ -376,11 +389,15 @@ export class NodeDriver implements Driver {
                     );
                 } else {
                     // Fallback for LibSQL versions without sync support
-                    console.warn('LibSQL sync operations not supported, falling back to async with blocking');
+                    console.warn(
+                        'LibSQL sync operations not supported, falling back to async with blocking'
+                    );
                     // This is not ideal but provides compatibility
                     let result: Row[] = [];
                     let error: any = null;
-                    this.query(sql, params).then(r => result = r).catch(e => error = e);
+                    this.query(sql, params)
+                        .then((r) => (result = r))
+                        .catch((e) => (error = e));
                     // Simple blocking wait - not recommended for production
                     while (result.length === 0 && !error) {
                         // Busy wait - should be replaced with proper sync implementation
@@ -402,7 +419,10 @@ export class NodeDriver implements Driver {
             }
         } catch (error) {
             // Ignore closed database errors
-            if (error instanceof Error && error.message.includes('closed database')) {
+            if (
+                error instanceof Error &&
+                error.message.includes('closed database')
+            ) {
                 return [];
             }
             throw new DatabaseError(
@@ -423,6 +443,12 @@ export class NodeDriver implements Driver {
     }
 
     async transaction<T>(fn: () => Promise<T>): Promise<T> {
+        if (this.isClosed) {
+            throw new DatabaseError(
+                'Cannot start transaction on closed database'
+            );
+        }
+
         if (this.dbType === 'libsql') {
             // libsql transaction handling
             const tx = await this.db.transaction();
@@ -437,9 +463,15 @@ export class NodeDriver implements Driver {
         } else {
             // SQLite transaction handling
             if (this.db.transaction) {
-                // better-sqlite3
-                const transaction = this.db.transaction(() => fn());
-                return transaction();
+                // better-sqlite3 synchronous transaction - wrap properly
+                try {
+                    const transaction = this.db.transaction(async () => {
+                        return await fn();
+                    });
+                    return await transaction();
+                } catch (error) {
+                    throw error;
+                }
             } else {
                 // Fallback transaction implementation
                 await this.exec('BEGIN TRANSACTION');
@@ -448,7 +480,11 @@ export class NodeDriver implements Driver {
                     await this.exec('COMMIT');
                     return result;
                 } catch (error) {
-                    await this.exec('ROLLBACK');
+                    try {
+                        await this.exec('ROLLBACK');
+                    } catch (rollbackError) {
+                        // Ignore rollback errors
+                    }
                     throw error;
                 }
             }
@@ -458,7 +494,7 @@ export class NodeDriver implements Driver {
     async close(): Promise<void> {
         if (this.isClosed) return;
         // Use setImmediate to make it truly async
-        await new Promise(resolve => setImmediate(resolve));
+        await new Promise((resolve) => setImmediate(resolve));
         this.isClosed = true;
         try {
             if (this.db) {
