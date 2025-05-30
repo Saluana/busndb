@@ -1,16 +1,21 @@
-import type { Driver, Row, DBConfig } from '../types';
+import type { Row, DBConfig } from '../types';
 import { DatabaseError } from '../errors';
 import { createRequire } from 'module';
+import { BaseDriver } from './base.js';
 
 // Create require function for ES modules
 const require = createRequire(import.meta.url);
 
-export class NodeDriver implements Driver {
+export class NodeDriver extends BaseDriver {
     private db: any;
     private dbType: 'sqlite' | 'libsql' = 'sqlite';
-    private isClosed = false;
 
     constructor(config: DBConfig = {}) {
+        super(config);
+        this.initializeDriver(config);
+    }
+
+    protected initializeDriver(config: DBConfig): void {
         this.initializeDatabase(config);
     }
 
@@ -90,46 +95,6 @@ export class NodeDriver implements Driver {
         }
     }
 
-    private configureSQLite(config: DBConfig): void {
-        // Optimized defaults
-        const sqliteConfig = {
-            journalMode: 'WAL',
-            synchronous: 'NORMAL',
-            busyTimeout: 5000,
-            cacheSize: -64000, // 64MB
-            tempStore: 'MEMORY',
-            lockingMode: 'NORMAL',
-            autoVacuum: 'NONE',
-            walCheckpoint: 1000,
-            ...config.sqlite,
-        };
-
-        try {
-            // Apply configuration using sync methods since this is called from constructor
-            this.execSync(`PRAGMA journal_mode = ${sqliteConfig.journalMode}`);
-            this.execSync(`PRAGMA synchronous = ${sqliteConfig.synchronous}`);
-            this.execSync(`PRAGMA busy_timeout = ${sqliteConfig.busyTimeout}`);
-            this.execSync(`PRAGMA cache_size = ${sqliteConfig.cacheSize}`);
-            this.execSync(`PRAGMA temp_store = ${sqliteConfig.tempStore}`);
-            this.execSync(`PRAGMA locking_mode = ${sqliteConfig.lockingMode}`);
-            this.execSync(`PRAGMA auto_vacuum = ${sqliteConfig.autoVacuum}`);
-
-            if (sqliteConfig.journalMode === 'WAL') {
-                this.execSync(
-                    `PRAGMA wal_autocheckpoint = ${sqliteConfig.walCheckpoint}`
-                );
-            }
-
-            // Always enable foreign keys
-            this.execSync('PRAGMA foreign_keys = ON');
-        } catch (error) {
-            // Configuration errors shouldn't be fatal, just warn
-            console.warn(
-                'Warning: Failed to apply some SQLite configuration:',
-                error
-            );
-        }
-    }
 
     private detectDatabaseType(
         config: DBConfig,
@@ -230,38 +195,27 @@ export class NodeDriver implements Driver {
         }
     }
 
-    // Default async methods
     async exec(sql: string, params: any[] = []): Promise<void> {
         if (this.isClosed) {
-            return; // Silently ignore operations on closed database
+            return;
         }
         try {
             if (this.dbType === 'libsql') {
-                // LibSQL native async support
                 await this.db.execute({ sql, args: params });
             } else {
-                // Make sync operations async for consistency
-                await new Promise((resolve) => setImmediate(resolve));
-                // Check again after async operation
-                if (this.isClosed) {
-                    return;
-                }
-                if (this.db.prepare) {
-                    // better-sqlite3
-                    const stmt = this.db.prepare(sql);
-                    stmt.run(params);
-                } else {
-                    throw new Error(
-                        'sqlite3 driver requires async operations. Use better-sqlite3 for sync interface.'
-                    );
-                }
+                await this.makeAsync(() => {
+                    if (this.db.prepare) {
+                        const stmt = this.db.prepare(sql);
+                        stmt.run(params);
+                    } else {
+                        throw new Error(
+                            'sqlite3 driver requires async operations. Use better-sqlite3 for sync interface.'
+                        );
+                    }
+                });
             }
         } catch (error) {
-            // Ignore closed database errors
-            if (
-                error instanceof Error &&
-                error.message.includes('closed database')
-            ) {
+            if (this.handleClosedDatabase(error)) {
                 return;
             }
             throw new DatabaseError(
@@ -275,38 +229,28 @@ export class NodeDriver implements Driver {
 
     async query(sql: string, params: any[] = []): Promise<Row[]> {
         if (this.isClosed) {
-            return []; // Return empty array for closed database
+            return [];
         }
         try {
             if (this.dbType === 'libsql') {
-                // LibSQL native async support
                 const result = await this.db.execute({ sql, args: params });
                 return result.rows.map((row: any) =>
                     this.convertLibSQLRow(row, result.columns)
                 );
             } else {
-                // Make sync operations async for consistency
-                await new Promise((resolve) => setImmediate(resolve));
-                // Check again after async operation
-                if (this.isClosed) {
-                    return [];
-                }
-                if (this.db.prepare) {
-                    // better-sqlite3
-                    const stmt = this.db.prepare(sql);
-                    return stmt.all(params);
-                } else {
-                    throw new Error(
-                        'sqlite3 driver requires async operations. Use better-sqlite3 for sync interface.'
-                    );
-                }
+                return await this.makeAsync(() => {
+                    if (this.db.prepare) {
+                        const stmt = this.db.prepare(sql);
+                        return stmt.all(params);
+                    } else {
+                        throw new Error(
+                            'sqlite3 driver requires async operations. Use better-sqlite3 for sync interface.'
+                        );
+                    }
+                });
             }
         } catch (error) {
-            // Ignore closed database errors
-            if (
-                error instanceof Error &&
-                error.message.includes('closed database')
-            ) {
+            if (this.handleClosedDatabase(error)) {
                 return [];
             }
             throw new DatabaseError(
@@ -318,52 +262,40 @@ export class NodeDriver implements Driver {
         }
     }
 
-    // Sync methods for backward compatibility
     execSync(sql: string, params: any[] = []): void {
         if (this.isClosed) {
-            return; // Silently ignore operations on closed database
+            return;
         }
         try {
             if (this.dbType === 'libsql') {
-                // Check if LibSQL supports sync operations
                 if (this.db.executeSync) {
                     this.db.executeSync({ sql, args: params });
                 } else {
-                    // Fallback for LibSQL versions without sync support
                     console.warn(
                         'LibSQL sync operations not supported, falling back to async with blocking'
                     );
-                    // This is not ideal but provides compatibility
                     let error: any = null;
                     let completed = false;
                     this.exec(sql, params)
                         .then(() => (completed = true))
                         .catch((e) => (error = e));
-                    // Simple blocking wait - not recommended for production
                     while (!completed && !error) {
                         // Busy wait - should be replaced with proper sync implementation
                     }
                     if (error) throw error;
                 }
             } else {
-                // Handle different SQLite drivers
                 if (this.db.prepare) {
-                    // better-sqlite3
                     const stmt = this.db.prepare(sql);
                     stmt.run(params);
                 } else {
-                    // sqlite3 (callback-based, not ideal for sync interface)
                     throw new Error(
                         'sqlite3 driver requires async operations. Use better-sqlite3 for sync interface.'
                     );
                 }
             }
         } catch (error) {
-            // Ignore closed database errors
-            if (
-                error instanceof Error &&
-                error.message.includes('closed database')
-            ) {
+            if (this.handleClosedDatabase(error)) {
                 return;
             }
             throw new DatabaseError(
@@ -377,28 +309,24 @@ export class NodeDriver implements Driver {
 
     querySync(sql: string, params: any[] = []): Row[] {
         if (this.isClosed) {
-            return []; // Return empty array for closed database
+            return [];
         }
         try {
             if (this.dbType === 'libsql') {
-                // Check if LibSQL supports sync operations
                 if (this.db.executeSync) {
                     const result = this.db.executeSync({ sql, args: params });
                     return result.rows.map((row: any) =>
                         this.convertLibSQLRow(row, result.columns)
                     );
                 } else {
-                    // Fallback for LibSQL versions without sync support
                     console.warn(
                         'LibSQL sync operations not supported, falling back to async with blocking'
                     );
-                    // This is not ideal but provides compatibility
                     let result: Row[] = [];
                     let error: any = null;
                     this.query(sql, params)
                         .then((r) => (result = r))
                         .catch((e) => (error = e));
-                    // Simple blocking wait - not recommended for production
                     while (result.length === 0 && !error) {
                         // Busy wait - should be replaced with proper sync implementation
                     }
@@ -406,9 +334,7 @@ export class NodeDriver implements Driver {
                     return result;
                 }
             } else {
-                // Handle different SQLite drivers
                 if (this.db.prepare) {
-                    // better-sqlite3
                     const stmt = this.db.prepare(sql);
                     return stmt.all(params);
                 } else {
@@ -418,11 +344,7 @@ export class NodeDriver implements Driver {
                 }
             }
         } catch (error) {
-            // Ignore closed database errors
-            if (
-                error instanceof Error &&
-                error.message.includes('closed database')
-            ) {
+            if (this.handleClosedDatabase(error)) {
                 return [];
             }
             throw new DatabaseError(
@@ -450,7 +372,6 @@ export class NodeDriver implements Driver {
         }
 
         if (this.dbType === 'libsql') {
-            // libsql transaction handling
             const tx = await this.db.transaction();
             try {
                 const result = await fn();
@@ -461,9 +382,7 @@ export class NodeDriver implements Driver {
                 throw error;
             }
         } else {
-            // SQLite transaction handling
             if (this.db.transaction) {
-                // better-sqlite3 synchronous transaction - wrap properly
                 try {
                     const transaction = this.db.transaction(async () => {
                         return await fn();
@@ -473,29 +392,12 @@ export class NodeDriver implements Driver {
                     throw error;
                 }
             } else {
-                // Fallback transaction implementation
-                await this.exec('BEGIN TRANSACTION');
-                try {
-                    const result = await fn();
-                    await this.exec('COMMIT');
-                    return result;
-                } catch (error) {
-                    try {
-                        await this.exec('ROLLBACK');
-                    } catch (rollbackError) {
-                        // Ignore rollback errors
-                    }
-                    throw error;
-                }
+                return await super.transaction(fn);
             }
         }
     }
 
-    async close(): Promise<void> {
-        if (this.isClosed) return;
-        // Use setImmediate to make it truly async
-        await new Promise((resolve) => setImmediate(resolve));
-        this.isClosed = true;
+    protected async closeDatabase(): Promise<void> {
         try {
             if (this.db) {
                 if (this.dbType === 'libsql') {
@@ -509,29 +411,18 @@ export class NodeDriver implements Driver {
                 }
             }
         } catch (error) {
-            // Ignore close errors
             console.warn('Warning: Error closing database connection:', error);
         }
     }
 
-    closeSync(): void {
-        if (this.isClosed) return;
-        this.isClosed = true;
+    protected closeDatabaseSync(): void {
         try {
             if (this.db) {
-                if (this.dbType === 'libsql') {
-                    if (this.db.close) {
-                        this.db.close();
-                    }
-                } else {
-                    // SQLite drivers
-                    if (this.db.close) {
-                        this.db.close();
-                    }
+                if (this.db.close) {
+                    this.db.close();
                 }
             }
         } catch (error) {
-            // Ignore close errors
             console.warn('Warning: Error closing database connection:', error);
         }
     }

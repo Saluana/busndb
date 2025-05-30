@@ -2,7 +2,7 @@
 
 console.log('Starting test...');
 
-import { createDB } from './src/index.js';
+import { createDB } from './dist/src/index.js';
 import { z } from 'zod';
 
 console.log('Imports successful, testing database initialization...');
