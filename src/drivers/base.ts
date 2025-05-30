@@ -56,13 +56,6 @@ export abstract class BaseDriver implements Driver {
         );
     }
 
-    protected async makeAsync<T>(operation: () => T): Promise<T> {
-        await new Promise((resolve) => setImmediate(resolve));
-        if (this.isClosed) {
-            throw new DatabaseError('Database is closed');
-        }
-        return operation();
-    }
 
     async transaction<T>(fn: () => Promise<T>): Promise<T> {
         if (this.isInTransaction) {
@@ -85,7 +78,6 @@ export abstract class BaseDriver implements Driver {
 
     async close(): Promise<void> {
         if (this.isClosed) return;
-        await new Promise((resolve) => setImmediate(resolve));
         this.isClosed = true;
         await this.closeDatabase();
     }

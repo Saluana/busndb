@@ -203,16 +203,17 @@ export class NodeDriver extends BaseDriver {
             if (this.dbType === 'libsql') {
                 await this.db.execute({ sql, args: params });
             } else {
-                await this.makeAsync(() => {
-                    if (this.db.prepare) {
-                        const stmt = this.db.prepare(sql);
-                        stmt.run(params);
-                    } else {
-                        throw new Error(
-                            'sqlite3 driver requires async operations. Use better-sqlite3 for sync interface.'
-                        );
-                    }
-                });
+                if (this.isClosed) {
+                    throw new DatabaseError('Database is closed');
+                }
+                if (this.db.prepare) {
+                    const stmt = this.db.prepare(sql);
+                    stmt.run(params);
+                } else {
+                    throw new Error(
+                        'sqlite3 driver requires async operations. Use better-sqlite3 for sync interface.'
+                    );
+                }
             }
         } catch (error) {
             if (this.handleClosedDatabase(error)) {
@@ -238,16 +239,17 @@ export class NodeDriver extends BaseDriver {
                     this.convertLibSQLRow(row, result.columns)
                 );
             } else {
-                return await this.makeAsync(() => {
-                    if (this.db.prepare) {
-                        const stmt = this.db.prepare(sql);
-                        return stmt.all(params);
-                    } else {
-                        throw new Error(
-                            'sqlite3 driver requires async operations. Use better-sqlite3 for sync interface.'
-                        );
-                    }
-                });
+                if (this.isClosed) {
+                    throw new DatabaseError('Database is closed');
+                }
+                if (this.db.prepare) {
+                    const stmt = this.db.prepare(sql);
+                    return stmt.all(params);
+                } else {
+                    throw new Error(
+                        'sqlite3 driver requires async operations. Use better-sqlite3 for sync interface.'
+                    );
+                }
             }
         } catch (error) {
             if (this.handleClosedDatabase(error)) {
@@ -271,18 +273,10 @@ export class NodeDriver extends BaseDriver {
                 if (this.db.executeSync) {
                     this.db.executeSync({ sql, args: params });
                 } else {
-                    console.warn(
-                        'LibSQL sync operations not supported, falling back to async with blocking'
+                    throw new DatabaseError(
+                        'LibSQL sync operations not available. Use async methods (exec) or switch to better-sqlite3 for sync support.',
+                        sql
                     );
-                    let error: any = null;
-                    let completed = false;
-                    this.exec(sql, params)
-                        .then(() => (completed = true))
-                        .catch((e) => (error = e));
-                    while (!completed && !error) {
-                        // Busy wait - should be replaced with proper sync implementation
-                    }
-                    if (error) throw error;
                 }
             } else {
                 if (this.db.prepare) {
@@ -319,19 +313,10 @@ export class NodeDriver extends BaseDriver {
                         this.convertLibSQLRow(row, result.columns)
                     );
                 } else {
-                    console.warn(
-                        'LibSQL sync operations not supported, falling back to async with blocking'
+                    throw new DatabaseError(
+                        'LibSQL sync operations not available. Use async methods (query) or switch to better-sqlite3 for sync support.',
+                        sql
                     );
-                    let result: Row[] = [];
-                    let error: any = null;
-                    this.query(sql, params)
-                        .then((r) => (result = r))
-                        .catch((e) => (error = e));
-                    while (result.length === 0 && !error) {
-                        // Busy wait - should be replaced with proper sync implementation
-                    }
-                    if (error) throw error;
-                    return result;
                 }
             } else {
                 if (this.db.prepare) {

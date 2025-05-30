@@ -8,31 +8,39 @@ const UserSchema = z.object({
     name: z.string(),
     email: z.string(),
     age: z.number(),
-    profile: z.object({
-        bio: z.string().optional(),
-        social: z.object({
-            twitter: z.string().optional(),
-            linkedin: z.string().optional()
-        }).optional()
-    }).optional(),
+    profile: z
+        .object({
+            bio: z.string().optional(),
+            social: z
+                .object({
+                    twitter: z.string().optional(),
+                    linkedin: z.string().optional(),
+                })
+                .optional(),
+        })
+        .optional(),
     tags: z.array(z.string()).optional(),
-    metadata: z.object({
-        category: z.string(),
-        score: z.number()
-    }).optional()
+    metadata: z
+        .object({
+            category: z.string(),
+            score: z.number(),
+        })
+        .optional(),
 });
 
 const OrderSchema = z.object({
     id: z.string(),
     userId: z.string(),
     total: z.number(),
-    items: z.array(z.object({
-        name: z.string(),
-        price: z.number(),
-        quantity: z.number()
-    })),
+    items: z.array(
+        z.object({
+            name: z.string(),
+            price: z.number(),
+            quantity: z.number(),
+        })
+    ),
     status: z.string(),
-    createdAt: z.date()
+    createdAt: z.date(),
 });
 
 const ProductSchema = z.object({
@@ -41,11 +49,15 @@ const ProductSchema = z.object({
     price: z.number(),
     category: z.string(),
     inStock: z.boolean(),
-    reviews: z.array(z.object({
-        rating: z.number(),
-        comment: z.string(),
-        userId: z.string()
-    })).optional()
+    reviews: z
+        .array(
+            z.object({
+                rating: z.number(),
+                comment: z.string(),
+                userId: z.string(),
+            })
+        )
+        .optional(),
 });
 
 describe('Enhanced Query Engine', () => {
@@ -56,11 +68,13 @@ describe('Enhanced Query Engine', () => {
 
     beforeEach(async () => {
         db = new Database({ memory: true });
-        
+
         // Create collections
         users = db.collection('users', UserSchema, { primaryKey: 'id' });
         orders = db.collection('orders', OrderSchema, { primaryKey: 'id' });
-        products = db.collection('products', ProductSchema, { primaryKey: 'id' });
+        products = db.collection('products', ProductSchema, {
+            primaryKey: 'id',
+        });
 
         // Sample data
         const sampleUsers = [
@@ -71,10 +85,10 @@ describe('Enhanced Query Engine', () => {
                 age: 28,
                 profile: {
                     bio: 'Software engineer',
-                    social: { twitter: '@alice', linkedin: 'alice-smith' }
+                    social: { twitter: '@alice', linkedin: 'alice-smith' },
                 },
                 tags: ['developer', 'javascript', 'react'],
-                metadata: { category: 'premium', score: 95 }
+                metadata: { category: 'premium', score: 95 },
             },
             {
                 id: '2',
@@ -83,10 +97,10 @@ describe('Enhanced Query Engine', () => {
                 age: 35,
                 profile: {
                     bio: 'Product manager',
-                    social: { linkedin: 'bob-johnson' }
+                    social: { linkedin: 'bob-johnson' },
                 },
                 tags: ['product', 'management'],
-                metadata: { category: 'standard', score: 82 }
+                metadata: { category: 'standard', score: 82 },
             },
             {
                 id: '3',
@@ -94,45 +108,41 @@ describe('Enhanced Query Engine', () => {
                 email: 'carol@example.com',
                 age: 24,
                 profile: {
-                    bio: 'Designer'
+                    bio: 'Designer',
                 },
                 tags: ['design', 'ui', 'ux'],
-                metadata: { category: 'premium', score: 88 }
-            }
+                metadata: { category: 'premium', score: 88 },
+            },
         ];
 
         const sampleOrders = [
             {
                 id: 'order1',
                 userId: '1',
-                total: 150.50,
+                total: 150.5,
                 items: [
                     { name: 'Laptop', price: 100, quantity: 1 },
-                    { name: 'Mouse', price: 50.50, quantity: 1 }
+                    { name: 'Mouse', price: 50.5, quantity: 1 },
                 ],
                 status: 'completed',
-                createdAt: new Date('2024-01-15')
+                createdAt: new Date('2024-01-15'),
             },
             {
                 id: 'order2',
                 userId: '1',
                 total: 75.25,
-                items: [
-                    { name: 'Keyboard', price: 75.25, quantity: 1 }
-                ],
+                items: [{ name: 'Keyboard', price: 75.25, quantity: 1 }],
                 status: 'pending',
-                createdAt: new Date('2024-01-20')
+                createdAt: new Date('2024-01-20'),
             },
             {
                 id: 'order3',
                 userId: '2',
-                total: 200.00,
-                items: [
-                    { name: 'Monitor', price: 200, quantity: 1 }
-                ],
+                total: 200.0,
+                items: [{ name: 'Monitor', price: 200, quantity: 1 }],
                 status: 'completed',
-                createdAt: new Date('2024-01-18')
-            }
+                createdAt: new Date('2024-01-18'),
+            },
         ];
 
         const sampleProducts = [
@@ -144,8 +154,8 @@ describe('Enhanced Query Engine', () => {
                 inStock: true,
                 reviews: [
                     { rating: 5, comment: 'Great laptop!', userId: '1' },
-                    { rating: 4, comment: 'Good value', userId: '2' }
-                ]
+                    { rating: 4, comment: 'Good value', userId: '2' },
+                ],
             },
             {
                 id: 'prod2',
@@ -153,9 +163,7 @@ describe('Enhanced Query Engine', () => {
                 price: 25,
                 category: 'electronics',
                 inStock: true,
-                reviews: [
-                    { rating: 4, comment: 'Works well', userId: '1' }
-                ]
+                reviews: [{ rating: 4, comment: 'Works well', userId: '1' }],
             },
             {
                 id: 'prod3',
@@ -163,8 +171,8 @@ describe('Enhanced Query Engine', () => {
                 price: 300,
                 category: 'furniture',
                 inStock: false,
-                reviews: []
-            }
+                reviews: [],
+            },
         ];
 
         // Insert sample data
@@ -185,70 +193,78 @@ describe('Enhanced Query Engine', () => {
 
     describe('Aggregate Functions', () => {
         it('should count all records', async () => {
-            const result = await users.query()
-                .count('*', 'total_users')
-                .exec();
-            
+            const result = await users.query().count('*', 'total_users').exec();
+
             expect(result).toHaveLength(1);
             expect(result[0].total_users).toBe(3);
         });
 
         it('should count with GROUP BY', async () => {
-            const result = await users.query()
+            const result = await users
+                .query()
                 .select('metadata.category')
                 .count('*', 'count')
                 .groupBy('metadata.category')
                 .exec();
-            
+
             expect(result).toHaveLength(2);
-            
-            const premiumCount = result.find((r: any) => r['metadata.category'] === 'premium')?.count;
-            const standardCount = result.find((r: any) => r['metadata.category'] === 'standard')?.count;
-            
+
+            const premiumCount = result.find(
+                (r: any) => r['metadata.category'] === 'premium'
+            )?.count;
+            const standardCount = result.find(
+                (r: any) => r['metadata.category'] === 'standard'
+            )?.count;
+
             expect(premiumCount).toBe(2);
             expect(standardCount).toBe(1);
         });
 
         it('should calculate sum and average', async () => {
-            const result = await orders.query()
+            const result = await orders
+                .query()
                 .sum('total', 'total_sum')
                 .avg('total', 'avg_total')
                 .exec();
-            
+
             expect(result).toHaveLength(1);
             expect(result[0].total_sum).toBe(425.75);
             expect(result[0].avg_total).toBeCloseTo(141.92, 2);
         });
 
         it('should find min and max values', async () => {
-            const result = await users.query()
+            const result = await users
+                .query()
                 .min('age', 'min_age')
                 .max('age', 'max_age')
                 .exec();
-            
+
             expect(result).toHaveLength(1);
             expect(result[0].min_age).toBe(24);
             expect(result[0].max_age).toBe(35);
         });
 
         it('should support HAVING clause', async () => {
-            const result = await users.query()
+            const result = await users
+                .query()
                 .select('metadata.category')
                 .count('*', 'user_count')
                 .groupBy('metadata.category')
-                .having('user_count').gt(1)
+                .having('user_count')
+                .gt(1)
                 .exec();
-            
+
             expect(result).toHaveLength(1);
             expect(result[0]['metadata.category']).toBe('premium');
             expect(result[0].user_count).toBe(2);
         });
 
         it('should support COUNT DISTINCT', async () => {
-            const result = await orders.query()
+            const result = await orders
+                .query()
                 .count('userId', 'unique_users', true)
                 .exec();
-            
+
             expect(result).toHaveLength(1);
             expect(result[0].unique_users).toBe(2);
         });
@@ -261,36 +277,43 @@ describe('Enhanced Query Engine', () => {
             const allOrders = await orders.query().exec();
             console.log('Users:', allUsers.length);
             console.log('Orders:', allOrders.length);
-            console.log('Orders > 100:', allOrders.filter(o => o.total > 100));
-            
-            const result = await users.query()
+            console.log(
+                'Orders > 100:',
+                allOrders.filter((o: any) => o.total > 100)
+            );
+
+            const result = await users
+                .query()
                 .select('name', 'email')
                 .join('orders', 'id', 'userId')
-                .where('total').gt(100)
+                .where('total')
+                .gt(100)
                 .exec();
-            
+
             console.log('JOIN result:', result);
-            
+
             expect(result.length).toBeGreaterThan(0);
             // Should only include users who have orders with total > 100
         });
 
         it('should perform LEFT JOIN', async () => {
-            const result = await users.query()
+            const result = await users
+                .query()
                 .select('name')
                 .leftJoin('orders', 'id', 'userId')
                 .exec();
-            
+
             // Should include all users, even those without orders
             expect(result.length).toBeGreaterThanOrEqual(3);
         });
 
         it('should join with custom operators', async () => {
-            const result = await orders.query()
+            const result = await orders
+                .query()
                 .select('id', 'total')
                 .join('products', 'total', 'price', '>')
                 .exec();
-            
+
             // Orders with total greater than product price
             expect(Array.isArray(result)).toBe(true);
         });
@@ -298,52 +321,66 @@ describe('Enhanced Query Engine', () => {
 
     describe('Subqueries', () => {
         it('should support EXISTS subquery', async () => {
-            const subquery = orders.query()
-                .where('userId').eq('1')
-                .where('status').eq('completed');
-            
-            const result = await users.query()
-                .where('id').existsSubquery(subquery, 'orders')
+            const subquery = orders
+                .query()
+                .where('userId')
+                .eq('1')
+                .where('status')
+                .eq('completed');
+
+            const result = await users
+                .query()
+                .where('id')
+                .existsSubquery(subquery, 'orders')
                 .exec();
-            
+
             expect(result).toHaveLength(1);
             expect(result[0].name).toBe('Alice Smith');
         });
 
         it('should support NOT EXISTS subquery', async () => {
-            const subquery = orders.query()
-                .where('status').eq('pending');
-            
-            const result = await users.query()
-                .where('id').notExistsSubquery(subquery, 'orders')
+            const subquery = orders.query().where('status').eq('pending');
+
+            const result = await users
+                .query()
+                .where('id')
+                .notExistsSubquery(subquery, 'orders')
                 .exec();
-            
+
             // Users without pending orders
             expect(result.length).toBeGreaterThan(0);
         });
 
         it('should support IN subquery', async () => {
-            const subquery = orders.query()
+            const subquery = orders
+                .query()
                 .select('userId')
-                .where('total').gt(100);
-            
-            const result = await users.query()
-                .where('id').inSubquery(subquery, 'orders')
+                .where('total')
+                .gt(100);
+
+            const result = await users
+                .query()
+                .where('id')
+                .inSubquery(subquery, 'orders')
                 .exec();
-            
+
             // Users who have orders > 100
             expect(result.length).toBeGreaterThan(0);
         });
 
         it('should support NOT IN subquery', async () => {
-            const subquery = orders.query()
+            const subquery = orders
+                .query()
                 .select('userId')
-                .where('status').eq('pending');
-            
-            const result = await users.query()
-                .where('id').notInSubquery(subquery, 'orders')
+                .where('status')
+                .eq('pending');
+
+            const result = await users
+                .query()
+                .where('id')
+                .notInSubquery(subquery, 'orders')
                 .exec();
-            
+
             // Users without pending orders
             expect(result.length).toBeGreaterThan(0);
         });
@@ -351,62 +388,76 @@ describe('Enhanced Query Engine', () => {
 
     describe('Deep JSON Path Support', () => {
         it('should query nested object properties', async () => {
-            const result = await users.query()
-                .where('profile.social.twitter').exists()
+            const result = await users
+                .query()
+                .where('profile.social.twitter')
+                .exists()
                 .exec();
-            
+
             expect(result).toHaveLength(1);
             expect(result[0].name).toBe('Alice Smith');
         });
 
         it('should query deep nested paths', async () => {
-            const result = await users.query()
-                .where('profile.social.linkedin').like('%alice%')
+            const result = await users
+                .query()
+                .where('profile.social.linkedin')
+                .like('%alice%')
                 .exec();
-            
+
             expect(result).toHaveLength(1);
             expect(result[0].name).toBe('Alice Smith');
         });
 
         it('should support array length checks', async () => {
-            const result = await users.query()
-                .where('tags').arrayLength('gte', 3)
+            const result = await users
+                .query()
+                .where('tags')
+                .arrayLength('gte', 3)
                 .exec();
-            
+
             expect(result).toHaveLength(2); // Alice and Carol have 3+ tags
         });
 
         it('should support array contains', async () => {
-            const result = await users.query()
-                .where('tags').arrayContains('javascript')
+            const result = await users
+                .query()
+                .where('tags')
+                .arrayContains('javascript')
                 .exec();
-            
+
             expect(result).toHaveLength(1);
             expect(result[0].name).toBe('Alice Smith');
         });
 
         it('should support array not contains', async () => {
-            const result = await users.query()
-                .where('tags').arrayNotContains('java')
+            const result = await users
+                .query()
+                .where('tags')
+                .arrayNotContains('java')
                 .exec();
-            
+
             expect(result).toHaveLength(3); // None have 'java' tag
         });
 
         it('should query nested arrays', async () => {
-            const result = await products.query()
-                .where('reviews').arrayLength('gt', 1)
+            const result = await products
+                .query()
+                .where('reviews')
+                .arrayLength('gt', 1)
                 .exec();
-            
+
             expect(result).toHaveLength(1);
             expect(result[0].name).toBe('Laptop');
         });
 
         it('should support complex nested JSON queries', async () => {
-            const result = await orders.query()
-                .where('items').arrayLength('eq', 1)
+            const result = await orders
+                .query()
+                .where('items')
+                .arrayLength('eq', 1)
                 .exec();
-            
+
             expect(result.length).toBeGreaterThan(0);
         });
     });
@@ -414,75 +465,93 @@ describe('Enhanced Query Engine', () => {
     describe('Complex Combined Queries', () => {
         it('should combine aggregates with joins and subqueries', async () => {
             // Find premium users and their order statistics
-            const premiumUserSubquery = users.query()
+            const premiumUserSubquery = users
+                .query()
                 .select('id')
-                .where('metadata.category').eq('premium');
-            
-            const result = await orders.query()
+                .where('metadata.category')
+                .eq('premium');
+
+            const result = await orders
+                .query()
                 .select('userId')
                 .sum('total', 'total_spent')
                 .count('*', 'order_count')
-                .where('userId').inSubquery(premiumUserSubquery, 'users')
+                .where('userId')
+                .inSubquery(premiumUserSubquery, 'users')
                 .groupBy('userId')
-                .having('total_spent').gt(100)
+                .having('total_spent')
+                .gt(100)
                 .exec();
-            
+
             expect(Array.isArray(result)).toBe(true);
         });
 
         it('should support complex OR conditions with JSON paths', async () => {
-            const result = await users.query()
+            const result = await users
+                .query()
                 .orWhere([
                     (q: any) => q.where('profile.social.twitter').exists(),
                     (q: any) => q.where('tags').arrayContains('design'),
-                    (q: any) => q.where('metadata.score').gt(90)
+                    (q: any) => q.where('metadata.score').gt(90),
                 ])
                 .exec();
-            
+
             expect(result.length).toBeGreaterThan(0);
         });
 
         it('should support mixed aggregates and filtering', async () => {
-            const result = await products.query()
+            const result = await products
+                .query()
                 .select('category')
                 .avg('price', 'avg_price')
                 .count('*', 'product_count')
-                .where('inStock').eq(true)
+                .where('inStock')
+                .eq(true)
                 .groupBy('category')
                 .orderBy('avg_price', 'desc')
                 .exec();
-            
+
             expect(Array.isArray(result)).toBe(true);
         });
     });
 
     describe('Advanced JSON Operations', () => {
         it('should handle deeply nested JSON paths', async () => {
-            const result = await users.query()
-                .where('metadata.category').eq('premium')
-                .where('profile.social.twitter').exists()
+            const result = await users
+                .query()
+                .where('metadata.category')
+                .eq('premium')
+                .where('profile.social.twitter')
+                .exists()
                 .exec();
-            
+
             expect(result).toHaveLength(1);
             expect(result[0].name).toBe('Alice Smith');
         });
 
         it('should support JSON array operations with ordering', async () => {
-            const result = await users.query()
-                .where('tags').arrayLength('gt', 2)
+            const result = await users
+                .query()
+                .where('tags')
+                .arrayLength('gt', 2)
                 .orderBy('metadata.score', 'desc')
                 .exec();
-            
+
             expect(result.length).toBe(2);
-            expect(result[0].metadata.score).toBeGreaterThan(result[1].metadata.score);
+            expect(result[0].metadata.score).toBeGreaterThan(
+                result[1].metadata.score
+            );
         });
 
         it('should combine multiple JSON array filters', async () => {
-            const result = await users.query()
-                .where('tags').arrayContains('developer')
-                .where('tags').arrayNotContains('python')
+            const result = await users
+                .query()
+                .where('tags')
+                .arrayContains('developer')
+                .where('tags')
+                .arrayNotContains('python')
                 .exec();
-            
+
             expect(result).toHaveLength(1);
             expect(result[0].name).toBe('Alice Smith');
         });

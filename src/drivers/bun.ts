@@ -27,10 +27,8 @@ export class BunDriver extends BaseDriver {
             return;
         }
         try {
-            await this.makeAsync(() => {
-                const stmt = this.db.prepare(sql);
-                stmt.run(...params);
-            });
+            const stmt = this.db.prepare(sql);
+            stmt.run(...params);
         } catch (error) {
             if (this.handleClosedDatabase(error)) {
                 return;
@@ -44,10 +42,8 @@ export class BunDriver extends BaseDriver {
             return [];
         }
         try {
-            return await this.makeAsync(() => {
-                const stmt = this.db.prepare(sql);
-                return stmt.all(...params) as Row[];
-            });
+            const stmt = this.db.prepare(sql);
+            return stmt.all(...params) as Row[];
         } catch (error) {
             if (this.handleClosedDatabase(error)) {
                 return [];
