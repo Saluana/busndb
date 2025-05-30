@@ -1,9 +1,20 @@
+/**
+ * @deprecated This constraint system is deprecated in favor of constrainedFields.
+ * Use ConstrainedFieldDefinition in types.ts instead.
+ * Only indexes are still supported - constraints are ignored.
+ * Will be removed in v2.0.0
+ */
 export interface UniqueConstraint {
   type: 'unique';
   name?: string;
   fields: string[];
 }
 
+/**
+ * @deprecated This constraint system is deprecated in favor of constrainedFields.
+ * Use ConstrainedFieldDefinition in types.ts instead.
+ * Will be removed in v2.0.0
+ */
 export interface ForeignKeyConstraint {
   type: 'foreign_key';
   name?: string;
@@ -14,6 +25,11 @@ export interface ForeignKeyConstraint {
   onUpdate?: 'cascade' | 'set_null' | 'restrict' | 'no_action';
 }
 
+/**
+ * @deprecated This constraint system is deprecated in favor of constrainedFields.
+ * Use ConstrainedFieldDefinition in types.ts instead.
+ * Will be removed in v2.0.0
+ */
 export interface CheckConstraint {
   type: 'check';
   name?: string;
@@ -28,8 +44,19 @@ export interface IndexDefinition {
   partial?: string; // WHERE clause for partial index
 }
 
+/**
+ * @deprecated This constraint system is deprecated in favor of constrainedFields.
+ * Use ConstrainedFieldDefinition in types.ts instead.
+ * Will be removed in v2.0.0
+ */
 export type Constraint = UniqueConstraint | ForeignKeyConstraint | CheckConstraint;
 
+/**
+ * @deprecated This constraint system is deprecated in favor of constrainedFields.
+ * Only indexes are still supported from this interface - constraints are ignored.
+ * Use ConstrainedFieldDefinition in types.ts for constraints.
+ * Will be removed in v2.0.0
+ */
 export interface SchemaConstraints {
   constraints?: { [field: string]: Constraint | Constraint[] };
   indexes?: { [name: string]: IndexDefinition };
@@ -37,6 +64,10 @@ export interface SchemaConstraints {
 }
 
 // Helper functions for defining constraints
+/**
+ * @deprecated Use constrainedFields with ConstrainedFieldDefinition instead.
+ * Will be removed in v2.0.0
+ */
 export function unique(name?: string): UniqueConstraint {
   return {
     type: 'unique',
@@ -45,6 +76,10 @@ export function unique(name?: string): UniqueConstraint {
   };
 }
 
+/**
+ * @deprecated Use constrainedFields with ConstrainedFieldDefinition instead.
+ * Will be removed in v2.0.0
+ */
 export function foreignKey(
   referencedTable: string,
   referencedField: string = 'id',
@@ -65,6 +100,10 @@ export function foreignKey(
   };
 }
 
+/**
+ * @deprecated Use constrainedFields with ConstrainedFieldDefinition instead.
+ * Will be removed in v2.0.0
+ */
 export function check(expression: string, name?: string): CheckConstraint {
   return {
     type: 'check',
@@ -93,6 +132,10 @@ export function index(
 }
 
 // Composite constraint helpers
+/**
+ * @deprecated Use constrainedFields with ConstrainedFieldDefinition instead.
+ * Will be removed in v2.0.0
+ */
 export function compositeUnique(fields: string[], name?: string): UniqueConstraint {
   return {
     type: 'unique',
@@ -101,6 +144,10 @@ export function compositeUnique(fields: string[], name?: string): UniqueConstrai
   };
 }
 
+/**
+ * @deprecated Use constrainedFields with ConstrainedFieldDefinition instead.
+ * Will be removed in v2.0.0
+ */
 export function compositeForeignKey(
   fields: string[],
   referencedTable: string,

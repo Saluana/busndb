@@ -54,6 +54,7 @@ export interface CollectionSchema<T = any> {
     schema: z.ZodSchema<T>;
     primaryKey: string;
     indexes?: string[];
+    /** @deprecated Use constrainedFields instead. Will be removed in v2.0.0 */
     constraints?: SchemaConstraints;
     constrainedFields?: { [fieldPath: string]: ConstrainedFieldDefinition };
 }

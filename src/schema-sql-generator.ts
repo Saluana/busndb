@@ -82,6 +82,7 @@ export class SchemaSQLGenerator {
 
         if (constraints) {
             // Add indexes only (constraints now handled via constrainedFields)
+            // Note: SchemaConstraints is deprecated - only indexes are processed
             if (constraints.indexes) {
                 for (const [indexName, indexDef] of Object.entries(
                     constraints.indexes
