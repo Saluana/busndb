@@ -1,4 +1,12 @@
-import type { QueryFilter, QueryOptions, QueryGroup } from './types';
+import type { 
+    QueryFilter, 
+    QueryOptions, 
+    QueryGroup, 
+    AggregateField, 
+    JoinClause, 
+    JoinCondition,
+    SubqueryFilter 
+} from './types';
 import type { 
     QueryablePaths, 
     OrderablePaths, 
@@ -7,9 +15,9 @@ import type {
 } from './types/nested-paths';
 
 export class FieldBuilder<T, K extends QueryablePaths<T> | string> {
-    constructor(private field: K, private builder: QueryBuilder<T>) {}
+    constructor(protected field: K, protected builder: QueryBuilder<T>) {}
 
-    private addFilterAndReturn(
+    protected addFilterAndReturn(
         operator: any,
         value: any,
         value2?: any
@@ -93,6 +101,57 @@ export class FieldBuilder<T, K extends QueryablePaths<T> | string> {
     notExists(): QueryBuilder<T> {
         return this.addFilterAndReturn('exists', false);
     }
+
+    // Subquery operators
+    existsSubquery(subqueryBuilder: QueryBuilder<any>, collection: string): QueryBuilder<T> {
+        return this.builder.addSubqueryFilter(this.field as string, 'exists', subqueryBuilder, collection);
+    }
+
+    notExistsSubquery(subqueryBuilder: QueryBuilder<any>, collection: string): QueryBuilder<T> {
+        return this.builder.addSubqueryFilter(this.field as string, 'not_exists', subqueryBuilder, collection);
+    }
+
+    inSubquery(subqueryBuilder: QueryBuilder<any>, collection: string): QueryBuilder<T> {
+        return this.builder.addSubqueryFilter(this.field as string, 'in', subqueryBuilder, collection);
+    }
+
+    notInSubquery(subqueryBuilder: QueryBuilder<any>, collection: string): QueryBuilder<T> {
+        return this.builder.addSubqueryFilter(this.field as string, 'not_in', subqueryBuilder, collection);
+    }
+
+    // Enhanced JSON path operations
+    arrayLength(operator: 'eq' | 'gt' | 'gte' | 'lt' | 'lte', value: number): QueryBuilder<T> {
+        return this.builder.addJsonArrayLengthFilter(this.field as string, operator, value);
+    }
+
+    arrayContains(value: any): QueryBuilder<T> {
+        return this.builder.addJsonArrayContainsFilter(this.field as string, value);
+    }
+
+    arrayNotContains(value: any): QueryBuilder<T> {
+        return this.builder.addJsonArrayNotContainsFilter(this.field as string, value);
+    }
+}
+
+export class HavingFieldBuilder<T, K extends QueryablePaths<T> | string> extends FieldBuilder<T, K> {
+    constructor(field: K, builder: QueryBuilder<T>) {
+        super(field, builder);
+    }
+
+    protected addFilterAndReturn(
+        operator: any,
+        value: any,
+        value2?: any
+    ): QueryBuilder<T> {
+        const newBuilder = this.builder.addHavingFilter(
+            this.field as string,
+            operator,
+            value,
+            value2
+        );
+        (newBuilder as any).collection = (this.builder as any).collection;
+        return newBuilder;
+    }
 }
 
 export class QueryBuilder<T> {
@@ -113,6 +172,50 @@ export class QueryBuilder<T> {
         value2?: any
     ): QueryBuilder<T> {
         this.options.filters.push({ field, operator, value, value2 });
+        return this;
+    }
+
+    addSubqueryFilter(
+        field: string,
+        operator: 'exists' | 'not_exists' | 'in' | 'not_in',
+        subqueryBuilder: QueryBuilder<any>,
+        collection: string
+    ): QueryBuilder<T> {
+        const subqueryFilter: SubqueryFilter = {
+            field,
+            operator,
+            subquery: subqueryBuilder.getOptions(),
+            subqueryCollection: collection
+        };
+        this.options.filters.push(subqueryFilter);
+        return this;
+    }
+
+    // Enhanced JSON operations
+    addJsonArrayLengthFilter(field: string, operator: string, value: number): QueryBuilder<T> {
+        this.options.filters.push({ 
+            field: `json_array_length(${field})`, 
+            operator: operator as any, 
+            value 
+        });
+        return this;
+    }
+
+    addJsonArrayContainsFilter(field: string, value: any): QueryBuilder<T> {
+        this.options.filters.push({ 
+            field: field, 
+            operator: 'json_array_contains' as any, 
+            value 
+        });
+        return this;
+    }
+
+    addJsonArrayNotContainsFilter(field: string, value: any): QueryBuilder<T> {
+        this.options.filters.push({ 
+            field: field, 
+            operator: 'json_array_not_contains' as any, 
+            value 
+        });
         return this;
     }
 
@@ -157,7 +260,7 @@ export class QueryBuilder<T> {
         if (conditions.length === 0) return this;
 
         const currentFilters = [...this.options.filters];
-        const orFilters: (QueryFilter | QueryGroup)[] = [];
+        const orFilters: (QueryFilter | QueryGroup | SubqueryFilter)[] = [];
 
         for (const condition of conditions) {
             const tempBuilder = new QueryBuilder<T>();
@@ -166,18 +269,23 @@ export class QueryBuilder<T> {
             orFilters.push(...result.getOptions().filters);
         }
 
-        if (currentFilters.length > 0 && orFilters.length > 0) {
-            // Create an OR group containing all current filters and new OR conditions
-            const orGroup: QueryGroup = {
-                type: 'or',
-                filters: [...currentFilters, ...orFilters],
-            };
-
-            // Replace all filters with the OR group
-            this.options.filters = [orGroup];
-        } else if (orFilters.length > 0) {
-            // Just add the OR conditions
-            this.options.filters.push(...orFilters);
+        if (orFilters.length > 0) {
+            if (currentFilters.length > 0) {
+                // Create an OR group containing all current filters and new OR conditions
+                const orGroup: QueryGroup = {
+                    type: 'or',
+                    filters: [...currentFilters, ...orFilters],
+                };
+                // Replace all filters with the OR group
+                this.options.filters = [orGroup];
+            } else {
+                // No current filters, just create an OR group with the OR conditions
+                const orGroup: QueryGroup = {
+                    type: 'or',
+                    filters: orFilters,
+                };
+                this.options.filters = [orGroup];
+            }
         }
 
         return this;
@@ -263,6 +371,119 @@ export class QueryBuilder<T> {
         return this;
     }
 
+    // Aggregate functions
+    select(...fields: string[]): QueryBuilder<T> {
+        this.options.selectFields = fields;
+        return this;
+    }
+
+    aggregate(fn: 'COUNT' | 'SUM' | 'AVG' | 'MIN' | 'MAX', field: string = '*', alias?: string, distinct?: boolean): QueryBuilder<T> {
+        if (!this.options.aggregates) this.options.aggregates = [];
+        this.options.aggregates.push({ function: fn, field, alias, distinct });
+        return this;
+    }
+
+    count(field: string = '*', alias?: string, distinct?: boolean): QueryBuilder<T> {
+        return this.aggregate('COUNT', field, alias, distinct);
+    }
+
+    sum(field: string, alias?: string, distinct?: boolean): QueryBuilder<T> {
+        return this.aggregate('SUM', field, alias, distinct);
+    }
+
+    avg(field: string, alias?: string, distinct?: boolean): QueryBuilder<T> {
+        return this.aggregate('AVG', field, alias, distinct);
+    }
+
+    min(field: string, alias?: string): QueryBuilder<T> {
+        return this.aggregate('MIN', field, alias);
+    }
+
+    max(field: string, alias?: string): QueryBuilder<T> {
+        return this.aggregate('MAX', field, alias);
+    }
+
+    // HAVING clause support
+    having<K extends QueryablePaths<T>>(field: K): FieldBuilder<T, K>;
+    having(field: string): FieldBuilder<T, any>;
+    having<K extends QueryablePaths<T>>(field: K | string): FieldBuilder<T, K> {
+        const fieldBuilder = new HavingFieldBuilder(field as K, this);
+        (fieldBuilder as any).collection = (this as any).collection;
+        return fieldBuilder;
+    }
+
+    addHavingFilter(
+        field: string,
+        operator: QueryFilter['operator'],
+        value: any,
+        value2?: any
+    ): QueryBuilder<T> {
+        if (!this.options.having) this.options.having = [];
+        this.options.having.push({ field, operator, value, value2 });
+        return this;
+    }
+
+    // JOIN operations
+    join<U = any>(
+        collection: string,
+        leftField: string,
+        rightField: string,
+        operator: '=' | '!=' | '>' | '<' | '>=' | '<=' = '='
+    ): QueryBuilder<T & U> {
+        if (!this.options.joins) this.options.joins = [];
+        this.options.joins.push({
+            type: 'INNER',
+            collection,
+            condition: { left: leftField, right: rightField, operator }
+        });
+        return this as any;
+    }
+
+    leftJoin<U = any>(
+        collection: string,
+        leftField: string,
+        rightField: string,
+        operator: '=' | '!=' | '>' | '<' | '>=' | '<=' = '='
+    ): QueryBuilder<T & U> {
+        if (!this.options.joins) this.options.joins = [];
+        this.options.joins.push({
+            type: 'LEFT',
+            collection,
+            condition: { left: leftField, right: rightField, operator }
+        });
+        return this as any;
+    }
+
+    rightJoin<U = any>(
+        collection: string,
+        leftField: string,
+        rightField: string,
+        operator: '=' | '!=' | '>' | '<' | '>=' | '<=' = '='
+    ): QueryBuilder<T & U> {
+        if (!this.options.joins) this.options.joins = [];
+        this.options.joins.push({
+            type: 'RIGHT',
+            collection,
+            condition: { left: leftField, right: rightField, operator }
+        });
+        return this as any;
+    }
+
+    fullJoin<U = any>(
+        collection: string,
+        leftField: string,
+        rightField: string,
+        operator: '=' | '!=' | '>' | '<' | '>=' | '<=' = '='
+    ): QueryBuilder<T & U> {
+        if (!this.options.joins) this.options.joins = [];
+        this.options.joins.push({
+            type: 'FULL',
+            collection,
+            condition: { left: leftField, right: rightField, operator }
+        });
+        return this as any;
+    }
+
     // Reset methods
     clearFilters(): QueryBuilder<T> {
         this.options.filters = [];
@@ -318,7 +539,19 @@ export class QueryBuilder<T> {
             groupBy: this.options.groupBy
                 ? [...this.options.groupBy]
                 : undefined,
+            having: this.options.having
+                ? [...this.options.having]
+                : undefined,
             distinct: this.options.distinct,
+            aggregates: this.options.aggregates
+                ? [...this.options.aggregates]
+                : undefined,
+            joins: this.options.joins
+                ? [...this.options.joins]
+                : undefined,
+            selectFields: this.options.selectFields
+                ? [...this.options.selectFields]
+                : undefined,
         };
         (cloned as any).collection = (this as any).collection;
         return cloned;

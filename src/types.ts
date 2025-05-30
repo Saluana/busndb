@@ -77,21 +77,56 @@ export interface QueryFilter {
         | 'endswith'
         | 'contains'
         | 'exists'
-        | 'between';
+        | 'between'
+        | 'json_array_contains'
+        | 'json_array_not_contains';
     value: any;
     value2?: any; // For between operator
 }
 
 export interface QueryGroup {
     type: 'and' | 'or';
-    filters: (QueryFilter | QueryGroup)[];
+    filters: (QueryFilter | QueryGroup | SubqueryFilter)[];
+}
+
+// Aggregate function definitions
+export interface AggregateField {
+    function: 'COUNT' | 'SUM' | 'AVG' | 'MIN' | 'MAX';
+    field: string;
+    alias?: string;
+    distinct?: boolean;
+}
+
+// Join definitions
+export interface JoinCondition {
+    left: string;   // field from current collection
+    right: string;  // field from joined collection
+    operator?: '=' | '!=' | '>' | '<' | '>=' | '<=';
+}
+
+export interface JoinClause {
+    type: 'INNER' | 'LEFT' | 'RIGHT' | 'FULL';
+    collection: string;
+    condition: JoinCondition;
+}
+
+// Subquery support
+export interface SubqueryFilter {
+    field: string;
+    operator: 'exists' | 'not_exists' | 'in' | 'not_in';
+    subquery: QueryOptions;
+    subqueryCollection: string;
 }
 
 export interface QueryOptions {
-    filters: (QueryFilter | QueryGroup)[];
+    filters: (QueryFilter | QueryGroup | SubqueryFilter)[];
     orderBy?: { field: string; direction: 'asc' | 'desc' }[];
     limit?: number;
     offset?: number;
     groupBy?: string[];
+    having?: (QueryFilter | QueryGroup)[];
     distinct?: boolean;
+    aggregates?: AggregateField[];
+    joins?: JoinClause[];
+    selectFields?: string[]; // For custom field selection
 }

@@ -352,6 +352,13 @@ export class Collection<T extends z.ZodSchema> {
         > & { collection: Collection<T> };
     }
 
+    // Query method that returns a QueryBuilder for complex queries
+    query(): QueryBuilder<InferSchema<T>> {
+        const builder = new QueryBuilder<InferSchema<T>>();
+        (builder as any).collection = this;
+        return builder;
+    }
+
     // Direct query methods without conditions
     async toArray(): Promise<InferSchema<T>[]> {
         const { sql, params } = SQLTranslator.buildSelectQuery(
@@ -700,8 +707,9 @@ declare module './query-builder.js' {
     interface QueryBuilder<T> {
         // Default async methods
         toArray(): Promise<T[]>;
+        exec(): Promise<T[]>; // Alias for toArray
         first(): Promise<T | null>;
-        count(): Promise<number>;
+        executeCount(): Promise<number>; // Renamed to avoid conflict with count aggregate method
         // Sync versions for backward compatibility
         toArraySync(): T[];
         firstSync(): T | null;
@@ -711,8 +719,9 @@ declare module './query-builder.js' {
     interface FieldBuilder<T, K extends QueryablePaths<T> | string> {
         // Default async methods
         toArray(): Promise<T[]>;
+        exec(): Promise<T[]>; // Alias for toArray
         first(): Promise<T | null>;
-        count(): Promise<number>;
+        executeCount(): Promise<number>;
         // Sync versions for backward compatibility
         toArraySync(): T[];
         firstSync(): T | null;
@@ -732,8 +741,25 @@ QueryBuilder.prototype.toArray = async function <T>(
         this.collection['collectionSchema'].constrainedFields
     );
     const rows = await this.collection['driver'].query(sql, params);
+    
+    // Check if this is an aggregate query
+    const options = this.getOptions();
+    if (options.aggregates && options.aggregates.length > 0) {
+        // For aggregate queries, return the raw results without parsing doc
+        return rows as T[];
+    }
+    
+    // Check if this is a JOIN query with specific select fields
+    if (options.joins && options.joins.length > 0 && options.selectFields && options.selectFields.length > 0) {
+        // For JOIN queries with specific select fields, return the raw aliased results
+        return rows as T[];
+    }
+    
     return rows.map((row) => parseDoc(row.doc));
 };
+
+// Add exec as alias for toArray
+QueryBuilder.prototype.exec = QueryBuilder.prototype.toArray;
 
 QueryBuilder.prototype.first = async function <T>(
     this: QueryBuilder<T>
@@ -742,7 +768,7 @@ QueryBuilder.prototype.first = async function <T>(
     return results[0] || null;
 };
 
-QueryBuilder.prototype.count = async function <T>(
+QueryBuilder.prototype.executeCount = async function <T>(
     this: QueryBuilder<T> & { collection?: Collection<any> }
 ): Promise<number> {
     if (!this.collection)
@@ -779,6 +805,14 @@ QueryBuilder.prototype.toArraySync = function <T>(
         this.collection['collectionSchema'].constrainedFields
     );
     const rows = this.collection['driver'].querySync(sql, params);
+    
+    // Check if this is an aggregate query
+    const options = this.getOptions();
+    if (options.aggregates && options.aggregates.length > 0) {
+        // For aggregate queries, return the raw results without parsing doc
+        return rows as T[];
+    }
+    
     return rows.map((row) => parseDoc(row.doc));
 };
 
@@ -822,6 +856,14 @@ FieldBuilder.prototype.toArray = async function <T>(
     );
 };
 
+FieldBuilder.prototype.exec = async function <T>(
+    this: FieldBuilder<T, any> & { collection?: Collection<any> }
+): Promise<T[]> {
+    throw new Error(
+        'exec() should not be called on FieldBuilder. Use a comparison operator first.'
+    );
+};
+
 FieldBuilder.prototype.first = async function <T>(
     this: FieldBuilder<T, any>
 ): Promise<T | null> {
@@ -830,11 +872,11 @@ FieldBuilder.prototype.first = async function <T>(
     );
 };
 
-FieldBuilder.prototype.count = async function <T>(
+FieldBuilder.prototype.executeCount = async function <T>(
     this: FieldBuilder<T, any> & { collection?: Collection<any> }
 ): Promise<number> {
     throw new Error(
-        'count() should not be called on FieldBuilder. Use a comparison operator first.'
+        'executeCount() should not be called on FieldBuilder. Use a comparison operator first.'
     );
 };
 

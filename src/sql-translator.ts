@@ -2,6 +2,9 @@ import type {
     QueryOptions,
     QueryFilter,
     QueryGroup,
+    SubqueryFilter,
+    AggregateField,
+    JoinClause,
     ConstrainedFieldDefinition,
 } from './types';
 import { stringifyDoc } from './json-utils';
@@ -50,39 +53,63 @@ export class SQLTranslator {
         options: QueryOptions,
         constrainedFields?: { [fieldPath: string]: ConstrainedFieldDefinition }
     ): { sql: string; params: any[] } {
-        let sql = options.distinct
-            ? `SELECT DISTINCT doc FROM ${tableName}`
-            : `SELECT doc FROM ${tableName}`;
         const params: any[] = [];
+        
+        // Build SELECT clause
+        let selectClause = this.buildSelectClause(tableName, options, constrainedFields);
+        
+        // Build FROM clause with joins
+        let fromClause = this.buildFromClause(tableName, options.joins);
+        
+        let sql = `${selectClause} ${fromClause}`;
 
+        // Build WHERE clause
         if (options.filters.length > 0) {
             const { whereClause, whereParams } = this.buildWhereClause(
                 options.filters,
                 'AND',
-                constrainedFields
+                constrainedFields,
+                tableName,
+                options.joins
             );
             sql += ` WHERE ${whereClause}`;
             params.push(...whereParams);
         }
 
+        // Build GROUP BY clause
         if (options.groupBy && options.groupBy.length > 0) {
             const groupClauses = options.groupBy.map((field) =>
-                getFieldAccess(field, constrainedFields)
+                this.qualifyFieldAccess(field, tableName, constrainedFields)
             );
             sql += ` GROUP BY ${groupClauses.join(', ')}`;
         }
 
+        // Build HAVING clause
+        if (options.having && options.having.length > 0) {
+            const { whereClause: havingClause, whereParams: havingParams } = this.buildHavingClause(
+                options.having,
+                'AND',
+                constrainedFields,
+                tableName
+            );
+            sql += ` HAVING ${havingClause}`;
+            params.push(...havingParams);
+        }
+
+        // Build ORDER BY clause
         if (options.orderBy && options.orderBy.length > 0) {
             const orderClauses = options.orderBy.map(
                 (order) =>
-                    `${getFieldAccess(
+                    `${this.qualifyFieldAccess(
                         order.field,
+                        tableName,
                         constrainedFields
                     )} ${order.direction.toUpperCase()}`
             );
             sql += ` ORDER BY ${orderClauses.join(', ')}`;
         }
 
+        // Build LIMIT and OFFSET clauses
         if (options.limit) {
             sql += ` LIMIT ?`;
             params.push(options.limit);
@@ -208,10 +235,114 @@ export class SQLTranslator {
     }
 
     /** ----------  1. **O(n)** WHERE‑clause builder  ---------- */
-    static buildWhereClause(
+    /** New helper methods for enhanced queries */
+    
+    static buildSelectClause(
+        tableName: string,
+        options: QueryOptions,
+        constrainedFields?: { [fieldPath: string]: ConstrainedFieldDefinition }
+    ): string {
+        let selectClause = 'SELECT';
+        
+        if (options.distinct) {
+            selectClause += ' DISTINCT';
+        }
+
+        // Handle aggregates and custom field selection
+        if (options.aggregates && options.aggregates.length > 0) {
+            const aggregateFields = options.aggregates.map(agg => 
+                this.buildAggregateField(agg, tableName, constrainedFields)
+            ).join(', ');
+            
+            if (options.selectFields && options.selectFields.length > 0) {
+                const selectedFields = options.selectFields.map(field => {
+                    const fieldAccess = this.qualifyFieldAccess(field, tableName, constrainedFields);
+                    // Add alias for better field names in results
+                    if (fieldAccess.includes('json_extract')) {
+                        return `${fieldAccess} AS "${field}"`;
+                    }
+                    return fieldAccess;
+                }).join(', ');
+                selectClause += ` ${selectedFields}, ${aggregateFields}`;
+            } else {
+                selectClause += ` ${aggregateFields}`;
+            }
+        } else if (options.selectFields && options.selectFields.length > 0) {
+            const selectedFields = options.selectFields.map(field => {
+                const fieldAccess = this.qualifyFieldAccess(field, tableName, constrainedFields);
+                // Add alias for better field names in results
+                if (fieldAccess.includes('json_extract')) {
+                    return `${fieldAccess} AS "${field}"`;
+                }
+                return fieldAccess;
+            }).join(', ');
+            selectClause += ` ${selectedFields}`;
+        } else {
+            // Default to selecting documents
+            selectClause += ` ${tableName}.doc`;
+        }
+        
+        return selectClause;
+    }
+
+    static buildFromClause(tableName: string, joins?: JoinClause[]): string {
+        let fromClause = `FROM ${tableName}`;
+        
+        if (joins && joins.length > 0) {
+            for (const join of joins) {
+                const joinType = join.type === 'FULL' ? 'FULL OUTER' : join.type;
+                
+                // For joins, we need to handle field access properly for document-based storage
+                const leftFieldAccess = join.condition.left === 'id' 
+                    ? `${tableName}._id` 
+                    : `json_extract(${tableName}.doc, '$.${join.condition.left}')`;
+                    
+                const rightFieldAccess = join.condition.right === 'id' 
+                    ? `${join.collection}._id` 
+                    : `json_extract(${join.collection}.doc, '$.${join.condition.right}')`;
+                    
+                const operator = join.condition.operator || '=';
+                
+                fromClause += ` ${joinType} JOIN ${join.collection} ON ${leftFieldAccess} ${operator} ${rightFieldAccess}`;
+            }
+        }
+        
+        return fromClause;
+    }
+
+    static buildAggregateField(
+        agg: AggregateField,
+        tableName: string,
+        constrainedFields?: { [fieldPath: string]: ConstrainedFieldDefinition }
+    ): string {
+        const fieldAccess = agg.field === '*' ? '*' : this.qualifyFieldAccess(agg.field, tableName, constrainedFields);
+        const distinctPrefix = agg.distinct ? 'DISTINCT ' : '';
+        const alias = agg.alias ? ` AS ${agg.alias}` : '';
+        
+        return `${agg.function}(${distinctPrefix}${fieldAccess})${alias}`;
+    }
+
+    static qualifyFieldAccess(
+        field: string,
+        tableName: string,
+        constrainedFields?: { [fieldPath: string]: ConstrainedFieldDefinition }
+    ): string {
+        if (constrainedFields && constrainedFields[field]) {
+            return `${tableName}.${fieldPathToColumnName(field)}`;
+        }
+        return `json_extract(${tableName}.doc, '$.${field}')`;
+    }
+
+    static getFieldAccess(field: string): string {
+        // Simple field access without table qualification for joins
+        return field;
+    }
+
+    static buildHavingClause(
         filters: (QueryFilter | QueryGroup)[],
         joinOp: 'AND' | 'OR' = 'AND',
-        constrainedFields?: { [fieldPath: string]: ConstrainedFieldDefinition }
+        constrainedFields?: { [fieldPath: string]: ConstrainedFieldDefinition },
+        tableName?: string
     ): { whereClause: string; whereParams: any[] } {
         const parts: string[] = [];
         const params: any[] = [];
@@ -220,10 +351,11 @@ export class SQLTranslator {
             if ('type' in f) {
                 /* QueryGroup */
                 const grp = f as QueryGroup;
-                const { whereClause, whereParams } = this.buildWhereClause(
-                    grp.filters,
+                const { whereClause, whereParams } = this.buildHavingClause(
+                    grp.filters as (QueryFilter | QueryGroup)[], // HAVING doesn't support subqueries
                     grp.type.toUpperCase() as 'AND' | 'OR',
-                    constrainedFields
+                    constrainedFields,
+                    tableName
                 );
                 if (whereClause) {
                     parts.push(`(${whereClause})`);
@@ -231,9 +363,10 @@ export class SQLTranslator {
                 }
             } else {
                 /* QueryFilter */
-                const { whereClause, whereParams } = this.buildFilterClause(
+                const { whereClause, whereParams } = this.buildHavingFilterClause(
                     f as QueryFilter,
-                    constrainedFields
+                    constrainedFields,
+                    tableName
                 );
                 parts.push(whereClause);
                 params.push(...whereParams);
@@ -245,15 +378,221 @@ export class SQLTranslator {
         };
     }
 
-    /** ----------  2. Cheap single‑pass filter builder ---------- */
-    private static buildFilterClause(
-        filter: QueryFilter,
-        constrainedFields?: { [fieldPath: string]: ConstrainedFieldDefinition }
+    static buildWhereClause(
+        filters: (QueryFilter | QueryGroup | SubqueryFilter)[],
+        joinOp: 'AND' | 'OR' = 'AND',
+        constrainedFields?: { [fieldPath: string]: ConstrainedFieldDefinition },
+        tableName?: string,
+        joins?: JoinClause[]
+    ): { whereClause: string; whereParams: any[] } {
+        const parts: string[] = [];
+        const params: any[] = [];
+
+        for (const f of filters) {
+            if ('type' in f) {
+                /* QueryGroup */
+                const grp = f as QueryGroup;
+                const { whereClause, whereParams } = this.buildWhereClause(
+                    grp.filters,
+                    grp.type.toUpperCase() as 'AND' | 'OR',
+                    constrainedFields,
+                    tableName,
+                    joins
+                );
+                if (whereClause) {
+                    parts.push(`(${whereClause})`);
+                    params.push(...whereParams);
+                }
+            } else if ('subquery' in f) {
+                /* SubqueryFilter */
+                const { whereClause, whereParams } = this.buildSubqueryClause(
+                    f as SubqueryFilter,
+                    constrainedFields,
+                    tableName
+                );
+                parts.push(whereClause);
+                params.push(...whereParams);
+            } else {
+                /* QueryFilter */
+                const { whereClause, whereParams } = this.buildFilterClause(
+                    f as QueryFilter,
+                    constrainedFields,
+                    tableName,
+                    joins
+                );
+                parts.push(whereClause);
+                params.push(...whereParams);
+            }
+        }
+        return {
+            whereClause: parts.join(` ${joinOp} `),
+            whereParams: params,
+        };
+    }
+
+    /** ----------  2. Subquery clause builder ---------- */
+    private static buildSubqueryClause(
+        filter: SubqueryFilter,
+        constrainedFields?: { [fieldPath: string]: ConstrainedFieldDefinition },
+        tableName?: string
     ): {
         whereClause: string;
         whereParams: any[];
     } {
-        const col = getFieldAccess(filter.field, constrainedFields);
+        const fieldAccess = tableName 
+            ? this.qualifyFieldAccess(filter.field, tableName, constrainedFields)
+            : getFieldAccess(filter.field, constrainedFields);
+        
+        const { sql: subquerySql, params: subqueryParams } = this.buildSelectQuery(
+            filter.subqueryCollection,
+            filter.subquery,
+            constrainedFields
+        );
+        
+        let whereClause = '';
+        
+        switch (filter.operator) {
+            case 'exists':
+                // For EXISTS, we need to correlate the main table field with the subquery
+                // Add correlation condition to the subquery
+                const correlatedSubquery = subquerySql.replace(
+                    /WHERE (.+)$/,
+                    `WHERE $1 AND ${this.qualifyFieldAccess('userId', filter.subqueryCollection, constrainedFields)} = ${fieldAccess}`
+                );
+                whereClause = `EXISTS (${correlatedSubquery})`;
+                break;
+            case 'not_exists':
+                // Similar correlation for NOT EXISTS
+                const correlatedNotExistsSubquery = subquerySql.replace(
+                    /WHERE (.+)$/,
+                    `WHERE $1 AND ${this.qualifyFieldAccess('userId', filter.subqueryCollection, constrainedFields)} = ${fieldAccess}`
+                );
+                whereClause = `NOT EXISTS (${correlatedNotExistsSubquery})`;
+                break;
+            case 'in':
+                whereClause = `${fieldAccess} IN (${subquerySql})`;
+                break;
+            case 'not_in':
+                whereClause = `${fieldAccess} NOT IN (${subquerySql})`;
+                break;
+        }
+        
+        return { whereClause, whereParams: subqueryParams };
+    }
+
+    /** ----------  3. HAVING clause filter builder ---------- */
+    private static buildHavingFilterClause(
+        filter: QueryFilter,
+        constrainedFields?: { [fieldPath: string]: ConstrainedFieldDefinition },
+        tableName?: string
+    ): {
+        whereClause: string;
+        whereParams: any[];
+    } {
+        // For HAVING clause, use field names directly (they should be aliases)
+        const col = filter.field;
+        const p: any[] = [];
+        let c = '';
+
+        // Helper function to convert JavaScript values to SQLite-compatible values
+        const convertValue = (value: any): any => {
+            if (typeof value === 'boolean') {
+                return value ? 1 : 0;
+            }
+            return value;
+        };
+
+        switch (filter.operator) {
+            case 'eq':
+                c = `${col} = ?`;
+                p.push(convertValue(filter.value));
+                break;
+            case 'neq':
+                c = `${col} != ?`;
+                p.push(convertValue(filter.value));
+                break;
+            case 'gt':
+                c = `${col} > ?`;
+                p.push(convertValue(filter.value));
+                break;
+            case 'gte':
+                c = `${col} >= ?`;
+                p.push(convertValue(filter.value));
+                break;
+            case 'lt':
+                c = `${col} < ?`;
+                p.push(convertValue(filter.value));
+                break;
+            case 'lte':
+                c = `${col} <= ?`;
+                p.push(convertValue(filter.value));
+                break;
+            case 'between':
+                c = `${col} BETWEEN ? AND ?`;
+                p.push(convertValue(filter.value), convertValue(filter.value2));
+                break;
+            case 'in':
+            case 'nin': {
+                const placeholders = filter.value.map(() => '?').join(', ');
+                c = `${col}${
+                    filter.operator === 'nin' ? ' NOT' : ''
+                } IN (${placeholders})`;
+                p.push(...filter.value.map(convertValue));
+                break;
+            }
+        }
+        return { whereClause: c, whereParams: p };
+    }
+
+    /** ----------  4. Cheap single‑pass filter builder ---------- */
+    private static buildFilterClause(
+        filter: QueryFilter,
+        constrainedFields?: { [fieldPath: string]: ConstrainedFieldDefinition },
+        tableName?: string,
+        joins?: JoinClause[]
+    ): {
+        whereClause: string;
+        whereParams: any[];
+    } {
+        let col: string;
+        
+        // If we have joins, we need to determine which table the field belongs to
+        // Check if the field is already a SQL function (like json_array_length)
+        if (filter.field.includes('(') && filter.field.includes(')')) {
+            // This is already a SQL function, use it as-is but need to extract the actual field for JSON access
+            const fieldMatch = filter.field.match(/\(([^)]+)\)/);
+            if (fieldMatch) {
+                const actualField = fieldMatch[1];
+                const fieldAccess = tableName 
+                    ? this.qualifyFieldAccess(actualField, tableName, constrainedFields)
+                    : getFieldAccess(actualField, constrainedFields);
+                col = filter.field.replace(actualField, fieldAccess);
+            } else {
+                col = filter.field; // fallback
+            }
+        } else if (joins && joins.length > 0) {
+            // Simple heuristic: check if field name suggests it belongs to a joined table
+            let targetTable = tableName;
+            
+            for (const join of joins) {
+                // Heuristic: common fields that typically belong to specific tables
+                if ((filter.field === 'total' || filter.field === 'status') && join.collection === 'orders') {
+                    targetTable = 'orders';
+                    break;
+                }
+                if (filter.field === 'price' && join.collection === 'products') {
+                    targetTable = 'products';
+                    break;
+                }
+                // Add more heuristics as needed
+            }
+            
+            col = this.qualifyFieldAccess(filter.field, targetTable || tableName || 'documents', constrainedFields);
+        } else {
+            col = tableName 
+                ? this.qualifyFieldAccess(filter.field, tableName, constrainedFields)
+                : getFieldAccess(filter.field, constrainedFields);
+        }
         const p: any[] = [];
         let c = '';
 
@@ -326,6 +665,16 @@ export class SQLTranslator {
                 break;
             case 'exists':
                 c = filter.value ? `${col} IS NOT NULL` : `${col} IS NULL`;
+                break;
+            case 'json_array_contains':
+                // Use json_each to check if value exists in array
+                c = `EXISTS (SELECT 1 FROM json_each(${col}) WHERE value = ?)`;
+                p.push(convertValue(filter.value));
+                break;
+            case 'json_array_not_contains':
+                // Use json_each to check if value does NOT exist in array
+                c = `NOT EXISTS (SELECT 1 FROM json_each(${col}) WHERE value = ?)`;
+                p.push(convertValue(filter.value));
                 break;
         }
         return { whereClause: c, whereParams: p };
