@@ -1,32 +1,42 @@
-#!/usr/bin/env node
+#!/usr/bin/env tsx
 
 console.log('Starting test...');
 
-import { createDB } from './dist/src/index.js';
+import { createDB } from './src/index.js';
 import { z } from 'zod';
 
 console.log('Imports successful, testing database initialization...');
 
-try {
-    const db = createDB({ path: ':memory:', driver: 'node' });
-    console.log('✅ Database created successfully');
+async function testDatabase() {
+    try {
+        // Detect runtime and test appropriate driver
+        const isBun = typeof Bun !== 'undefined';
+        const driver = isBun ? 'bun' : 'node';
+        
+        console.log(`\n🟡 Testing with ${driver} driver...`);
+        const db = createDB({ path: ':memory:', driver });
+        console.log(`✅ ${driver} database created successfully`);
 
-    const schema = z.object({
-        id: z.string().optional(),
-        title: z.string(),
-        completed: z.boolean().default(false),
-    });
+        const schema = z.object({
+            id: z.string().optional(),
+            title: z.string(),
+            completed: z.boolean().default(false),
+        });
 
-    const collection = db.collection('test', schema);
-    console.log('✅ Collection created successfully');
+        const collection = db.collection('test', schema);
+        console.log(`✅ ${driver} collection created successfully`);
 
-    await collection.insert({ title: 'Test todo', completed: false });
-    console.log('✅ Insert successful');
+        await collection.insert({ title: `${driver} test todo`, completed: false });
+        console.log(`✅ ${driver} insert successful`);
 
-    const todos = await collection.toArray();
-    console.log('✅ Query successful:', todos);
+        const todos = await collection.toArray();
+        console.log(`✅ ${driver} query successful:`, todos);
 
-    console.log('Database test completed successfully!');
-} catch (error) {
-    console.error('❌ Database test failed:', error);
+        console.log(`\n🎉 ${driver} database test completed successfully!`);
+    } catch (error) {
+        console.error('❌ Database test failed:', error);
+        process.exit(1);
+    }
 }
+
+testDatabase();
