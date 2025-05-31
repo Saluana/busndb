@@ -1,5 +1,5 @@
 {
-    "name": "busndb",
+    "name": "skibbadb",
     "version": "0.1.0",
     "description": "A developer-friendly, embeddable NoSQL database layer on top of SQLite with full TypeScript support",
     "main": "./dist/index.js",

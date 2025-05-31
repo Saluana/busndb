@@ -1,6 +1,6 @@
-# BusNDB Configuration Guide
+# skibbaDB Configuration Guide
 
-BusNDB provides extensive configuration options to optimize SQLite performance for your specific use case. This guide covers all available configuration options with practical examples and performance recommendations.
+skibbaDB provides extensive configuration options to optimize SQLite performance for your specific use case. This guide covers all available configuration options with practical examples and performance recommendations.
 
 ## Table of Contents
 
@@ -16,7 +16,7 @@ BusNDB provides extensive configuration options to optimize SQLite performance f
 ### Default Configuration (Recommended)
 
 ```typescript
-import { createDB } from 'busndb';
+import { createDB } from 'skibbaDB';
 
 // Uses optimized defaults - perfect for most applications
 const db = createDB({

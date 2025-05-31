@@ -1,6 +1,6 @@
-# BusNDB Plugin System
+# skibbaDB Plugin System
 
-BusNDB provides a comprehensive plugin system that allows you to extend database functionality with custom behaviors, logging, caching, validation, and more. Plugins can hook into various database operations and lifecycle events.
+skibbaDB provides a comprehensive plugin system that allows you to extend database functionality with custom behaviors, logging, caching, validation, and more. Plugins can hook into various database operations and lifecycle events.
 
 ## Table of Contents
 
@@ -20,7 +20,7 @@ import {
     TimestampPlugin, 
     ValidationPlugin,
     validators 
-} from 'busndb';
+} from 'skibbaDB';
 
 // Create database
 const db = createDB({ path: './app.db' });
@@ -110,7 +110,7 @@ interface PluginContext {
 Logs all database operations for auditing and debugging:
 
 ```typescript
-import { AuditLogPlugin } from 'busndb';
+import { AuditLogPlugin } from 'skibbaDB';
 
 const auditLog = new AuditLogPlugin({
     logInserts: true,
@@ -135,7 +135,7 @@ db.use(auditLog);
 Automatically adds created and updated timestamps:
 
 ```typescript
-import { TimestampPlugin } from 'busndb';
+import { TimestampPlugin } from 'skibbaDB';
 
 const timestamp = new TimestampPlugin({
     createField: 'createdAt',  // Field for creation timestamp
@@ -156,7 +156,7 @@ const user = collection.insert({ name: 'Alice' });
 Adds custom validation rules beyond Zod schema validation:
 
 ```typescript
-import { ValidationPlugin, validators } from 'busndb';
+import { ValidationPlugin, validators } from 'skibbaDB';
 
 const validation = new ValidationPlugin({ strictMode: true })
     .addRule({
@@ -193,7 +193,7 @@ db.use(validation);
 Provides in-memory caching for better performance:
 
 ```typescript
-import { CachePlugin } from 'busndb';
+import { CachePlugin } from 'skibbaDB';
 
 const cache = new CachePlugin({
     maxSize: 1000,                  // Maximum cached items
@@ -215,7 +215,7 @@ cache.clearCache();
 Tracks operation metrics and performance:
 
 ```typescript
-import { MetricsPlugin } from 'busndb';
+import { MetricsPlugin } from 'skibbaDB';
 
 const metrics = new MetricsPlugin({
     trackOperations: true,    // Count operations
@@ -240,7 +240,7 @@ console.log(`Avg insert time: ${userMetrics.inserts.avgTime}ms`);
 ### Simple Plugin Example
 
 ```typescript
-import type { Plugin, PluginContext } from 'busndb';
+import type { Plugin, PluginContext } from 'skibbaDB';
 
 class SimpleLoggerPlugin implements Plugin {
     name = 'simple-logger';
@@ -583,4 +583,4 @@ async onAfterInsert(context: PluginContext): Promise<void> {
 }
 ```
 
-The plugin system provides a powerful way to extend BusNDB's functionality while maintaining clean separation of concerns and performance.
+The plugin system provides a powerful way to extend skibbaDB's functionality while maintaining clean separation of concerns and performance.

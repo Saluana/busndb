@@ -265,7 +265,7 @@ async function analyzeUpdatePerformance() {
 
     let constraintOverhead = 0;
     let complexityOverhead = 0;
-    let busndbOverhead = 0;
+    let skibbadbOverhead = 0;
 
     if (simpleOps && constrainedOps) {
         constraintOverhead = ((simpleOps - constrainedOps) / simpleOps) * 100;
@@ -282,9 +282,9 @@ async function analyzeUpdatePerformance() {
     }
 
     if (rawOps && simpleOps) {
-        busndbOverhead = ((rawOps - simpleOps) / rawOps) * 100;
+        skibbadbOverhead = ((rawOps - simpleOps) / rawOps) * 100;
         console.log(
-            `BusNDB vs Raw SQLite Overhead: ${busndbOverhead.toFixed(1)}%`
+            `skibbaDB vs Raw SQLite Overhead: ${skibbadbOverhead.toFixed(1)}%`
         );
     }
 
@@ -293,7 +293,7 @@ async function analyzeUpdatePerformance() {
     console.log(`  Zod Validation: ${validationOps?.toLocaleString()} ops/sec`);
     console.log(`  Raw SQLite Updates: ${rawOps?.toLocaleString()} ops/sec`);
     console.log(
-        `  BusNDB Simple Updates: ${simpleOps?.toLocaleString()} ops/sec`
+        `  skibbaDB Simple Updates: ${simpleOps?.toLocaleString()} ops/sec`
     );
 
     // Recommendations
@@ -317,11 +317,11 @@ async function analyzeUpdatePerformance() {
         );
     }
 
-    if (busndbOverhead && busndbOverhead > 70) {
-        console.log('⚠️  High BusNDB overhead - investigate abstraction costs');
+    if (skibbadbOverhead && skibbadbOverhead > 70) {
+        console.log('⚠️  High skibbaDB overhead - investigate abstraction costs');
     } else {
         console.log(
-            '✅ BusNDB overhead is reasonable for the features provided'
+            '✅ skibbaDB overhead is reasonable for the features provided'
         );
     }
 }

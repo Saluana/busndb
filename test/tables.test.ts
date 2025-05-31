@@ -29,7 +29,7 @@ const categorySchema = z.object({
     parentId: z.string().uuid().optional(),
 });
 
-describe('Tables: BusNDB API vs Raw SQL Verification', () => {
+describe('Tables: skibbaDB API vs Raw SQL Verification', () => {
     let db: ReturnType<typeof createDB>;
     let users: ReturnType<typeof db.collection<typeof userSchema>>;
     let posts: ReturnType<typeof db.collection<typeof postSchema>>;
@@ -98,7 +98,7 @@ describe('Tables: BusNDB API vs Raw SQL Verification', () => {
             expect(tableNames).toContain('posts');
             expect(tableNames).toContain('categories');
 
-            // Check users table structure (BusNDB uses _id and doc columns + constrained fields)
+            // Check users table structure (skibbaDB uses _id and doc columns + constrained fields)
             const usersColumns = await db.query('PRAGMA table_info(users)');
             const userColumnNames = usersColumns.map((col) => col.name);
             expect(userColumnNames).toContain('_id');

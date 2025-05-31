@@ -34,7 +34,7 @@ function benchmark(
 }
 
 async function runBenchmarks() {
-    console.log('=== BusNDB Performance Benchmark ===\n');
+    console.log('=== skibbaDB Performance Benchmark ===\n');
 
     const db = createDB({ memory: true });
     const users = db.collection('users', userSchema);

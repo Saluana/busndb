@@ -72,7 +72,7 @@ function calculateImprovement(
 }
 
 async function runIndexBenchmarks() {
-    console.log('=== BusNDB Index Performance Benchmark ===\n');
+    console.log('=== skibbaDB Index Performance Benchmark ===\n');
     console.log('Comparing indexed vs non-indexed query performance\n');
 
     const db = createDB({ memory: true });

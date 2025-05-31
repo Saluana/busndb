@@ -1,4 +1,4 @@
-# BusNDB
+# skibbaDB
 
 A developer-friendly, embeddable NoSQL database layer on top of SQLite that boots up in seconds with a single command, enforces schemas and type safety via Zod, and exposes intuitive, fully typed CRUD and query APIs with **dual-storage architecture** for optimal performance.
 
@@ -15,9 +15,9 @@ A developer-friendly, embeddable NoSQL database layer on top of SQLite that boot
 -   🌐 **Cross-Platform**: Works with both Bun and Node.js
 -   ⚡ **Async by Default**: Non-blocking operations by default, sync versions available
 
-## What Makes BusNDB Special
+## What Makes skibbaDB Special
 
-BusNDB uses a **dual-storage architecture** that gives you the best of both worlds:
+skibbaDB uses a **dual-storage architecture** that gives you the best of both worlds:
 
 - **Critical fields** (with constraints/relationships) → Stored in dedicated **SQL columns** with indexes
 - **Flexible data** → Stored in **JSON documents** for NoSQL-style flexibility  
@@ -30,7 +30,7 @@ This means you get SQL performance and constraints where you need them, with NoS
 
 ```typescript
 import { z } from 'zod';
-import { createDB } from 'busndb';
+import { createDB } from 'skibbaDB';
 
 // Define your schema
 const userSchema = z.object({
@@ -108,14 +108,14 @@ const syncResults = users
 ## Installation
 
 ```bash
-bun add busndb zod
+bun add skibbaDB zod
 # or
-npm install busndb zod
+npm install skibbaDB zod
 ```
 
 ### Database Drivers
 
-BusNDB supports multiple database drivers depending on your runtime and requirements:
+skibbaDB supports multiple database drivers depending on your runtime and requirements:
 
 #### Bun Driver (Default for Bun)
 ```bash
@@ -217,7 +217,7 @@ const posts = db.collection('posts', postSchema, {
 
 ### Generated SQL Structure
 
-BusNDB automatically creates optimized table structures:
+skibbaDB automatically creates optimized table structures:
 
 ```sql
 CREATE TABLE posts (
@@ -450,7 +450,7 @@ interface ConstrainedFieldDefinition {
 
 ## Async by Default
 
-BusNDB uses async operations by default, enabling non-blocking database access and better concurrency:
+skibbaDB uses async operations by default, enabling non-blocking database access and better concurrency:
 
 ### Key Benefits
 
@@ -462,7 +462,7 @@ BusNDB uses async operations by default, enabling non-blocking database access a
 ### Basic Usage
 
 ```typescript
-import { createDB } from 'busndb';
+import { createDB } from 'skibbaDB';
 
 const db = createDB({ memory: true });
 const users = db.collection('users', userSchema);
@@ -762,7 +762,7 @@ try {
 
 ### Benchmarks
 
-BusNDB delivers excellent performance for embedded use cases:
+skibbaDB delivers excellent performance for embedded use cases:
 
 -   **Inserts**: ~27,000 ops/sec (single), ~46,000 ops/sec (bulk)
 -   **Constrained field queries**: ~10,000 ops/sec (column indexes)
@@ -807,7 +807,7 @@ const optimizedPosts = db.collection('posts', postSchema, {
         slug: { unique: true }                  // Add uniqueness
     }
 });
-// BusNDB will migrate existing data to dual storage automatically
+// skibbaDB will migrate existing data to dual storage automatically
 ```
 
 ## Development

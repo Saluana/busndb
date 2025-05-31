@@ -5,7 +5,7 @@ export default defineConfig({
     build: {
         lib: {
             entry: resolve(__dirname, 'index.ts'),
-            name: 'BusNDB',
+            name: 'skibbaDB',
             fileName: (format) => `index.${format === 'es' ? 'js' : format}`,
             formats: ['es'],
         },

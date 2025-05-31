@@ -24,7 +24,7 @@ const postSchema = z.object({
     createdAt: z.date().default(() => new Date()),
 });
 
-describe('BusNDB', () => {
+describe('skibbaDB', () => {
     let db: Database;
 
     beforeEach(() => {

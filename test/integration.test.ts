@@ -26,7 +26,7 @@ const postSchema = z.object({
     createdAt: z.date().default(() => new Date()),
 });
 
-describe('Integration: BusNDB End-to-End', () => {
+describe('Integration: skibbaDB End-to-End', () => {
     let db: ReturnType<typeof createDB>;
     let users: ReturnType<typeof db.collection<typeof userSchema>>;
     let posts: ReturnType<typeof db.collection<typeof postSchema>>;
