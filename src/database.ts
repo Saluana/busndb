@@ -275,11 +275,28 @@ export class Database {
         }
     }
 
+    /**
+     * Synchronously closes the database connection.
+     *
+     * Important Notes:
+     * - This method operates synchronously and therefore **does not execute asynchronous plugin hooks**
+     *   (e.g., `onDatabaseClose`). For comprehensive cleanup including plugin hooks, use the
+     *   asynchronous `close()` method.
+     * - If using a shared connection (`config.sharedConnection: true`), this method cannot
+     *   release the connection back to a pool synchronously. It will log a warning and clear
+     *   its local reference to the managed connection, but the actual pool management might be affected.
+     * - For dedicated connections (`config.sharedConnection: false`), it attempts to close the
+     *   driver synchronously.
+     *
+     * @throws {DatabaseError} If called when `config.sharedConnection` is true (via proxy, see `getDriverProxy`).
+     *         However, this direct method call does not throw that error itself but exhibits the behaviors noted above.
+     */
     closeSync(): void {
+        // Existing note is good context for the implementation details below.
         // Note: Plugin hooks are async, so we can't properly await them in sync mode
         if (this.managedConnection) {
             // Cannot release managed connection synchronously
-            console.warn('Warning: Cannot release managed connection synchronously');
+            console.warn('Warning: Cannot release managed connection synchronously. The connection may not be properly released from the pool.');
             this.managedConnection = undefined;
         } else if (this.driver) {
             this.driver.closeSync();
@@ -320,15 +337,40 @@ export class Database {
     }
 
     // Sync versions for backward compatibility
+    /**
+     * Executes a SQL command synchronously.
+     *
+     * Note: This is a synchronous operation and **does not execute asynchronous plugin hooks**
+     * (e.g., `onBeforeQuery`, `onAfterQuery`). For plugin support, use the asynchronous `exec()` method.
+     *
+     * @param sql The SQL string to execute.
+     * @param params Optional parameters for the SQL query.
+     * @throws {DatabaseError} If called when `config.sharedConnection` is true (via proxy, see `getDriverProxy`).
+     */
     execSync(sql: string, params?: any[]): void {
         if (!this.driver) {
+            // This logic is primarily for non-shared connections if the driver wasn't set in constructor.
+            // For shared connections, the proxy in getDriverProxy should prevent this method from being called.
             this.driver = this.createDriver(this.config);
         }
         return this.driver.execSync(sql, params);
     }
 
+    /**
+     * Executes a SQL query synchronously and returns the results.
+     *
+     * Note: This is a synchronous operation and **does not execute asynchronous plugin hooks**
+     * (e.g., `onBeforeQuery`, `onAfterQuery`). For plugin support, use the asynchronous `query()` method.
+     *
+     * @param sql The SQL string to query.
+     * @param params Optional parameters for the SQL query.
+     * @returns An array of rows resulting from the query.
+     * @throws {DatabaseError} If called when `config.sharedConnection` is true (via proxy, see `getDriverProxy`).
+     */
     querySync(sql: string, params?: any[]): Row[] {
         if (!this.driver) {
+            // This logic is primarily for non-shared connections if the driver wasn't set in constructor.
+            // For shared connections, the proxy in getDriverProxy should prevent this method from being called.
             this.driver = this.createDriver(this.config);
         }
         return this.driver.querySync(sql, params);
