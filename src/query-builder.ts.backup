@@ -28,6 +28,7 @@ export class FieldBuilder<T, K extends QueryablePaths<T> | string> {
             value,
             value2
         );
+        (newBuilder as any).collection = (this.builder as any).collection;
         return newBuilder;
     }
 
@@ -120,9 +121,6 @@ export class FieldBuilder<T, K extends QueryablePaths<T> | string> {
 
     // Enhanced JSON path operations
     arrayLength(operator: 'eq' | 'gt' | 'gte' | 'lt' | 'lte', value: number): QueryBuilder<T> {
-        if (typeof value !== 'number' || !Number.isInteger(value) || value < 0) {
-            throw new Error('Array length value must be a non-negative integer');
-        }
         return this.builder.addJsonArrayLengthFilter(this.field as string, operator, value);
     }
 
@@ -151,6 +149,7 @@ export class HavingFieldBuilder<T, K extends QueryablePaths<T> | string> extends
             value,
             value2
         );
+        (newBuilder as any).collection = (this.builder as any).collection;
         return newBuilder;
     }
 }
@@ -162,6 +161,7 @@ export class QueryBuilder<T> {
     where(field: string): FieldBuilder<T, any>;
     where<K extends QueryablePaths<T>>(field: K | string): FieldBuilder<T, K> {
         const fieldBuilder = new FieldBuilder(field as K, this);
+        (fieldBuilder as any).collection = (this as any).collection;
         return fieldBuilder;
     }
 
@@ -231,6 +231,7 @@ export class QueryBuilder<T> {
         const currentFilters = this.deepCloneFilters(this.options.filters);
 
         const orBuilder = new QueryBuilder<T>();
+        (orBuilder as any).collection = (this as any).collection;
         const result = builderFn(orBuilder);
         const orConditions = this.deepCloneFilters(result.getOptions().filters);
 
@@ -273,6 +274,7 @@ export class QueryBuilder<T> {
 
         for (const condition of conditions) {
             const tempBuilder = new QueryBuilder<T>();
+            (tempBuilder as any).collection = (this as any).collection;
             const result = condition(tempBuilder);
             const conditionFilters = this.deepCloneFilters(result.getOptions().filters);
             
@@ -360,16 +362,12 @@ export class QueryBuilder<T> {
     // Pagination
     limit(count: number): QueryBuilder<T> {
         if (count < 0) throw new Error('Limit must be non-negative');
-        if (!Number.isInteger(count)) throw new Error('Limit must be an integer');
-        if (count > Number.MAX_SAFE_INTEGER) throw new Error('Limit too large');
         this.options.limit = count;
         return this;
     }
 
     offset(count: number): QueryBuilder<T> {
         if (count < 0) throw new Error('Offset must be non-negative');
-        if (!Number.isInteger(count)) throw new Error('Offset must be an integer');
-        if (count > Number.MAX_SAFE_INTEGER) throw new Error('Offset too large');
         this.options.offset = count;
         return this;
     }
@@ -377,20 +375,10 @@ export class QueryBuilder<T> {
     // Pagination helper
     page(pageNumber: number, pageSize: number): QueryBuilder<T> {
         if (pageNumber < 1) throw new Error('Page number must be >= 1');
-        if (!Number.isInteger(pageNumber)) throw new Error('Page number must be an integer');
-        if (pageNumber > Number.MAX_SAFE_INTEGER) throw new Error('Page number too large');
         if (pageSize < 1) throw new Error('Page size must be >= 1');
-        if (!Number.isInteger(pageSize)) throw new Error('Page size must be an integer');
-        if (pageSize > Number.MAX_SAFE_INTEGER) throw new Error('Page size too large');
 
-        // Check for potential overflow in offset calculation
-        const calculatedOffset = (pageNumber - 1) * pageSize;
-        if (calculatedOffset > Number.MAX_SAFE_INTEGER) {
-            throw new Error('Page calculation results in offset too large');
-        }
-        
         this.options.limit = pageSize;
-        this.options.offset = calculatedOffset;
+        this.options.offset = (pageNumber - 1) * pageSize;
         return this;
     }
 
@@ -442,6 +430,7 @@ export class QueryBuilder<T> {
     having(field: string): FieldBuilder<T, any>;
     having<K extends QueryablePaths<T>>(field: K | string): FieldBuilder<T, K> {
         const fieldBuilder = new HavingFieldBuilder(field as K, this);
+        (fieldBuilder as any).collection = (this as any).collection;
         return fieldBuilder;
     }
 
@@ -563,7 +552,7 @@ export class QueryBuilder<T> {
     clone(): QueryBuilder<T> {
         const cloned = new QueryBuilder<T>();
         cloned.options = {
-            filters: this.deepCloneFilters(this.options.filters),
+            filters: [...this.options.filters],
             orderBy: this.options.orderBy
                 ? [...this.options.orderBy]
                 : undefined,
@@ -588,33 +577,9 @@ export class QueryBuilder<T> {
         };
         (cloned as any).collection = (this as any).collection;
         return cloned;
-
-    }    getOptions(): QueryOptions {
-        return this.options;
     }
 
-    // Helper method for deep cloning filters to prevent shared references
-    private deepCloneFilters(filters: (QueryFilter | QueryGroup | SubqueryFilter)[]): (QueryFilter | QueryGroup | SubqueryFilter)[] {
-        return filters.map(filter => {
-            if ('type' in filter) {
-                // QueryGroup
-                return {
-                    ...filter,
-                    filters: this.deepCloneFilters(filter.filters)
-                };
-            } else if ('subquery' in filter) {
-                // SubqueryFilter
-                return {
-                    ...filter,
-                    subquery: {
-                        ...filter.subquery,
-                        filters: this.deepCloneFilters(filter.subquery.filters)
-                    }
-                };
-            } else {
-                // QueryFilter
-                return { ...filter };
-            }
-        });
+    getOptions(): QueryOptions {
+        return this.options;
     }
 }
