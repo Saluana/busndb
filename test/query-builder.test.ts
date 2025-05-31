@@ -1,4 +1,4 @@
-import { test, expect, describe, beforeEach } from 'bun:test';
+import { test, expect, describe, beforeEach } from 'vitest';
 import { z } from 'zod';
 import { createDB } from '../src/index.js';
 import type { Database } from '../src/database.js';
@@ -120,7 +120,10 @@ describe('Query Builder - Feature Complete Tests', () => {
 
     describe('Range Operators', () => {
         test('between - range query', () => {
-            const results = collection.where('age').between(28, 32).toArraySync();
+            const results = collection
+                .where('age')
+                .between(28, 32)
+                .toArraySync();
             expect(results).toHaveLength(3);
             expect(results.every((r) => r.age >= 28 && r.age <= 32)).toBe(true);
         });
@@ -164,13 +167,19 @@ describe('Query Builder - Feature Complete Tests', () => {
 
     describe('String Operators', () => {
         test('like - pattern matching', () => {
-            const results = collection.where('name').like('Alice%').toArraySync();
+            const results = collection
+                .where('name')
+                .like('Alice%')
+                .toArraySync();
             expect(results).toHaveLength(1);
             expect(results[0].name).toBe('Alice Smith');
         });
 
         test('ilike - case insensitive pattern matching', () => {
-            const results = collection.where('name').ilike('alice%').toArraySync();
+            const results = collection
+                .where('name')
+                .ilike('alice%')
+                .toArraySync();
             expect(results).toHaveLength(1);
             expect(results[0].name).toBe('Alice Smith');
         });
@@ -219,7 +228,10 @@ describe('Query Builder - Feature Complete Tests', () => {
         });
 
         test('notExists - field is null/undefined', () => {
-            const results = collection.where('metadata').notExists().toArraySync();
+            const results = collection
+                .where('metadata')
+                .notExists()
+                .toArraySync();
             expect(results).toHaveLength(1);
             expect(results[0].name).toBe('Eve Davis');
         });
@@ -568,7 +580,10 @@ describe('Query Builder - Feature Complete Tests', () => {
         });
 
         test('boolean field queries', () => {
-            const activeCount = collection.where('isActive').eq(true).countSync();
+            const activeCount = collection
+                .where('isActive')
+                .eq(true)
+                .countSync();
             const inactiveCount = collection
                 .where('isActive')
                 .eq(false)

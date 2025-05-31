@@ -1,4 +1,4 @@
-import { test, expect, describe, beforeEach } from 'bun:test';
+import { test, expect, describe, beforeEach } from 'vitest';
 import { z } from 'zod';
 import { createDB } from '../src/index.js';
 import type { Database } from '../src/database.js';

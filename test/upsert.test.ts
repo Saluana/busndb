@@ -1,4 +1,4 @@
-import { expect, test } from 'bun:test';
+import { expect, test } from 'vitest';
 import { z } from 'zod';
 import { createDB } from '../index';
 
@@ -114,17 +114,24 @@ async function analyzeUpsertPerformance() {
 
     // Test 3: Complex upserts with constraints
     console.log('3. Testing upserts with unique constraints...');
-    const constrainedCollection = db.collection('constrained', constrainedSchema);
+    const constrainedCollection = db.collection(
+        'constrained',
+        constrainedSchema
+    );
 
     const constrainedPreData = Array.from({ length: 500 }, (_, i) => ({
         email: `user${i}@example.com`,
         username: `user${i}`,
         score: Math.random() * 1000,
     }));
-    const constrainedPreInserted = await constrainedCollection.insertBulk(constrainedPreData);
+    const constrainedPreInserted = await constrainedCollection.insertBulk(
+        constrainedPreData
+    );
     const constrainedExistingIds = constrainedPreInserted.map((doc) => doc.id!);
 
-    const constrainedNewIds = Array.from({ length: 500 }, () => crypto.randomUUID());
+    const constrainedNewIds = Array.from({ length: 500 }, () =>
+        crypto.randomUUID()
+    );
     const constrainedAllIds = [...constrainedExistingIds, ...constrainedNewIds];
 
     const constrainedUpsertResult = benchmark(
@@ -155,16 +162,22 @@ async function analyzeUpsertPerformance() {
         metadata:
             i % 3 === 0
                 ? {
-                      level: (['junior', 'mid', 'senior', 'lead'] as const)[i % 4],
+                      level: (['junior', 'mid', 'senior', 'lead'] as const)[
+                          i % 4
+                      ],
                       location: `City ${i % 10}`,
                       skills: [`skill${i % 5}`, `skill${(i + 1) % 5}`],
                   }
                 : undefined,
     }));
-    const complexPreInserted = await complexCollection.insertBulk(complexPreData);
+    const complexPreInserted = await complexCollection.insertBulk(
+        complexPreData
+    );
     const complexExistingIds = complexPreInserted.map((doc) => doc.id!);
 
-    const complexNewIds = Array.from({ length: 500 }, () => crypto.randomUUID());
+    const complexNewIds = Array.from({ length: 500 }, () =>
+        crypto.randomUUID()
+    );
     const complexAllIds = [...complexExistingIds, ...complexNewIds];
 
     const complexUpsertResult = benchmark(
@@ -181,11 +194,19 @@ async function analyzeUpsertPerformance() {
                     metadata:
                         i % 2 === 0
                             ? {
-                                  level: (['junior', 'mid', 'senior', 'lead'] as const)[
-                                      (i + 1) % 4
-                                  ],
+                                  level: (
+                                      [
+                                          'junior',
+                                          'mid',
+                                          'senior',
+                                          'lead',
+                                      ] as const
+                                  )[(i + 1) % 4],
                                   location: `Updated City ${i % 8}`,
-                                  skills: [`newskill${i % 7}`, `newskill${(i + 2) % 7}`],
+                                  skills: [
+                                      `newskill${i % 7}`,
+                                      `newskill${(i + 2) % 7}`,
+                                  ],
                               }
                             : undefined,
                 });
@@ -253,21 +274,23 @@ async function analyzeUpsertPerformance() {
 
 test('Upsert Performance Analysis > should analyze upsert performance characteristics', async () => {
     const results = await analyzeUpsertPerformance();
-    
+
     // Verify that we got results
     expect(results).toBeDefined();
     expect(results.length).toBeGreaterThan(0);
-    
+
     // Verify each result has expected properties
-    results.forEach(result => {
+    results.forEach((result) => {
         expect(result.operation).toBeDefined();
         expect(result.count).toBeGreaterThan(0);
         expect(result.totalDuration).toBeGreaterThan(0);
         expect(result.opsPerSecond).toBeGreaterThan(0);
     });
-    
+
     // Verify reasonable performance (should complete operations)
-    const simpleUpsertResult = results.find(r => r.operation.includes('Simple Upserts'));
+    const simpleUpsertResult = results.find((r) =>
+        r.operation.includes('Simple Upserts')
+    );
     expect(simpleUpsertResult).toBeDefined();
     expect(simpleUpsertResult!.opsPerSecond).toBeGreaterThan(100); // At least 100 ops/sec
 }, 30000);
@@ -276,29 +299,29 @@ test('Upsert Performance Analysis > should test basic upsert functionality', asy
     const db = createDB({ memory: true });
     try {
         const collection = db.collection('test', simpleSchema);
-        
+
         const testId = crypto.randomUUID();
-        
+
         // Test insert via upsert
         const insertResult = await collection.upsert(testId, {
             name: 'Test User',
             score: 100,
         });
-        
+
         expect(insertResult.id).toBe(testId);
         expect(insertResult.name).toBe('Test User');
         expect(insertResult.score).toBe(100);
-        
+
         // Test update via upsert
         const updateResult = await collection.upsert(testId, {
             name: 'Updated User',
             score: 200,
         });
-        
+
         expect(updateResult.id).toBe(testId);
         expect(updateResult.name).toBe('Updated User');
         expect(updateResult.score).toBe(200);
-        
+
         // Verify final state
         const finalDoc = await collection.findById(testId);
         expect(finalDoc).toBeDefined();
@@ -312,7 +335,7 @@ test('Upsert Performance Analysis > should test bulk upsert functionality', asyn
     const db = createDB({ memory: true });
     try {
         const collection = db.collection('bulk_test', simpleSchema);
-        
+
         const testData = Array.from({ length: 100 }, (_, i) => ({
             id: crypto.randomUUID(),
             doc: {
@@ -320,11 +343,11 @@ test('Upsert Performance Analysis > should test bulk upsert functionality', asyn
                 score: i * 10,
             },
         }));
-        
+
         // Test bulk upsert (all inserts)
         const insertResults = await collection.upsertBulk(testData);
         expect(insertResults).toHaveLength(100);
-        
+
         // Test bulk upsert (all updates)
         const updateData = testData.map(({ id }, i) => ({
             id,
@@ -333,10 +356,10 @@ test('Upsert Performance Analysis > should test bulk upsert functionality', asyn
                 score: i * 20,
             },
         }));
-        
+
         const updateResults = await collection.upsertBulk(updateData);
         expect(updateResults).toHaveLength(100);
-        
+
         // Verify final state
         const allDocs = await collection.toArray();
         expect(allDocs).toHaveLength(100);

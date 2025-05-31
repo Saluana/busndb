@@ -1,4 +1,4 @@
-import { describe, test, expect, beforeEach } from 'bun:test';
+import { describe, test, expect, beforeEach } from 'vitest';
 import { z } from 'zod';
 import { createDB } from '../src/index';
 import { ValidationError, DatabaseError } from '../src/errors';
@@ -96,9 +96,15 @@ describe('Transactions', () => {
         let error;
         try {
             await db.transaction(async () => {
-                await users.insert({ name: 'Outer', email: 'outer@example.com' });
+                await users.insert({
+                    name: 'Outer',
+                    email: 'outer@example.com',
+                });
                 await db.transaction(async () => {
-                    await users.insert({ name: 'Inner', email: 'inner@example.com' });
+                    await users.insert({
+                        name: 'Inner',
+                        email: 'inner@example.com',
+                    });
                 });
                 throw new Error('fail outer');
             });
@@ -218,9 +224,15 @@ describe('Transactions', () => {
         let error;
         try {
             await db.transaction(async () => {
-                await users.insert({ name: 'Outer', email: 'outer@example.com' });
+                await users.insert({
+                    name: 'Outer',
+                    email: 'outer@example.com',
+                });
                 await db.transaction(async () => {
-                    await users.insert({ name: 'Inner', email: 'inner@example.com' });
+                    await users.insert({
+                        name: 'Inner',
+                        email: 'inner@example.com',
+                    });
                 });
                 throw new Error('fail outer');
             });
@@ -243,7 +255,11 @@ describe('Transactions', () => {
         expect(author).toBeTruthy();
         await db.transaction(async () => {
             await users.insert({ name: 'B', email: 'b@example.com' });
-            await posts.insert({ title: 'T', content: 'C', authorId: author.id! });
+            await posts.insert({
+                title: 'T',
+                content: 'C',
+                authorId: author.id!,
+            });
             expect(users.toArraySync()).toHaveLength(2);
             expect(posts.toArraySync()).toHaveLength(1);
         });

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { Database } from '../src/database';
 import { DatabaseError } from '../src/errors'; // Ensure DatabaseError is imported
 import { globalConnectionManager } from '../src/connection-manager';
@@ -13,7 +13,7 @@ describe('Connection Management', () => {
             await db.close();
         }
         databases = [];
-        
+
         // Clean up global connection manager
         await globalConnectionManager.closeAll();
     });
@@ -157,7 +157,10 @@ describe('Connection Management', () => {
                 // or subsequent sync operations by the Collection constructor to throw.
                 // If db.collection() itself doesn't throw but a later implicit sync op does, this await might not be reached.
                 // For this test, the primary expectation is the SYNC_WITH_SHARED_CONNECTION error.
-                await users.insert({ name: 'John Doe', email: 'john@example.com' });
+                await users.insert({
+                    name: 'John Doe',
+                    email: 'john@example.com',
+                });
                 expect(true).toBe(false); // Should not reach here if error is thrown as expected
             } catch (error: any) {
                 expect(error).toBeInstanceOf(DatabaseError);
@@ -185,7 +188,9 @@ describe('Connection Management', () => {
                 await db.exec('INSERT INTO test_tx1 VALUES (2, "second")');
             });
 
-            const result = await db.query('SELECT COUNT(*) as count FROM test_tx1');
+            const result = await db.query(
+                'SELECT COUNT(*) as count FROM test_tx1'
+            );
             expect(result[0].count).toBe(2);
         });
 
@@ -207,7 +212,9 @@ describe('Connection Management', () => {
                 // Expected to fail
             }
 
-            const result = await db.query('SELECT COUNT(*) as count FROM test_tx2');
+            const result = await db.query(
+                'SELECT COUNT(*) as count FROM test_tx2'
+            );
             expect(result[0].count).toBe(0); // Should be rolled back
         });
     });
@@ -219,22 +226,22 @@ describe('Connection Management', () => {
                     memory: true,
                     autoReconnect: true,
                     maxReconnectAttempts: 2,
-                    reconnectDelay: 50
+                    reconnectDelay: 50,
                 });
                 databases.push(db);
 
                 // First connection should work
                 await db.query('SELECT 1');
-                
+
                 // Create new database after closing to test reconnection
                 const db2 = new Database({
                     memory: true,
                     autoReconnect: true,
                     maxReconnectAttempts: 2,
-                    reconnectDelay: 50
+                    reconnectDelay: 50,
                 });
                 databases.push(db2);
-                
+
                 // Should work with auto-reconnect
                 const result = await db2.query('SELECT 1 as test');
                 expect(result).toEqual([{ test: 1 }]);
@@ -242,18 +249,18 @@ describe('Connection Management', () => {
 
             it('should use exponential backoff for reconnection delays', async () => {
                 const startTime = Date.now();
-                
+
                 const db = new Database({
                     memory: true,
                     autoReconnect: true,
                     maxReconnectAttempts: 1,
-                    reconnectDelay: 100
+                    reconnectDelay: 100,
                 });
                 databases.push(db);
 
                 await db.query('SELECT 1');
                 const endTime = Date.now();
-                
+
                 // Should complete quickly since no reconnection needed
                 expect(endTime - startTime).toBeLessThan(50);
             });
@@ -263,26 +270,28 @@ describe('Connection Management', () => {
             it('should respect maxConnections limit', async () => {
                 const maxConnections = 3;
                 const testDatabases: Database[] = [];
-                
+
                 for (let i = 0; i < maxConnections + 2; i++) {
                     const db = new Database({
                         memory: true,
                         connectionPool: {
                             maxConnections,
                             retryAttempts: 1,
-                            retryDelay: 10
-                        }
+                            retryDelay: 10,
+                        },
                     });
                     testDatabases.push(db);
                 }
                 databases.push(...testDatabases);
 
                 // Should be able to use all connections
-                const promises = testDatabases.map(db => db.query('SELECT 1'));
+                const promises = testDatabases.map((db) =>
+                    db.query('SELECT 1')
+                );
                 const results = await Promise.all(promises);
-                
+
                 expect(results).toHaveLength(maxConnections + 2);
-                results.forEach(result => {
+                results.forEach((result) => {
                     expect(result).toEqual([{ '1': 1 }]);
                 });
             });
@@ -293,15 +302,15 @@ describe('Connection Management', () => {
                     sharedConnection: true,
                     connectionPool: {
                         maxConnections: 5,
-                        healthCheckInterval: 100
-                    }
+                        healthCheckInterval: 100,
+                    },
                 });
                 databases.push(db);
 
                 // Make some queries to create connections
                 await db.query('SELECT 1');
                 await db.query('SELECT 2');
-                
+
                 const stats = db.getConnectionStats();
                 expect(stats.totalConnections).toBeGreaterThanOrEqual(0);
                 expect(stats.healthyConnections).toBeGreaterThanOrEqual(0);
@@ -315,21 +324,21 @@ describe('Connection Management', () => {
                 const db = new Database({
                     memory: true,
                     autoReconnect: true,
-                    maxReconnectAttempts: 1
+                    maxReconnectAttempts: 1,
                 });
                 databases.push(db);
 
                 // First query should work
                 await db.query('SELECT 1');
-                
+
                 // Test new connection works
                 const db2 = new Database({
                     memory: true,
                     autoReconnect: true,
-                    maxReconnectAttempts: 1
+                    maxReconnectAttempts: 1,
                 });
                 databases.push(db2);
-                
+
                 const result = await db2.query('SELECT 1 as test');
                 expect(result).toEqual([{ test: 1 }]);
             });
@@ -338,15 +347,15 @@ describe('Connection Management', () => {
                 const db = new Database({
                     memory: true,
                     autoReconnect: true,
-                    maxReconnectAttempts: 2
+                    maxReconnectAttempts: 2,
                 });
                 databases.push(db);
 
                 // Run multiple concurrent queries after connection issues
-                const promises = Array.from({ length: 5 }, (_, i) => 
+                const promises = Array.from({ length: 5 }, (_, i) =>
                     db.query(`SELECT ${i + 1} as num`)
                 );
-                
+
                 const results = await Promise.all(promises);
                 expect(results).toHaveLength(5);
                 results.forEach((result, i) => {
@@ -361,16 +370,16 @@ describe('Connection Management', () => {
                     memory: true,
                     connectionPool: {
                         maxIdleTime: 100, // 100ms
-                        healthCheckInterval: 50
-                    }
+                        healthCheckInterval: 50,
+                    },
                 });
                 databases.push(db);
 
                 await db.query('SELECT 1');
-                
+
                 // Wait for idle cleanup
-                await new Promise(resolve => setTimeout(resolve, 200));
-                
+                await new Promise((resolve) => setTimeout(resolve, 200));
+
                 // Should still work after cleanup
                 const result = await db.query('SELECT 1 as test');
                 expect(result).toEqual([{ test: 1 }]);
@@ -379,21 +388,21 @@ describe('Connection Management', () => {
             it('should handle multiple database instances efficiently', async () => {
                 const numDatabases = 10;
                 const testDatabases: Database[] = [];
-                
+
                 for (let i = 0; i < numDatabases; i++) {
                     const db = new Database({
                         memory: true,
-                        sharedConnection: i % 2 === 0 // Alternate between shared and dedicated
+                        sharedConnection: i % 2 === 0, // Alternate between shared and dedicated
                     });
                     testDatabases.push(db);
                 }
                 databases.push(...testDatabases);
 
                 // All should be able to execute queries
-                const promises = testDatabases.map((db, i) => 
+                const promises = testDatabases.map((db, i) =>
                     db.query(`SELECT ${i} as id`)
                 );
-                
+
                 const results = await Promise.all(promises);
                 expect(results).toHaveLength(numDatabases);
             });
@@ -409,13 +418,15 @@ describe('Connection Management', () => {
                     connectionPool: {
                         maxConnections: 10,
                         retryAttempts: 3,
-                        retryDelay: 10
-                    }
+                        retryDelay: 10,
+                    },
                 });
                 databases.push(db);
 
                 // Create a test table
-                await db.exec('CREATE TABLE stress_test (id INTEGER, data TEXT)');
+                await db.exec(
+                    'CREATE TABLE stress_test (id INTEGER, data TEXT)'
+                );
 
                 const numQueries = 100;
                 const promises: Promise<any>[] = [];
@@ -425,12 +436,16 @@ describe('Connection Management', () => {
                     if (i % 3 === 0) {
                         // Write operation
                         promises.push(
-                            db.exec(`INSERT INTO stress_test VALUES (${i}, 'data${i}')`)
+                            db.exec(
+                                `INSERT INTO stress_test VALUES (${i}, 'data${i}')`
+                            )
                         );
                     } else {
                         // Read operation
                         promises.push(
-                            db.query('SELECT COUNT(*) as count FROM stress_test')
+                            db.query(
+                                'SELECT COUNT(*) as count FROM stress_test'
+                            )
                         );
                     }
                 }
@@ -439,7 +454,9 @@ describe('Connection Management', () => {
                 expect(results).toHaveLength(numQueries);
 
                 // Verify final state
-                const finalCount = await db.query('SELECT COUNT(*) as count FROM stress_test');
+                const finalCount = await db.query(
+                    'SELECT COUNT(*) as count FROM stress_test'
+                );
                 expect(finalCount[0].count).toBeGreaterThan(0);
             }, 10000); // 10 second timeout
 
@@ -448,19 +465,21 @@ describe('Connection Management', () => {
                 const promises: Promise<number>[] = [];
 
                 for (let i = 0; i < numCycles; i++) {
-                    promises.push((async () => {
-                        const db = new Database({
-                            memory: true,
-                            sharedConnection: false // Each gets its own connection
-                        });
-                        
-                        try {
-                            await db.query(`SELECT ${i} as cycle`);
-                            return i;
-                        } finally {
-                            await db.close();
-                        }
-                    })());
+                    promises.push(
+                        (async () => {
+                            const db = new Database({
+                                memory: true,
+                                sharedConnection: false, // Each gets its own connection
+                            });
+
+                            try {
+                                await db.query(`SELECT ${i} as cycle`);
+                                return i;
+                            } finally {
+                                await db.close();
+                            }
+                        })()
+                    );
                 }
 
                 const results = await Promise.all(promises);
@@ -473,32 +492,37 @@ describe('Connection Management', () => {
             it('should handle connection pool exhaustion gracefully', async () => {
                 const maxConnections = 5;
                 const numRequests = 20;
-                
+
                 const db = new Database({
                     memory: true,
                     connectionPool: {
                         maxConnections,
                         retryAttempts: 3,
-                        retryDelay: 50
-                    }
+                        retryDelay: 50,
+                    },
                 });
                 databases.push(db);
 
                 // Create many concurrent long-running queries
-                const promises = Array.from({ length: numRequests }, async (_, i) => {
-                    try {
-                        // Simulate some processing time
-                        await db.query('SELECT 1');
-                        await new Promise(resolve => setTimeout(resolve, Math.random() * 10));
-                        return await db.query(`SELECT ${i} as request_id`);
-                    } catch (error: any) {
-                        return { error: error.message };
+                const promises = Array.from(
+                    { length: numRequests },
+                    async (_, i) => {
+                        try {
+                            // Simulate some processing time
+                            await db.query('SELECT 1');
+                            await new Promise((resolve) =>
+                                setTimeout(resolve, Math.random() * 10)
+                            );
+                            return await db.query(`SELECT ${i} as request_id`);
+                        } catch (error: any) {
+                            return { error: error.message };
+                        }
                     }
-                });
+                );
 
                 const results = await Promise.all(promises);
                 expect(results).toHaveLength(numRequests);
-                
+
                 // Most should succeed
                 const successes = results.filter((r: any) => !r.error);
                 expect(successes.length).toBeGreaterThan(numRequests * 0.8); // At least 80% success
@@ -508,12 +532,14 @@ describe('Connection Management', () => {
                 const db = new Database({
                     memory: true,
                     connectionPool: {
-                        maxConnections: 8
-                    }
+                        maxConnections: 8,
+                    },
                 });
                 databases.push(db);
 
-                await db.exec('CREATE TABLE workload_test (id INTEGER PRIMARY KEY, value TEXT, created_at INTEGER)');
+                await db.exec(
+                    'CREATE TABLE workload_test (id INTEGER PRIMARY KEY, value TEXT, created_at INTEGER)'
+                );
 
                 const numOperations = 30; // Reduced for stability
                 const promises: Promise<any>[] = [];
@@ -523,20 +549,32 @@ describe('Connection Management', () => {
                         // Transaction with multiple operations (less frequent to avoid nested transactions)
                         promises.push(
                             db.transaction(async () => {
-                                await db.exec(`INSERT INTO workload_test VALUES (${i}, 'tx_${i}', ${Date.now()})`);
-                                await db.exec(`INSERT INTO workload_test VALUES (${i + 1000}, 'tx_${i}_2', ${Date.now()})`);
+                                await db.exec(
+                                    `INSERT INTO workload_test VALUES (${i}, 'tx_${i}', ${Date.now()})`
+                                );
+                                await db.exec(
+                                    `INSERT INTO workload_test VALUES (${
+                                        i + 1000
+                                    }, 'tx_${i}_2', ${Date.now()})`
+                                );
                                 return 'transaction_complete';
                             })
                         );
                     } else if (i % 5 === 1) {
                         // Simple insert
                         promises.push(
-                            db.exec(`INSERT INTO workload_test VALUES (${i + 2000}, 'simple_${i}', ${Date.now()})`)
+                            db.exec(
+                                `INSERT INTO workload_test VALUES (${
+                                    i + 2000
+                                }, 'simple_${i}', ${Date.now()})`
+                            )
                         );
                     } else {
                         // Query operation
                         promises.push(
-                            db.query('SELECT COUNT(*) as count FROM workload_test')
+                            db.query(
+                                'SELECT COUNT(*) as count FROM workload_test'
+                            )
                         );
                     }
                 }
@@ -545,11 +583,15 @@ describe('Connection Management', () => {
                 expect(results).toHaveLength(numOperations);
 
                 // Check that most operations succeeded
-                const successes = results.filter(r => r.status === 'fulfilled');
+                const successes = results.filter(
+                    (r) => r.status === 'fulfilled'
+                );
                 expect(successes.length).toBeGreaterThan(numOperations * 0.7); // At least 70% success
 
                 // Verify data integrity
-                const finalCount = await db.query('SELECT COUNT(*) as count FROM workload_test');
+                const finalCount = await db.query(
+                    'SELECT COUNT(*) as count FROM workload_test'
+                );
                 expect(finalCount[0].count).toBeGreaterThan(0);
             }, 30000); // 30 second timeout
         });
@@ -558,7 +600,7 @@ describe('Connection Management', () => {
             it('should handle large result sets efficiently', async () => {
                 const db = new Database({
                     memory: true,
-                    sharedConnection: true
+                    sharedConnection: true,
                 });
                 databases.push(db);
 
@@ -587,7 +629,9 @@ describe('Connection Management', () => {
                 }
 
                 // Query large result set
-                const allRows = await db.query('SELECT * FROM large_table ORDER BY id');
+                const allRows = await db.query(
+                    'SELECT * FROM large_table ORDER BY id'
+                );
                 expect(allRows).toHaveLength(batchSize * numBatches);
 
                 // Test aggregation on large dataset
@@ -599,7 +643,7 @@ describe('Connection Management', () => {
                         MAX(id) as max_id
                     FROM large_table
                 `);
-                
+
                 expect(stats[0].total).toBe(batchSize * numBatches);
                 expect(stats[0].min_id).toBe(0);
                 expect(stats[0].max_id).toBe(batchSize * numBatches - 1);
@@ -608,18 +652,18 @@ describe('Connection Management', () => {
             it('should handle connection churn under load', async () => {
                 const numCycles = 30;
                 const operationsPerCycle = 10;
-                
+
                 for (let cycle = 0; cycle < numCycles; cycle++) {
                     const cycleDatabases: Database[] = [];
-                    
+
                     // Create multiple databases
                     for (let i = 0; i < 3; i++) {
                         const db = new Database({
                             memory: true,
                             connectionPool: {
                                 maxConnections: 5,
-                                maxIdleTime: 100
-                            }
+                                maxIdleTime: 100,
+                            },
                         });
                         cycleDatabases.push(db);
                     }
@@ -629,7 +673,9 @@ describe('Connection Management', () => {
                         const results: any[] = [];
                         for (let op = 0; op < operationsPerCycle; op++) {
                             results.push(
-                                await db.query(`SELECT ${cycle} as cycle, ${dbIndex} as db_id, ${op} as op_id`)
+                                await db.query(
+                                    `SELECT ${cycle} as cycle, ${dbIndex} as db_id, ${op} as op_id`
+                                )
                             );
                         }
                         return results;
@@ -637,16 +683,18 @@ describe('Connection Management', () => {
 
                     const results = await Promise.all(promises);
                     expect(results).toHaveLength(3);
-                    
+
                     // Clean up cycle databases
-                    await Promise.all(cycleDatabases.map(db => db.close()));
+                    await Promise.all(cycleDatabases.map((db) => db.close()));
                 }
 
                 // Test that system is still responsive
                 const finalDb = new Database({ memory: true });
                 databases.push(finalDb);
-                
-                const finalResult = await finalDb.query('SELECT "system_responsive" as status');
+
+                const finalResult = await finalDb.query(
+                    'SELECT "system_responsive" as status'
+                );
                 expect(finalResult).toEqual([{ status: 'system_responsive' }]);
             }, 45000); // 45 second timeout
         });
