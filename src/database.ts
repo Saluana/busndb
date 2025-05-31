@@ -5,6 +5,8 @@ import type {
     InferSchema,
     ConstrainedFieldDefinition,
     Row,
+    PluginClass,
+    PluginFactory,
 } from './types';
 import { DatabaseError } from './errors';
 import type { SchemaConstraints } from './schema-constraints';
@@ -395,9 +397,41 @@ export class Database {
     }
 
     // Plugin management methods
-    use(plugin: Plugin): this {
+    use(pluginInput: Plugin | PluginClass | PluginFactory | any, options?: any): this {
+        let plugin: Plugin;
+        
+        // Handle different plugin input types
+        if (this.isPluginInstance(pluginInput)) {
+            // Already a plugin instance
+            plugin = pluginInput;
+        } else if (this.isPluginClass(pluginInput)) {
+            // Plugin class - instantiate it
+            plugin = new pluginInput(options);
+        } else if (this.isPluginFactory(pluginInput)) {
+            // Plugin factory function - call it
+            plugin = pluginInput(options);
+        } else if (pluginInput && pluginInput.default) {
+            // ES module with default export - try that
+            return this.use(pluginInput.default, options);
+        } else {
+            throw new Error('Invalid plugin: must be Plugin instance, class, or factory function');
+        }
+        
         this.plugins.register(plugin);
         return this;
+    }
+
+    private isPluginInstance(obj: any): obj is Plugin {
+        return obj && typeof obj === 'object' && typeof obj.name === 'string';
+    }
+
+    private isPluginClass(obj: any): obj is new (options?: any) => Plugin {
+        return typeof obj === 'function' && obj.prototype && 
+               (obj.prototype.name !== undefined || obj.prototype.constructor === obj);
+    }
+
+    private isPluginFactory(obj: any): obj is (options?: any) => Plugin {
+        return typeof obj === 'function' && !obj.prototype;
     }
 
     unuse(pluginName: string): this {

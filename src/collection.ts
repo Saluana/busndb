@@ -161,8 +161,16 @@ export class Collection<T extends z.ZodSchema> {
         const updatedDoc = { ...existing, ...doc, id };
         const validatedDoc = this.validateDocument(updatedDoc);
 
-        // Constraints are now enforced at the SQL level via constrainedFields
+        // Plugin hook: before update
+        const context = {
+            collectionName: this.collectionSchema.name,
+            schema: this.collectionSchema,
+            operation: 'update',
+            data: validatedDoc,
+        };
+        await this.pluginManager?.executeHookSafe('onBeforeUpdate', context);
 
+        // Constraints are now enforced at the SQL level via constrainedFields
         const { sql, params } = SQLTranslator.buildUpdateQuery(
             this.collectionSchema.name,
             validatedDoc,
@@ -171,6 +179,14 @@ export class Collection<T extends z.ZodSchema> {
             this.collectionSchema.schema
         );
         await this.driver.exec(sql, params);
+
+        // Plugin hook: after update
+        const resultContext = {
+            ...context,
+            result: validatedDoc,
+        };
+        await this.pluginManager?.executeHookSafe('onAfterUpdate', resultContext);
+
         return validatedDoc;
     }
 
@@ -185,11 +201,28 @@ export class Collection<T extends z.ZodSchema> {
     }
 
     async delete(id: string): Promise<boolean> {
+        // Plugin hook: before delete
+        const context = {
+            collectionName: this.collectionSchema.name,
+            schema: this.collectionSchema,
+            operation: 'delete',
+            data: { id },
+        };
+        await this.pluginManager?.executeHookSafe('onBeforeDelete', context);
+
         const { sql, params } = SQLTranslator.buildDeleteQuery(
             this.collectionSchema.name,
             id
         );
         await this.driver.exec(sql, params);
+
+        // Plugin hook: after delete
+        const resultContext = {
+            ...context,
+            result: { id, deleted: true },
+        };
+        await this.pluginManager?.executeHookSafe('onAfterDelete', resultContext);
+
         return true;
     }
 
@@ -361,13 +394,31 @@ export class Collection<T extends z.ZodSchema> {
 
     // Direct query methods without conditions
     async toArray(): Promise<InferSchema<T>[]> {
+        // Plugin hook: before query
+        const context = {
+            collectionName: this.collectionSchema.name,
+            schema: this.collectionSchema,
+            operation: 'query',
+            data: { filters: [] },
+        };
+        await this.pluginManager?.executeHookSafe('onBeforeQuery', context);
+
         const { sql, params } = SQLTranslator.buildSelectQuery(
             this.collectionSchema.name,
             { filters: [] },
             this.collectionSchema.constrainedFields
         );
         const rows = await this.driver.query(sql, params);
-        return rows.map((row) => parseDoc(row.doc));
+        const results = rows.map((row) => parseDoc(row.doc));
+
+        // Plugin hook: after query
+        const resultContext = {
+            ...context,
+            result: results,
+        };
+        await this.pluginManager?.executeHookSafe('onAfterQuery', resultContext);
+
+        return results;
     }
 
     // Add direct sorting and pagination methods to Collection

@@ -154,3 +154,15 @@ export interface QueryOptions {
     joins?: JoinClause[];
     selectFields?: string[]; // For custom field selection
 }
+
+// Plugin system types
+export interface PluginClass {
+    new (options?: any): Plugin;
+}
+
+export interface PluginFactory {
+    (options?: any): Plugin;
+}
+
+// Re-export Plugin from plugin-system for convenience
+export type { Plugin } from './plugin-system';
