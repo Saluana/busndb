@@ -74,18 +74,30 @@ export class PluginManager {
         
         this.plugins.set(plugin.name, plugin);
         
-        // Register hooks - check both own properties and prototype methods
-        const allKeys = new Set([
-            ...Object.keys(plugin),
-            ...Object.getOwnPropertyNames(Object.getPrototypeOf(plugin))
-        ]);
+        // Discover hooks by walking the prototype chain
+        const potentialHookKeys = new Set<string>();
+        let currentProto: any = plugin;
+        while (currentProto && currentProto !== Object.prototype) {
+            Object.getOwnPropertyNames(currentProto).forEach(name => {
+                potentialHookKeys.add(name);
+            });
+            currentProto = Object.getPrototypeOf(currentProto);
+        }
         
-        allKeys.forEach(key => {
-            if (key.startsWith('on') && typeof plugin[key as keyof Plugin] === 'function') {
-                if (!this.hooks.has(key)) {
-                    this.hooks.set(key, []);
+        potentialHookKeys.forEach(key => {
+            // Check if the property on the original plugin instance is a function and starts with 'on'
+            // Accessing plugin[key] ensures we get the method as it would be called on the instance,
+            // respecting inheritance and overrides, and invoking getters if any.
+            if (key.startsWith('on') && typeof (plugin as any)[key] === 'function') {
+                let pluginsForHook = this.hooks.get(key);
+                if (!pluginsForHook) {
+                    pluginsForHook = [];
+                    this.hooks.set(key, pluginsForHook);
                 }
-                this.hooks.get(key)!.push(plugin);
+                // Ensure a plugin instance is added only once for a given hook type
+                if (!pluginsForHook.includes(plugin)) {
+                    pluginsForHook.push(plugin);
+                }
             }
         });
     }
