@@ -259,3 +259,40 @@ describe('BusNDB', () => {
     });
   });
 });
+
+describe('Driver Initialization and Error Handling', () => {
+  test('ensureDriver should reject with DatabaseError if createDriver throws', async () => {
+    // Use sharedConnection: true for lazy initialization, so ensureDriver calls createDriver.
+    // Provide an invalid driver name to make createDriver throw.
+    // Also, ensure this db instance is separate and doesn't use global beforeEach/afterEach if they assume successful creation.
+    let errorDb: Database | undefined;
+    try {
+      errorDb = createDB({ driver: 'invalid-driver-name' as any, sharedConnection: true });
+
+      // Calling exec will trigger ensureDriver, which will then attempt to create the driver.
+      const action = () => errorDb!.exec('SELECT 1');
+
+      // Using .toReject().then() for detailed checks on the error instance
+      await expect(action())
+        .toReject()
+        .then((error: any) => {
+          expect(error).toBeInstanceOf(DatabaseError);
+          if (error instanceof DatabaseError) { // type guard
+            expect(error.code).toBe('DRIVER_CREATION_FAILED');
+            // This message comes from createDriver's "Unknown driver" error, wrapped by ensureDriver's message
+            expect(error.message).toBe('Failed to create dedicated driver: Unknown driver: invalid-driver-name');
+          } else {
+            // Fail test if not DatabaseError (though toBeInstanceOf should catch this)
+            expect(true).toBe(false);
+          }
+        });
+    } finally {
+      if (errorDb) {
+        try {
+          // This close might also fail if driver never initialized, so wrap it.
+          await errorDb.close();
+        } catch { /* ignore cleanup error */ }
+      }
+    }
+  });
+});

@@ -52,8 +52,16 @@ export class Database {
             return this.managedConnection.driver;
         } else {
             // Create dedicated driver
-            this.driver = this.createDriver(this.config);
-            return this.driver;
+            try {
+                this.driver = this.createDriver(this.config);
+                return this.driver;
+            } catch (error) {
+                const message = error instanceof Error ? error.message : String(error);
+                throw new DatabaseError(
+                    `Failed to create dedicated driver: ${message}`,
+                    'DRIVER_CREATION_FAILED'
+                );
+            }
         }
     }
 
