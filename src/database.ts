@@ -6,6 +6,7 @@ import type {
     ConstrainedFieldDefinition,
     Row,
 } from './types';
+import { DatabaseError } from './errors';
 import type { SchemaConstraints } from './schema-constraints';
 import { NodeDriver } from './drivers/node';
 import { Collection } from './collection';
@@ -35,21 +36,28 @@ export class Database {
         const driver =
             config.driver || (typeof Bun !== 'undefined' ? 'bun' : 'node');
 
-        switch (driver) {
-            case 'bun':
-                // Dynamic import to avoid Node.js resolving bun: protocol during static analysis
-                try {
-                    const { BunDriver } = require('./drivers/bun');
-                    return new BunDriver(config);
-                } catch (e) {
-                    throw new Error(
-                        'BunDriver is only available in Bun runtime. Use driver: "node" instead.'
-                    );
-                }
-            case 'node':
-                return new NodeDriver(config);
-            default:
-                throw new Error(`Unknown driver: ${driver}`);
+        try {
+            switch (driver) {
+                case 'bun':
+                    // Dynamic import to avoid Node.js resolving bun: protocol during static analysis
+                    try {
+                        const { BunDriver } = require('./drivers/bun');
+                        return new BunDriver(config);
+                    } catch (e) {
+                        throw new Error(
+                            'BunDriver is only available in Bun runtime. Use driver: "node" instead.'
+                        );
+                    }
+                case 'node':
+                    return new NodeDriver(config);
+                default:
+                    throw new Error(`Unknown driver: ${driver}`);
+            }
+        } catch (error) {
+            throw new DatabaseError(
+                `Failed to initialize database driver '${driver}': ${(error as Error).message}`,
+                'DRIVER_INIT_FAILED'
+            );
         }
     }
 
@@ -119,10 +127,38 @@ export class Database {
             });
             return result;
         } catch (error) {
-            await this.plugins.executeHookSafe('onTransactionError', {
-                ...context,
-                error: error as Error,
-            });
+            // Enhanced error recovery for transaction failures
+            const transactionError = error instanceof Error ? error : new Error(String(error));
+            
+            try {
+                await this.plugins.executeHookSafe('onTransactionError', {
+                    ...context,
+                    error: transactionError,
+                });
+            } catch (pluginError) {
+                // If plugin error handling fails, log it but don't override the original error
+                console.warn('Transaction error plugin hook failed:', pluginError);
+            }
+            
+            // Only wrap specific database-level errors, preserve application errors
+            if (transactionError.message.includes('database is locked') || 
+                transactionError.message.includes('busy') ||
+                transactionError.message.includes('timeout')) {
+                throw new DatabaseError(
+                    `Transaction failed due to database lock or timeout: ${transactionError.message}`,
+                    'TRANSACTION_LOCK_TIMEOUT'
+                );
+            }
+            
+            if (transactionError.message.includes('rollback') ||
+                transactionError.message.includes('abort')) {
+                throw new DatabaseError(
+                    `Transaction was rolled back: ${transactionError.message}`,
+                    'TRANSACTION_ROLLBACK'
+                );
+            }
+            
+            // Re-throw original error to preserve validation and application errors
             throw error;
         }
     }

@@ -70,7 +70,24 @@ export abstract class BaseDriver implements Driver {
             this.isInTransaction = false;
             return result;
         } catch (error) {
-            await this.exec('ROLLBACK');
+            // Enhanced rollback error recovery
+            try {
+                await this.exec('ROLLBACK');
+            } catch (rollbackError) {
+                // If rollback fails, log the error but don't override the original error
+                console.warn('Failed to rollback transaction:', rollbackError);
+                
+                // If database is closed, handle gracefully
+                if (this.handleClosedDatabase(rollbackError)) {
+                    this.isClosed = true;
+                    this.isInTransaction = false;
+                    throw new DatabaseError(
+                        `Transaction failed and database was closed during rollback: ${(error as Error).message}`,
+                        'TRANSACTION_ROLLBACK_DB_CLOSED'
+                    );
+                }
+            }
+            
             this.isInTransaction = false;
             throw error;
         }

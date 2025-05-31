@@ -130,15 +130,43 @@ export class PluginManager {
                 reject(new PluginTimeoutError(plugin.name, hookName, timeout));
             }, timeout);
             
-            Promise.resolve(hookFn.call(plugin, context))
-                .then(() => {
-                    clearTimeout(timer);
-                    resolve();
-                })
-                .catch((error) => {
-                    clearTimeout(timer);
-                    reject(error);
-                });
+            // Enhanced timeout handling with proper cleanup
+            const cleanup = () => {
+                clearTimeout(timer);
+            };
+            
+            try {
+                const result = Promise.resolve(hookFn.call(plugin, context));
+                
+                result
+                    .then(() => {
+                        cleanup();
+                        resolve();
+                    })
+                    .catch((error) => {
+                        cleanup();
+                        // Wrap plugin errors for better context
+                        if (error instanceof PluginTimeoutError) {
+                            reject(error);
+                        } else {
+                            reject(new PluginError(
+                                `Plugin '${plugin.name}' hook '${hookName}' failed: ${error.message}`,
+                                plugin.name,
+                                hookName,
+                                error
+                            ));
+                        }
+                    });
+            } catch (error) {
+                // Handle synchronous errors in hook function
+                cleanup();
+                reject(new PluginError(
+                    `Plugin '${plugin.name}' hook '${hookName}' threw synchronous error: ${(error as Error).message}`,
+                    plugin.name,
+                    hookName,
+                    error as Error
+                ));
+            }
         });
     }
     
@@ -182,8 +210,20 @@ export class PluginManager {
                 // In strict mode, throw PluginErrors
                 throw error;
             } else {
-                // Silent execution - don't let plugin errors break the main operation
-                console.warn(`Plugin hook '${hookName}' failed:`, error);
+                // Enhanced error logging with timeout-specific handling
+                if (error instanceof PluginTimeoutError) {
+                    console.warn(
+                        `Plugin '${error.pluginName}' hook '${hookName}' timed out after ${error.hookName} - ` +
+                        'consider increasing timeout or optimizing plugin performance'
+                    );
+                } else if (error instanceof PluginError) {
+                    console.warn(
+                        `Plugin '${error.pluginName}' hook '${hookName}' failed: ${error.message}`,
+                        error.originalError ? error.originalError : ''
+                    );
+                } else {
+                    console.warn(`Plugin hook '${hookName}' failed:`, error);
+                }
             }
         }
     }
