@@ -426,6 +426,21 @@ db.use(timestampPlugin)    // Executes first
   .use(auditLogPlugin);    // Executes last
 ```
 
+## Limitations
+
+### Synchronous Operations and Asynchronous Hooks
+
+It's important to understand that **synchronous database operations do not trigger asynchronous plugin hooks.** This includes methods like:
+
+- `Database.execSync()`
+- `Database.querySync()`
+- `Database.closeSync()`
+- Synchronous methods on `Collection` instances (e.g., `insertSync`, `findSync`, `updateSync`, `deleteSync`, etc.)
+
+These synchronous methods are provided for specific use cases but operate without invoking the standard asynchronous plugin lifecycle (e.g., `onBeforeQuery`, `onAfterQuery`, `onBeforeInsert`, `onAfterInsert`, `onDatabaseClose`).
+
+**If you require plugin hook integration for these types of operations, you must use their asynchronous counterparts** (e.g., `db.exec()`, `collection.insert()`, `db.close()`). These asynchronous methods fully support the plugin lifecycle.
+
 ## Best Practices
 
 ### 1. Plugin Naming

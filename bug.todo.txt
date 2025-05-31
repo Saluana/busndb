@@ -1,0 +1,9 @@
+Critical Issues
+
+  - Plugin hook registration in `src/plugin-system.ts` might not be robust enough to find all hook methods.
+
+Important Improvements Needed
+
+  - Bulk operations (`insertBulk`, `putBulk`, `deleteBulk`) in `src/collection.ts` are inefficient and should be optimized.
+  - The `validateFieldName` method in `src/collection.ts` might not validate all field names, potentially leading to unexpected behavior.
+  - Synchronous methods in `src/collection.ts` don't fully support the plugin system.

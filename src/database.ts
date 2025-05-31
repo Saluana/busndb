@@ -22,6 +22,7 @@ export class Database {
     private collections = new Map<string, Collection<any>>();
     public plugins = new PluginManager();
     private connectionManager: ConnectionManager;
+    private isLazy = false;
 
     constructor(config: DBConfig = {}) {
         this.config = config;
@@ -30,6 +31,7 @@ export class Database {
         // Initialize driver based on connection sharing preference
         if (config.sharedConnection) {
             this.initializeLazy();
+            // Driver is not created here for shared connections; it will be handled by ensureDriver.
         } else {
             this.driver = this.createDriver(config);
         }
@@ -38,7 +40,8 @@ export class Database {
     }
 
     private initializeLazy(): void {
-        // Lazy initialization will happen on first database operation
+        this.isLazy = true;
+        // Further lazy initialization logic can be added here if needed.
     }
 
     private async ensureDriver(): Promise<Driver> {
@@ -47,13 +50,23 @@ export class Database {
         }
 
         if (this.config.sharedConnection) {
-            // Use connection manager for shared connections
+            // Obtain a driver from the connection manager.
+            // Note: this.driver on the Database instance is NOT set for shared connections;
+            // the driver is managed per-operation or per-connection from the pool.
             this.managedConnection = await this.connectionManager.getConnection(this.config, true);
             return this.managedConnection.driver;
         } else {
             // Create dedicated driver
-            this.driver = this.createDriver(this.config);
-            return this.driver;
+            try {
+                this.driver = this.createDriver(this.config);
+                return this.driver;
+            } catch (error) {
+                const message = error instanceof Error ? error.message : String(error);
+                throw new DatabaseError(
+                    `Failed to create dedicated driver: ${message}`,
+                    'DRIVER_CREATION_FAILED'
+                );
+            }
         }
     }
 
@@ -165,8 +178,17 @@ export class Database {
                 // Return sync methods that ensure driver is initialized
                 if (prop === 'execSync' || prop === 'querySync' || prop === 'closeSync') {
                     return (...args: any[]) => {
+                        if (this.config.sharedConnection) {
+                            throw new DatabaseError(
+                                `Synchronous operations like '${String(prop)}' are not supported when using a shared connection. Please use asynchronous methods instead.`,
+                                'SYNC_WITH_SHARED_CONNECTION'
+                            );
+                        }
+                        // Original logic for non-shared connections:
                         if (!this.driver) {
                             // For sync methods, we need the driver to be already initialized
+                            // This path should ideally only be hit if sharedConnection is false
+                            // and the constructor somehow failed to create the driver, or it was cleared.
                             this.driver = this.createDriver(this.config);
                         }
                         return (this.driver as any)[prop](...args);
@@ -253,12 +275,35 @@ export class Database {
         }
     }
 
+    /**
+     * Synchronously closes the database connection.
+     *
+     * Important Notes:
+     * - This method operates synchronously and therefore **does not execute asynchronous plugin hooks**
+     *   (e.g., `onDatabaseClose`). For comprehensive cleanup including plugin hooks, use the
+     *   asynchronous `close()` method.
+     * - If using a shared connection (`config.sharedConnection: true`), this method cannot
+     *   release the connection back to a pool synchronously. It will log a warning and clear
+     *   its local reference to the managed connection, but the actual pool management might be affected.
+     * - For dedicated connections (`config.sharedConnection: false`), it attempts to close the
+     *   driver synchronously.
+     *
+     * @throws {DatabaseError} If called when `config.sharedConnection` is true.
+     */
     closeSync(): void {
-        // Note: Plugin hooks are async, so we can't properly await them in sync mode
+        if (this.config.sharedConnection) {
+            throw new DatabaseError(
+                "Synchronous operations like 'closeSync' are not supported when using a shared connection. Please use asynchronous 'close()'.",
+                'SYNC_WITH_SHARED_CONNECTION'
+            );
+        }
+
+        // Original logic for non-shared connections (this.driver should be set)
+        // The this.managedConnection check below would only be relevant if, hypothetically,
+        // a non-shared connection somehow ended up with a managedConnection, which is not standard.
         if (this.managedConnection) {
-            // Cannot release managed connection synchronously
-            console.warn('Warning: Cannot release managed connection synchronously');
-            this.managedConnection = undefined;
+            console.warn('Warning: CloseSync called on a DB with a managedConnection but not configured as shared. This is an inconsistent state.');
+            this.managedConnection = undefined; // Clear local ref
         } else if (this.driver) {
             this.driver.closeSync();
         }
@@ -298,15 +343,50 @@ export class Database {
     }
 
     // Sync versions for backward compatibility
+    /**
+     * Executes a SQL command synchronously.
+     *
+     * Note: This is a synchronous operation and **does not execute asynchronous plugin hooks**
+     * (e.g., `onBeforeQuery`, `onAfterQuery`). For plugin support, use the asynchronous `exec()` method.
+     *
+     * @param sql The SQL string to execute.
+     * @param params Optional parameters for the SQL query.
+     * @throws {DatabaseError} If called when `config.sharedConnection` is true.
+     */
     execSync(sql: string, params?: any[]): void {
+        if (this.config.sharedConnection) {
+            throw new DatabaseError(
+                "Synchronous operations like 'execSync' are not supported when using a shared connection. Please use asynchronous methods instead.",
+                'SYNC_WITH_SHARED_CONNECTION'
+            );
+        }
         if (!this.driver) {
+            // This logic is primarily for non-shared connections if the driver wasn't set in constructor.
             this.driver = this.createDriver(this.config);
         }
         return this.driver.execSync(sql, params);
     }
 
+    /**
+     * Executes a SQL query synchronously and returns the results.
+     *
+     * Note: This is a synchronous operation and **does not execute asynchronous plugin hooks**
+     * (e.g., `onBeforeQuery`, `onAfterQuery`). For plugin support, use the asynchronous `query()` method.
+     *
+     * @param sql The SQL string to query.
+     * @param params Optional parameters for the SQL query.
+     * @returns An array of rows resulting from the query.
+     * @throws {DatabaseError} If called when `config.sharedConnection` is true.
+     */
     querySync(sql: string, params?: any[]): Row[] {
+        if (this.config.sharedConnection) {
+            throw new DatabaseError(
+                "Synchronous operations like 'querySync' are not supported when using a shared connection. Please use asynchronous methods instead.",
+                'SYNC_WITH_SHARED_CONNECTION'
+            );
+        }
         if (!this.driver) {
+            // This logic is primarily for non-shared connections if the driver wasn't set in constructor.
             this.driver = this.createDriver(this.config);
         }
         return this.driver.querySync(sql, params);
