@@ -6,6 +6,8 @@ export {
     UniqueConstraintError,
     NotFoundError,
     DatabaseError,
+    PluginError,
+    PluginTimeoutError,
 } from './errors';
 export type {
     DBConfig,

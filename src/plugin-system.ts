@@ -1,5 +1,6 @@
 import type { z } from 'zod';
 import type { Row, CollectionSchema } from './types';
+import { PluginError, PluginTimeoutError } from './errors';
 
 export interface PluginContext {
     collectionName: string;
@@ -10,9 +11,14 @@ export interface PluginContext {
     error?: Error;
 }
 
+export interface PluginSystemOptions {
+    timeout?: number; // Timeout in milliseconds, default 5000
+}
+
 export interface Plugin {
     name: string;
     version?: string;
+    systemOptions?: PluginSystemOptions;
     
     // Lifecycle hooks
     onBeforeInsert?(context: PluginContext): Promise<void> | void;
@@ -43,9 +49,23 @@ export interface Plugin {
     onError?(context: PluginContext): Promise<void> | void;
 }
 
+export interface PluginManagerOptions {
+    strictMode?: boolean; // If true, plugin errors are thrown as PluginErrors
+    defaultTimeout?: number; // Default timeout for plugins in milliseconds
+}
+
 export class PluginManager {
     private plugins: Map<string, Plugin> = new Map();
     private hooks: Map<string, Plugin[]> = new Map();
+    private options: PluginManagerOptions;
+    
+    constructor(options: PluginManagerOptions = {}) {
+        this.options = {
+            strictMode: false,
+            defaultTimeout: 5000,
+            ...options
+        };
+    }
     
     register(plugin: Plugin): void {
         if (this.plugins.has(plugin.name)) {
@@ -54,8 +74,13 @@ export class PluginManager {
         
         this.plugins.set(plugin.name, plugin);
         
-        // Register hooks
-        Object.keys(plugin).forEach(key => {
+        // Register hooks - check both own properties and prototype methods
+        const allKeys = new Set([
+            ...Object.keys(plugin),
+            ...Object.getOwnPropertyNames(Object.getPrototypeOf(plugin))
+        ]);
+        
+        allKeys.forEach(key => {
             if (key.startsWith('on') && typeof plugin[key as keyof Plugin] === 'function') {
                 if (!this.hooks.has(key)) {
                     this.hooks.set(key, []);
@@ -90,23 +115,61 @@ export class PluginManager {
         return Array.from(this.plugins.values());
     }
     
+    private async executeHookWithTimeout(
+        plugin: Plugin, 
+        hookName: string, 
+        context: PluginContext
+    ): Promise<void> {
+        const hookFn = plugin[hookName as keyof Plugin] as Function;
+        if (!hookFn) return;
+        
+        const timeout = plugin.systemOptions?.timeout ?? this.options.defaultTimeout!;
+        
+        return new Promise((resolve, reject) => {
+            const timer = setTimeout(() => {
+                reject(new PluginTimeoutError(plugin.name, hookName, timeout));
+            }, timeout);
+            
+            Promise.resolve(hookFn.call(plugin, context))
+                .then(() => {
+                    clearTimeout(timer);
+                    resolve();
+                })
+                .catch((error) => {
+                    clearTimeout(timer);
+                    reject(error);
+                });
+        });
+    }
+    
     async executeHook(hookName: string, context: PluginContext): Promise<void> {
         const plugins = this.hooks.get(hookName) || [];
         
         for (const plugin of plugins) {
             try {
-                const hookFn = plugin[hookName as keyof Plugin] as Function;
-                if (hookFn) {
-                    await hookFn.call(plugin, context);
-                }
+                await this.executeHookWithTimeout(plugin, hookName, context);
             } catch (error) {
+                const pluginError = error instanceof PluginError 
+                    ? error
+                    : new PluginError(
+                        `Plugin '${plugin.name}' hook '${hookName}' failed: ${(error as Error).message}`,
+                        plugin.name,
+                        hookName,
+                        error as Error
+                    );
+                
                 // If there's an error in a hook, try to call onError hooks
                 if (hookName !== 'onError') {
-                    const errorContext = { ...context, error: error as Error };
-                    await this.executeHook('onError', errorContext);
+                    try {
+                        const errorContext = { ...context, error: pluginError };
+                        await this.executeHook('onError', errorContext);
+                    } catch {
+                        // Ignore errors in onError hooks to prevent infinite loops
+                    }
                 }
+                
                 // Re-throw the error to maintain normal error flow
-                throw error;
+                throw pluginError;
             }
         }
     }
@@ -115,8 +178,25 @@ export class PluginManager {
         try {
             await this.executeHook(hookName, context);
         } catch (error) {
-            // Silent execution - don't let plugin errors break the main operation
-            console.warn(`Plugin hook '${hookName}' failed:`, error);
+            if (this.options.strictMode) {
+                // In strict mode, throw PluginErrors
+                throw error;
+            } else {
+                // Silent execution - don't let plugin errors break the main operation
+                console.warn(`Plugin hook '${hookName}' failed:`, error);
+            }
         }
+    }
+    
+    setStrictMode(enabled: boolean): void {
+        this.options.strictMode = enabled;
+    }
+    
+    setDefaultTimeout(timeout: number): void {
+        this.options.defaultTimeout = timeout;
+    }
+    
+    getOptions(): PluginManagerOptions {
+        return { ...this.options };
     }
 }

@@ -25,3 +25,30 @@ export class DatabaseError extends Error {
     this.name = 'DatabaseError';
   }
 }
+
+export class PluginError extends Error {
+  constructor(
+    message: string, 
+    public pluginName: string,
+    public hookName: string,
+    public originalError?: Error
+  ) {
+    super(message);
+    this.name = 'PluginError';
+  }
+}
+
+export class PluginTimeoutError extends PluginError {
+  constructor(
+    pluginName: string,
+    hookName: string,
+    timeout: number
+  ) {
+    super(
+      `Plugin '${pluginName}' hook '${hookName}' timed out after ${timeout}ms`,
+      pluginName,
+      hookName
+    );
+    this.name = 'PluginTimeoutError';
+  }
+}
