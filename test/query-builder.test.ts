@@ -449,25 +449,25 @@ describe('Query Builder - Feature Complete Tests', () => {
             expect(builder.hasFilters()).toBe(true);
             expect(builder.getFilterCount()).toBe(1);
 
-            builder.clearFilters();
-            expect(builder.hasFilters()).toBe(false);
-            expect(builder.getFilterCount()).toBe(0);
+            const cleared = builder.clearFilters();
+            expect(cleared.hasFilters()).toBe(false);
+            expect(cleared.getFilterCount()).toBe(0);
         });
 
         test('clearOrder', () => {
             const builder = collection.where('age').gt(0).orderBy('age');
             expect(builder.hasOrdering()).toBe(true);
 
-            builder.clearOrder();
-            expect(builder.hasOrdering()).toBe(false);
+            const cleared = builder.clearOrder();
+            expect(cleared.hasOrdering()).toBe(false);
         });
 
         test('clearLimit', () => {
             const builder = collection.where('age').gt(0).limit(10).offset(5);
             expect(builder.hasPagination()).toBe(true);
 
-            builder.clearLimit();
-            expect(builder.hasPagination()).toBe(false);
+            const cleared = builder.clearLimit();
+            expect(cleared.hasPagination()).toBe(false);
         });
 
         test('reset - clear all state', () => {
@@ -481,10 +481,10 @@ describe('Query Builder - Feature Complete Tests', () => {
             expect(builder.hasOrdering()).toBe(true);
             expect(builder.hasPagination()).toBe(true);
 
-            builder.reset();
-            expect(builder.hasFilters()).toBe(false);
-            expect(builder.hasOrdering()).toBe(false);
-            expect(builder.hasPagination()).toBe(false);
+            const reset = builder.reset();
+            expect(reset.hasFilters()).toBe(false);
+            expect(reset.hasOrdering()).toBe(false);
+            expect(reset.hasPagination()).toBe(false);
         });
 
         test('clone query builder', () => {

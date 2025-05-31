@@ -331,17 +331,17 @@ describe('Integration: BusNDB End-to-End', () => {
 
     // Edge: QueryBuilder state management
     test('query builder state management', () => {
-        const builder = users.where('age').gt(20).orderBy('name').limit(10);
+        let builder = users.where('age').gt(20).orderBy('name').limit(10);
         expect(builder.hasFilters()).toBe(true);
         expect(builder.hasOrdering()).toBe(true);
         expect(builder.hasPagination()).toBe(true);
-        builder.clearFilters();
+        builder = builder.clearFilters();
         expect(builder.hasFilters()).toBe(false);
-        builder.clearOrder();
+        builder = builder.clearOrder();
         expect(builder.hasOrdering()).toBe(false);
-        builder.clearLimit();
+        builder = builder.clearLimit();
         expect(builder.hasPagination()).toBe(false);
-        builder.reset();
+        builder = builder.reset();
         expect(builder.hasFilters()).toBe(false);
     });
 
@@ -350,8 +350,8 @@ describe('Integration: BusNDB End-to-End', () => {
         const builder = users.where('age').gte(25).orderBy('name').limit(3);
         const clone = builder.clone();
         expect(clone.toArraySync()).toEqual(builder.toArraySync());
-        clone.clearFilters();
-        expect(clone.hasFilters()).toBe(false);
+        const clearedClone = clone.clearFilters();
+        expect(clearedClone.hasFilters()).toBe(false);
         expect(builder.hasFilters()).toBe(true);
     });
 

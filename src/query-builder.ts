@@ -157,6 +157,8 @@ export class HavingFieldBuilder<T, K extends QueryablePaths<T> | string> extends
 
 export class QueryBuilder<T> {
     private options: QueryOptions = { filters: [] };
+    private static filterCache = new Map<string, QueryOptions>();
+    private static readonly MAX_CACHE_SIZE = 100;
 
     where<K extends QueryablePaths<T>>(field: K): FieldBuilder<T, K>;
     where(field: string): FieldBuilder<T, any>;
@@ -171,8 +173,9 @@ export class QueryBuilder<T> {
         value: any,
         value2?: any
     ): QueryBuilder<T> {
-        this.options.filters.push({ field, operator, value, value2 });
-        return this;
+        const cloned = this.clone();
+        cloned.options.filters.push({ field, operator, value, value2 });
+        return cloned;
     }
 
     addSubqueryFilter(
@@ -181,54 +184,59 @@ export class QueryBuilder<T> {
         subqueryBuilder: QueryBuilder<any>,
         collection: string
     ): QueryBuilder<T> {
+        const cloned = this.clone();
         const subqueryFilter: SubqueryFilter = {
             field,
             operator,
             subquery: subqueryBuilder.getOptions(),
             subqueryCollection: collection
         };
-        this.options.filters.push(subqueryFilter);
-        return this;
+        cloned.options.filters.push(subqueryFilter);
+        return cloned;
     }
 
     // Enhanced JSON operations
     addJsonArrayLengthFilter(field: string, operator: string, value: number): QueryBuilder<T> {
-        this.options.filters.push({ 
+        const cloned = this.clone();
+        cloned.options.filters.push({ 
             field: `json_array_length(${field})`, 
             operator: operator as any, 
             value 
         });
-        return this;
+        return cloned;
     }
 
     addJsonArrayContainsFilter(field: string, value: any): QueryBuilder<T> {
-        this.options.filters.push({ 
+        const cloned = this.clone();
+        cloned.options.filters.push({ 
             field: field, 
             operator: 'json_array_contains' as any, 
             value 
         });
-        return this;
+        return cloned;
     }
 
     addJsonArrayNotContainsFilter(field: string, value: any): QueryBuilder<T> {
-        this.options.filters.push({ 
+        const cloned = this.clone();
+        cloned.options.filters.push({ 
             field: field, 
             operator: 'json_array_not_contains' as any, 
             value 
         });
-        return this;
+        return cloned;
     }
 
     // Logical operators
     and(): QueryBuilder<T> {
-        return this;
+        return this.clone();
     }
 
     or(
         builderFn: (builder: QueryBuilder<T>) => QueryBuilder<T>
     ): QueryBuilder<T> {
+        const cloned = this.clone();
         // Get current filters and new OR conditions
-        const currentFilters = this.deepCloneFilters(this.options.filters);
+        const currentFilters = this.deepCloneFilters(cloned.options.filters);
 
         const orBuilder = new QueryBuilder<T>();
         const result = builderFn(orBuilder);
@@ -253,22 +261,25 @@ export class QueryBuilder<T> {
             };
 
             // Replace all filters with the OR group
-            this.options.filters = [orGroup];
+            cloned.options.filters = [orGroup];
         } else if (orConditions.length > 0) {
-            // Just add the OR conditions
-            this.options.filters.push(...orConditions);
+            // Just add the OR conditions - more efficient for large arrays
+            for (let i = 0; i < orConditions.length; i++) {
+                cloned.options.filters.push(orConditions[i]);
+            }
         }
 
-        return this;
+        return cloned;
     }
 
     // Create a new OR group with multiple conditions
     orWhere(
         conditions: Array<(builder: QueryBuilder<T>) => QueryBuilder<T>>
     ): QueryBuilder<T> {
-        if (conditions.length === 0) return this;
+        if (conditions.length === 0) return this.clone();
 
-        const currentFilters = this.deepCloneFilters(this.options.filters);
+        const cloned = this.clone();
+        const currentFilters = this.deepCloneFilters(cloned.options.filters);
         const orGroups: QueryGroup[] = [];
 
         for (const condition of conditions) {
@@ -294,21 +305,21 @@ export class QueryBuilder<T> {
                 
                 const orGroup: QueryGroup = {
                     type: 'or',
-                    filters: [currentGroup, ...orGroups],
+                    filters: [currentGroup].concat(orGroups),
                 };
                 
-                this.options.filters = [orGroup];
+                cloned.options.filters = [orGroup];
             } else {
                 // No current filters, just create an OR group with the conditions
                 const orGroup: QueryGroup = {
                     type: 'or',
                     filters: orGroups,
                 };
-                this.options.filters = [orGroup];
+                cloned.options.filters = [orGroup];
             }
         }
 
-        return this;
+        return cloned;
     }
 
     // Sorting
@@ -324,9 +335,26 @@ export class QueryBuilder<T> {
         field: K | string,
         direction: 'asc' | 'desc' = 'asc'
     ): QueryBuilder<T> {
-        if (!this.options.orderBy) this.options.orderBy = [];
-        this.options.orderBy.push({ field: field as string, direction });
-        return this;
+        const cloned = this.clone();
+        if (!cloned.options.orderBy) cloned.options.orderBy = [];
+        cloned.options.orderBy.push({ field: field as string, direction });
+        return cloned;
+    }
+
+    // Optimized batch orderBy for multiple sorts at once
+    orderByBatch(
+        fields: Array<{ field: OrderablePaths<T> | string; direction?: 'asc' | 'desc' }>
+    ): QueryBuilder<T> {
+        const cloned = this.clone();
+        const orders = new Array(fields.length);
+        for (let i = 0; i < fields.length; i++) {
+            orders[i] = {
+                field: fields[i].field as string,
+                direction: fields[i].direction || 'asc'
+            };
+        }
+        cloned.options.orderBy = orders;
+        return cloned;
     }
 
     // Clear existing order and add new one
@@ -342,19 +370,21 @@ export class QueryBuilder<T> {
         field: K | string,
         direction: 'asc' | 'desc' = 'asc'
     ): QueryBuilder<T> {
-        this.options.orderBy = [{ field: field as string, direction }];
-        return this;
+        const cloned = this.clone();
+        cloned.options.orderBy = [{ field: field as string, direction }];
+        return cloned;
     }
 
     // Multiple field sorting shorthand
     orderByMultiple(
         orders: { field: OrderablePaths<T> | string; direction?: 'asc' | 'desc' }[]
     ): QueryBuilder<T> {
-        this.options.orderBy = orders.map((order) => ({
+        const cloned = this.clone();
+        cloned.options.orderBy = orders.map((order) => ({
             field: order.field as string,
             direction: order.direction || 'asc',
         }));
-        return this;
+        return cloned;
     }
 
     // Pagination
@@ -362,16 +392,18 @@ export class QueryBuilder<T> {
         if (count < 0) throw new Error('Limit must be non-negative');
         if (!Number.isInteger(count)) throw new Error('Limit must be an integer');
         if (count > Number.MAX_SAFE_INTEGER) throw new Error('Limit too large');
-        this.options.limit = count;
-        return this;
+        const cloned = this.clone();
+        cloned.options.limit = count;
+        return cloned;
     }
 
     offset(count: number): QueryBuilder<T> {
         if (count < 0) throw new Error('Offset must be non-negative');
         if (!Number.isInteger(count)) throw new Error('Offset must be an integer');
         if (count > Number.MAX_SAFE_INTEGER) throw new Error('Offset too large');
-        this.options.offset = count;
-        return this;
+        const cloned = this.clone();
+        cloned.options.offset = count;
+        return cloned;
     }
 
     // Pagination helper
@@ -389,32 +421,37 @@ export class QueryBuilder<T> {
             throw new Error('Page calculation results in offset too large');
         }
         
-        this.options.limit = pageSize;
-        this.options.offset = calculatedOffset;
-        return this;
+        const cloned = this.clone();
+        cloned.options.limit = pageSize;
+        cloned.options.offset = calculatedOffset;
+        return cloned;
     }
 
     // Grouping and distinct
     groupBy<K extends OrderablePaths<T>>(...fields: K[]): QueryBuilder<T> {
-        this.options.groupBy = fields.map((f) => f as string);
-        return this;
+        const cloned = this.clone();
+        cloned.options.groupBy = fields.map((f) => f as string);
+        return cloned;
     }
 
     distinct(): QueryBuilder<T> {
-        this.options.distinct = true;
-        return this;
+        const cloned = this.clone();
+        cloned.options.distinct = true;
+        return cloned;
     }
 
     // Aggregate functions
     select(...fields: string[]): QueryBuilder<T> {
-        this.options.selectFields = fields;
-        return this;
+        const cloned = this.clone();
+        cloned.options.selectFields = fields;
+        return cloned;
     }
 
     aggregate(fn: 'COUNT' | 'SUM' | 'AVG' | 'MIN' | 'MAX', field: string = '*', alias?: string, distinct?: boolean): QueryBuilder<T> {
-        if (!this.options.aggregates) this.options.aggregates = [];
-        this.options.aggregates.push({ function: fn, field, alias, distinct });
-        return this;
+        const cloned = this.clone();
+        if (!cloned.options.aggregates) cloned.options.aggregates = [];
+        cloned.options.aggregates.push({ function: fn, field, alias, distinct });
+        return cloned;
     }
 
     count(field: string = '*', alias?: string, distinct?: boolean): QueryBuilder<T> {
@@ -451,9 +488,10 @@ export class QueryBuilder<T> {
         value: any,
         value2?: any
     ): QueryBuilder<T> {
-        if (!this.options.having) this.options.having = [];
-        this.options.having.push({ field, operator, value, value2 });
-        return this;
+        const cloned = this.clone();
+        if (!cloned.options.having) cloned.options.having = [];
+        cloned.options.having.push({ field, operator, value, value2 });
+        return cloned;
     }
 
     // JOIN operations
@@ -463,13 +501,14 @@ export class QueryBuilder<T> {
         rightField: string,
         operator: '=' | '!=' | '>' | '<' | '>=' | '<=' = '='
     ): QueryBuilder<T & U> {
-        if (!this.options.joins) this.options.joins = [];
-        this.options.joins.push({
+        const cloned = this.clone();
+        if (!cloned.options.joins) cloned.options.joins = [];
+        cloned.options.joins.push({
             type: 'INNER',
             collection,
             condition: { left: leftField, right: rightField, operator }
         });
-        return this as any;
+        return cloned as any;
     }
 
     leftJoin<U = any>(
@@ -478,13 +517,14 @@ export class QueryBuilder<T> {
         rightField: string,
         operator: '=' | '!=' | '>' | '<' | '>=' | '<=' = '='
     ): QueryBuilder<T & U> {
-        if (!this.options.joins) this.options.joins = [];
-        this.options.joins.push({
+        const cloned = this.clone();
+        if (!cloned.options.joins) cloned.options.joins = [];
+        cloned.options.joins.push({
             type: 'LEFT',
             collection,
             condition: { left: leftField, right: rightField, operator }
         });
-        return this as any;
+        return cloned as any;
     }
 
     rightJoin<U = any>(
@@ -493,13 +533,14 @@ export class QueryBuilder<T> {
         rightField: string,
         operator: '=' | '!=' | '>' | '<' | '>=' | '<=' = '='
     ): QueryBuilder<T & U> {
-        if (!this.options.joins) this.options.joins = [];
-        this.options.joins.push({
+        const cloned = this.clone();
+        if (!cloned.options.joins) cloned.options.joins = [];
+        cloned.options.joins.push({
             type: 'RIGHT',
             collection,
             condition: { left: leftField, right: rightField, operator }
         });
-        return this as any;
+        return cloned as any;
     }
 
     fullJoin<U = any>(
@@ -508,40 +549,198 @@ export class QueryBuilder<T> {
         rightField: string,
         operator: '=' | '!=' | '>' | '<' | '>=' | '<=' = '='
     ): QueryBuilder<T & U> {
-        if (!this.options.joins) this.options.joins = [];
-        this.options.joins.push({
+        const cloned = this.clone();
+        if (!cloned.options.joins) cloned.options.joins = [];
+        cloned.options.joins.push({
             type: 'FULL',
             collection,
             condition: { left: leftField, right: rightField, operator }
         });
-        return this as any;
+        return cloned as any;
     }
 
     // Reset methods
     clearFilters(): QueryBuilder<T> {
-        this.options.filters = [];
-        return this;
+        const cloned = this.clone();
+        cloned.options.filters = [];
+        return cloned;
     }
 
     clearOrder(): QueryBuilder<T> {
-        this.options.orderBy = undefined;
-        return this;
+        const cloned = this.clone();
+        cloned.options.orderBy = undefined;
+        return cloned;
     }
 
     clearLimit(): QueryBuilder<T> {
-        this.options.limit = undefined;
-        this.options.offset = undefined;
-        return this;
+        const cloned = this.clone();
+        cloned.options.limit = undefined;
+        cloned.options.offset = undefined;
+        return cloned;
     }
 
     reset(): QueryBuilder<T> {
-        this.options = { filters: [] };
-        return this;
+        const cloned = this.clone();
+        cloned.options = { filters: [] };
+        return cloned;
     }
 
     // Query inspection
     getFilterCount(): number {
         return this.options.filters.length;
+    }
+
+    // Query optimization
+    optimizeFilters(): QueryBuilder<T> {
+        const cloned = this.clone();
+        cloned.options.filters = this.removeRedundantFilters(cloned.options.filters);
+        return cloned;
+    }
+
+    // Filter caching for common patterns
+    static getCachedQuery<T>(cacheKey: string): QueryBuilder<T> | undefined {
+        const cached = QueryBuilder.filterCache.get(cacheKey);
+        if (cached) {
+            const builder = new QueryBuilder<T>();
+            builder.options = JSON.parse(JSON.stringify(cached)); // Deep clone
+            return builder;
+        }
+        return undefined;
+    }
+
+    cacheQuery(cacheKey: string): QueryBuilder<T> {
+        // Implement LRU-style cache management
+        if (QueryBuilder.filterCache.size >= QueryBuilder.MAX_CACHE_SIZE) {
+            // Remove oldest entry
+            const firstKey = QueryBuilder.filterCache.keys().next().value;
+            if (firstKey !== undefined) {
+                QueryBuilder.filterCache.delete(firstKey);
+            }
+        }
+
+        // Store a deep copy of current options
+        const optionsCopy = JSON.parse(JSON.stringify(this.options));
+        QueryBuilder.filterCache.set(cacheKey, optionsCopy);
+        return this;
+    }
+
+    static clearCache(): void {
+        QueryBuilder.filterCache.clear();
+    }
+
+    static getCacheSize(): number {
+        return QueryBuilder.filterCache.size;
+    }
+
+    private removeRedundantFilters(filters: (QueryFilter | QueryGroup | SubqueryFilter)[]): (QueryFilter | QueryGroup | SubqueryFilter)[] {
+        const optimized: (QueryFilter | QueryGroup | SubqueryFilter)[] = [];
+        const fieldMap = new Map<string, QueryFilter[]>();
+
+        for (const filter of filters) {
+            if ('type' in filter) {
+                // QueryGroup - recursively optimize
+                optimized.push({
+                    type: filter.type,
+                    filters: this.removeRedundantFilters(filter.filters)
+                });
+            } else if ('subquery' in filter) {
+                // SubqueryFilter - keep as-is for now
+                optimized.push(filter);
+            } else {
+                // QueryFilter - check for redundancy
+                const field = filter.field;
+                if (!fieldMap.has(field)) {
+                    fieldMap.set(field, []);
+                }
+                fieldMap.get(field)!.push(filter);
+            }
+        }
+
+        // Process each field's filters for redundancy
+        for (const [field, fieldFilters] of fieldMap) {
+            const optimizedFieldFilters = this.optimizeFieldFilters(fieldFilters);
+            for (let i = 0; i < optimizedFieldFilters.length; i++) {
+                optimized.push(optimizedFieldFilters[i]);
+            }
+        }
+
+        return optimized;
+    }
+
+    private optimizeFieldFilters(filters: QueryFilter[]): QueryFilter[] {
+        if (filters.length <= 1) return filters;
+
+        // Group by operator type for optimization
+        const gtFilters = filters.filter(f => f.operator === 'gt');
+        const gteFilters = filters.filter(f => f.operator === 'gte');
+        const ltFilters = filters.filter(f => f.operator === 'lt');
+        const lteFilters = filters.filter(f => f.operator === 'lte');
+        const otherFilters = filters.filter(f => !['gt', 'gte', 'lt', 'lte'].includes(f.operator));
+
+        const optimized: QueryFilter[] = [];
+
+        // Optimize greater than filters - keep only the maximum
+        if (gtFilters.length > 1) {
+            const maxGt = gtFilters.reduce((max, curr) => 
+                Number(curr.value) > Number(max.value) ? curr : max
+            );
+            optimized.push(maxGt);
+        } else if (gtFilters.length === 1) {
+            optimized.push(gtFilters[0]);
+        }
+
+        // Optimize greater than or equal filters - keep only the maximum
+        if (gteFilters.length > 1) {
+            const maxGte = gteFilters.reduce((max, curr) => 
+                Number(curr.value) > Number(max.value) ? curr : max
+            );
+            optimized.push(maxGte);
+        } else if (gteFilters.length === 1) {
+            optimized.push(gteFilters[0]);
+        }
+
+        // Optimize less than filters - keep only the minimum
+        if (ltFilters.length > 1) {
+            const minLt = ltFilters.reduce((min, curr) => 
+                Number(curr.value) < Number(min.value) ? curr : min
+            );
+            optimized.push(minLt);
+        } else if (ltFilters.length === 1) {
+            optimized.push(ltFilters[0]);
+        }
+
+        // Optimize less than or equal filters - keep only the minimum
+        if (lteFilters.length > 1) {
+            const minLte = lteFilters.reduce((min, curr) => 
+                Number(curr.value) < Number(min.value) ? curr : min
+            );
+            optimized.push(minLte);
+        } else if (lteFilters.length === 1) {
+            optimized.push(lteFilters[0]);
+        }
+
+        // Check for contradictory conditions
+        const hasGt = optimized.find(f => f.operator === 'gt');
+        const hasGte = optimized.find(f => f.operator === 'gte');
+        const hasLt = optimized.find(f => f.operator === 'lt');
+        const hasLte = optimized.find(f => f.operator === 'lte');
+
+        // Remove redundant combinations (e.g., gt(30) is stronger than gte(30))
+        if (hasGt && hasGte && Number(hasGt.value) >= Number(hasGte.value)) {
+            const gteIndex = optimized.findIndex(f => f === hasGte);
+            optimized.splice(gteIndex, 1);
+        }
+        if (hasLt && hasLte && Number(hasLt.value) <= Number(hasLte.value)) {
+            const lteIndex = optimized.findIndex(f => f === hasLte);
+            optimized.splice(lteIndex, 1);
+        }
+
+        // Add other filters that can't be optimized
+        for (let i = 0; i < otherFilters.length; i++) {
+            optimized.push(otherFilters[i]);
+        }
+
+        return optimized;
     }
 
     hasFilters(): boolean {
@@ -565,25 +764,25 @@ export class QueryBuilder<T> {
         cloned.options = {
             filters: this.deepCloneFilters(this.options.filters),
             orderBy: this.options.orderBy
-                ? [...this.options.orderBy]
+                ? this.options.orderBy.slice()
                 : undefined,
             limit: this.options.limit,
             offset: this.options.offset,
             groupBy: this.options.groupBy
-                ? [...this.options.groupBy]
+                ? this.options.groupBy.slice()
                 : undefined,
             having: this.options.having
-                ? [...this.options.having]
+                ? this.options.having.slice()
                 : undefined,
             distinct: this.options.distinct,
             aggregates: this.options.aggregates
-                ? [...this.options.aggregates]
+                ? this.options.aggregates.slice()
                 : undefined,
             joins: this.options.joins
-                ? [...this.options.joins]
+                ? this.options.joins.slice()
                 : undefined,
             selectFields: this.options.selectFields
-                ? [...this.options.selectFields]
+                ? this.options.selectFields.slice()
                 : undefined,
         };
         (cloned as any).collection = (this as any).collection;
@@ -595,26 +794,44 @@ export class QueryBuilder<T> {
 
     // Helper method for deep cloning filters to prevent shared references
     private deepCloneFilters(filters: (QueryFilter | QueryGroup | SubqueryFilter)[]): (QueryFilter | QueryGroup | SubqueryFilter)[] {
-        return filters.map(filter => {
+        const result: (QueryFilter | QueryGroup | SubqueryFilter)[] = new Array(filters.length);
+        for (let i = 0; i < filters.length; i++) {
+            const filter = filters[i];
             if ('type' in filter) {
                 // QueryGroup
-                return {
-                    ...filter,
+                result[i] = {
+                    type: filter.type,
                     filters: this.deepCloneFilters(filter.filters)
                 };
             } else if ('subquery' in filter) {
                 // SubqueryFilter
-                return {
-                    ...filter,
+                result[i] = {
+                    field: filter.field,
+                    operator: filter.operator,
                     subquery: {
-                        ...filter.subquery,
-                        filters: this.deepCloneFilters(filter.subquery.filters)
-                    }
+                        filters: this.deepCloneFilters(filter.subquery.filters),
+                        orderBy: filter.subquery.orderBy,
+                        limit: filter.subquery.limit,
+                        offset: filter.subquery.offset,
+                        groupBy: filter.subquery.groupBy,
+                        having: filter.subquery.having,
+                        distinct: filter.subquery.distinct,
+                        aggregates: filter.subquery.aggregates,
+                        joins: filter.subquery.joins,
+                        selectFields: filter.subquery.selectFields,
+                    },
+                    subqueryCollection: filter.subqueryCollection
                 };
             } else {
                 // QueryFilter
-                return { ...filter };
+                result[i] = {
+                    field: filter.field,
+                    operator: filter.operator,
+                    value: filter.value,
+                    value2: filter.value2
+                };
             }
-        });
+        }
+        return result;
     }
 }

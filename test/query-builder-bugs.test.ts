@@ -108,18 +108,20 @@ describe('Query Builder Bugs and Performance Issues', () => {
             const original = collection.where('age').gt(25);
             const cloned = original.clone();
             
-            // Modify original - should not affect clone
-            original.where('isActive').eq(true);
+            // Modify original - should not affect clone (immutable now returns new instance)
+            const modified = original.where('isActive').eq(true);
             
             const originalFilters = original.getOptions().filters;
             const clonedFilters = cloned.getOptions().filters;
+            const modifiedFilters = modified.getOptions().filters;
             
             console.log('Original filters:', originalFilters.length);
             console.log('Cloned filters:', clonedFilters.length);
             
-            // Bug: cloned filters might be affected by original modifications
-            expect(originalFilters.length).toBe(2);
+            // Fixed: Original remains unchanged due to immutable pattern
+            expect(originalFilters.length).toBe(1);
             expect(clonedFilters.length).toBe(1);
+            expect(modifiedFilters.length).toBe(2);
             
             // Test deep independence of nested objects
             if (originalFilters[0] && clonedFilters[0]) {
@@ -182,12 +184,16 @@ describe('Query Builder Bugs and Performance Issues', () => {
             const builder1 = collection.where('age').gt(25);
             const builder2 = builder1.where('isActive').eq(true);
             
-            // Both should be the same instance for consistent chaining
-            expect(builder1).toBe(builder2);
+            // Fixed: Immutable pattern means each method returns new instance
+            expect(builder1).not.toBe(builder2);
+            expect(builder1.getOptions().filters.length).toBe(1);
+            expect(builder2.getOptions().filters.length).toBe(2);
             
             const builder3 = builder1.clone();
             // Clone should return a different instance
             expect(builder1).not.toBe(builder3);
+            // But should have same state
+            expect(builder1.getOptions()).toEqual(builder3.getOptions());
         });
     });
 
@@ -243,6 +249,61 @@ describe('Query Builder Bugs and Performance Issues', () => {
             
             // For now, just check that both filters exist (optimization not implemented yet)
             expect(options.filters.length).toBe(2);
+        });
+
+        test('Filter optimization should remove redundant conditions', () => {
+            const builder = collection
+                .where('age').gt(30)
+                .where('age').gt(25) // Redundant - weaker condition
+                .where('age').gte(28) // Redundant - weaker condition
+                .where('age').lt(50)
+                .where('age').lte(60) // Redundant - weaker condition
+                .where('name').eq('test'); // Different field, should remain
+
+            const originalCount = builder.getFilterCount();
+            const optimized = builder.optimizeFilters();
+            const optimizedCount = optimized.getFilterCount();
+
+            console.log('Original filters:', originalCount);
+            console.log('Optimized filters:', optimizedCount);
+            console.log('Filters removed:', originalCount - optimizedCount);
+
+            // Should remove redundant filters but keep the strongest ones and other fields
+            expect(optimizedCount).toBeLessThan(originalCount);
+            expect(optimizedCount).toBeGreaterThanOrEqual(3); // At least gt(30), lt(50), eq('test')
+        });
+
+        test('Filter caching should improve repeated query building performance', () => {
+            const { QueryBuilder } = require('../src/query-builder');
+            
+            QueryBuilder.clearCache();
+            expect(QueryBuilder.getCacheSize()).toBe(0);
+
+            // Build a common query pattern
+            const builder1 = collection
+                .where('age').gt(25)
+                .where('isActive').eq(true)
+                .limit(10);
+
+            // Cache this pattern
+            builder1.cacheQuery('common-user-query');
+            expect(QueryBuilder.getCacheSize()).toBe(1);
+
+            // Try to retrieve from cache
+            const cachedBuilder = QueryBuilder.getCachedQuery('common-user-query');
+            expect(cachedBuilder).toBeDefined();
+            
+            if (cachedBuilder) {
+                const originalOptions = builder1.getOptions();
+                const cachedOptions = cachedBuilder.getOptions();
+                
+                // Should have same structure but be different instances
+                expect(cachedOptions).toEqual(originalOptions);
+                expect(cachedOptions).not.toBe(originalOptions);
+            }
+
+            QueryBuilder.clearCache();
+            expect(QueryBuilder.getCacheSize()).toBe(0);
         });
     });
 });

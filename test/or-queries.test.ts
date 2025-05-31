@@ -100,8 +100,8 @@ describe('OR Query Operations', () => {
       // Current implementation: (Age < 30) OR (Engineering AND salary > 90k)
       // Age < 30: Alice (25), David (28) 
       // Engineering AND salary > 90k: Carol (95k)
-      // Plus Alice, David from age condition = 4 total (including Alice who is also Engineering)
-      expect(results).toHaveLength(4); 
+      // Total unique matches: Alice, David, Carol = 3 people
+      expect(results).toHaveLength(3); 
     });
 
     test('orWhere with multiple conditions array', () => {
@@ -117,8 +117,8 @@ describe('OR Query Operations', () => {
       // Active: Alice, Bob, David = 3
       // Engineering >90k: Carol (95k) = 1 
       // Age >35: none = 0
-      // Total: All 5 records match one of these conditions (including inactive users)
-      expect(results).toHaveLength(5);
+      // Total unique matches: Alice, Bob, David, Carol = 4 people
+      expect(results).toHaveLength(4);
     });
   });
 
@@ -133,8 +133,8 @@ describe('OR Query Operations', () => {
       // Current implementation: (Active AND salary >= 70k) OR Engineering
       // Active + 70k+: Alice (85k), David (70k) = 2
       // Engineering: Alice, Carol, Eve = 3
-      // All unique users = 5 (Alice appears in both conditions but counted once)
-      expect(results).toHaveLength(5);
+      // All unique users = 4 (Alice appears in both conditions but counted once)
+      expect(results).toHaveLength(4);
     });
 
     test('multiple OR conditions', () => {
