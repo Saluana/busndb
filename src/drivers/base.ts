@@ -1,3 +1,4 @@
+import * as os from 'os';
 import type { Driver, Row, DBConfig } from '../types.js';
 import { DatabaseError } from '../errors.js';
 
@@ -12,6 +13,7 @@ export interface ConnectionState {
 export abstract class BaseDriver implements Driver {
     protected isClosed = false;
     protected isInTransaction = false;
+    protected queryCount: number = 0;
     protected connectionState: ConnectionState = {
         isConnected: false,
         isHealthy: false,
@@ -102,16 +104,56 @@ export abstract class BaseDriver implements Driver {
     }
 
     protected configureSQLite(config: DBConfig): void {
+        const MIN_CACHE_KIB = -16000; // 16MB
+        const MAX_CACHE_KIB = -256000; // 256MB
+        const MB_IN_BYTES = 1024 * 1024;
+        const KIB_IN_BYTES = 1024;
+
+        let calculatedCacheKiB: number;
+
+        try {
+            const freeMemoryBytes = os.freemem();
+            const freeMemoryMB = freeMemoryBytes / MB_IN_BYTES;
+
+            // Handle low memory: if 10% of free memory is less than 16MB, default to min cache.
+            // 16MB is 16 * 1024 * 1024 bytes. 10% of this is 1.6MB.
+            // So if freeMemoryBytes * 0.1 < 16 * MB_IN_BYTES (i.e. freeMemoryBytes < 160 * MB_IN_BYTES)
+            if (freeMemoryBytes < 160 * MB_IN_BYTES) {
+                calculatedCacheKiB = MIN_CACHE_KIB;
+            } else {
+                let baseCacheBytes = freeMemoryBytes * 0.10; // 10% of free memory
+
+                if (this.queryCount < 100) {
+                    baseCacheBytes *= 0.50; // 50% of base for low query count
+                } else if (this.queryCount >= 1000) {
+                    baseCacheBytes *= 1.50; // 150% of base for high query count
+                }
+                // For 100 <= queryCount < 1000, it's 100% of base, so no change.
+
+                // Convert to KiB for PRAGMA, ensure it's an integer, and make it negative
+                let cacheKiB = Math.floor(baseCacheBytes / KIB_IN_BYTES);
+
+                // Clamp the value within defined min/max bounds
+                // Note: Since values are negative, Math.max is used for lower bound (less negative)
+                // and Math.min for upper bound (more negative).
+                calculatedCacheKiB = Math.max(MAX_CACHE_KIB, Math.min(MIN_CACHE_KIB, -cacheKiB));
+            }
+        } catch (error) {
+            console.warn('Warning: Failed to calculate dynamic cache size, defaulting to MIN_CACHE_KIB. Error:', error);
+            calculatedCacheKiB = MIN_CACHE_KIB;
+        }
+
         const sqliteConfig = {
             journalMode: 'WAL',
             synchronous: 'NORMAL',
             busyTimeout: 5000,
-            cacheSize: -64000, // 64MB
+            cacheSize: calculatedCacheKiB,
             tempStore: 'MEMORY',
             lockingMode: 'NORMAL',
             autoVacuum: 'NONE',
             walCheckpoint: 1000,
             ...config.sqlite,
+            cacheSize: calculatedCacheKiB, // Ensure our calculated value overrides any default from config.sqlite
         };
 
         try {
@@ -203,7 +245,17 @@ export abstract class BaseDriver implements Driver {
     protected abstract closeDatabaseSync(): void;
 
     abstract exec(sql: string, params?: any[]): Promise<void>;
-    abstract query(sql: string, params?: any[]): Promise<Row[]>;
+    protected abstract _query(sql: string, params?: any[]): Promise<Row[]>;
     abstract execSync(sql: string, params?: any[]): void;
-    abstract querySync(sql: string, params?: any[]): Row[];
+    protected abstract _querySync(sql: string, params?: any[]): Row[];
+
+    public async query(sql: string, params?: any[]): Promise<Row[]> {
+        this.queryCount++;
+        return this._query(sql, params);
+    }
+
+    public querySync(sql: string, params?: any[]): Row[] {
+        this.queryCount++;
+        return this._querySync(sql, params);
+    }
 }
