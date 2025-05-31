@@ -2,7 +2,7 @@ import type { Row, DBConfig } from '../types';
 import { DatabaseError } from '../errors';
 import { createRequire } from 'module';
 import { BaseDriver } from './base.js';
-import { LibSQLConnectionPool, createLibSQLPool } from '../libsql-pool.js';
+import { LibSQLConnectionPool, createLibSQLPool } from '../libsql-pool';
 
 // Create require function for ES modules
 const require = createRequire(import.meta.url);
@@ -527,18 +527,9 @@ export class NodeDriver extends BaseDriver {
                 throw error;
             }
         } else {
-            if (this.db.transaction) {
-                try {
-                    const transaction = this.db.transaction(async () => {
-                        return await fn();
-                    });
-                    return await transaction();
-                } catch (error) {
-                    throw error;
-                }
-            } else {
-                return await super.transaction(fn);
-            }
+            // For better-sqlite3, use the base class implementation
+            // since better-sqlite3 transactions don't support async functions
+            return await super.transaction(fn);
         }
     }
 

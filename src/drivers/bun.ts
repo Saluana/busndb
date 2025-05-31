@@ -1,7 +1,7 @@
 import { Database } from 'bun:sqlite';
-import type { Row, DBConfig } from '../types.js';
-import { DatabaseError } from '../errors.js';
-import { BaseDriver } from './base.js';
+import type { Row, DBConfig } from '../types';
+import { DatabaseError } from '../errors';
+import { BaseDriver } from './base';
 
 export class BunDriver extends BaseDriver {
     private db?: Database;

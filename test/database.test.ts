@@ -410,11 +410,7 @@ describe('Lazy Initialization and Shared Connections', () => {
         // For now, we'll assume this test structure is okay for execSync/querySync primarily.
         // The closeSync part of the loop needs careful thought on subsequent cleanup.
         // A simple solution: don't db.close() if closeSync was the one that just threw.
-        if (
-            syncMethods.some(
-                (m) => m.name === 'closeSync' && m.op === (() => db.closeSync())
-            )
-        ) {
+        if (syncMethods.some((m) => m.name === 'closeSync')) {
             // If closeSync was tested and threw, the db instance might be "closed" or in a weird state.
             // Avoid further operations like db.close().
         } else {

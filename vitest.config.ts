@@ -10,6 +10,8 @@ export default defineConfig({
             '**/dist/**',
             '**/test-compiled/**', // Exclude compiled test files
             '**/.{git,cache,output,temp}/**',
+            '**/bun-driver-benchmark.test.ts', // Exclude bun-specific tests in Node.js
+            '**/benchmark.test.ts', // Exclude benchmark scripts
         ],
         // Use single-threaded mode to avoid issues with SQLite
         pool: 'forks',

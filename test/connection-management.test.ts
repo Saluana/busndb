@@ -184,8 +184,8 @@ describe('Connection Management', () => {
             await db.exec('CREATE TABLE test_tx1 (id INTEGER, value TEXT)');
 
             await db.transaction(async () => {
-                await db.exec('INSERT INTO test_tx1 VALUES (1, "first")');
-                await db.exec('INSERT INTO test_tx1 VALUES (2, "second")');
+                await db.exec('INSERT INTO test_tx1 VALUES (1, \'first\')');
+                await db.exec('INSERT INTO test_tx1 VALUES (2, \'second\')');
             });
 
             const result = await db.query(
@@ -693,7 +693,7 @@ describe('Connection Management', () => {
                 databases.push(finalDb);
 
                 const finalResult = await finalDb.query(
-                    'SELECT "system_responsive" as status'
+                    'SELECT \'system_responsive\' as status'
                 );
                 expect(finalResult).toEqual([{ status: 'system_responsive' }]);
             }, 45000); // 45 second timeout

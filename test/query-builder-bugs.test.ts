@@ -302,8 +302,8 @@ describe('Query Builder Bugs and Performance Issues', () => {
             expect(optimizedCount).toBeGreaterThanOrEqual(3); // At least gt(30), lt(50), eq('test')
         });
 
-        test('Filter caching should improve repeated query building performance', () => {
-            const { QueryBuilder } = require('../src/query-builder');
+        test('Filter caching should improve repeated query building performance', async () => {
+            const { QueryBuilder } = await import('../src/query-builder.js');
 
             QueryBuilder.clearCache();
             expect(QueryBuilder.getCacheSize()).toBe(0);
