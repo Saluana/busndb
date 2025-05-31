@@ -564,8 +564,18 @@ export class NodeDriver extends BaseDriver {
                 console.warn('Warning: Cannot close LibSQL pool synchronously');
                 this.libsqlPool = undefined;
             } else if (this.db) {
-                if (this.db.close) {
-                    this.db.close();
+                if (this.dbType === 'libsql') {
+                    if (this.db.closeSync) {
+                        this.db.closeSync();
+                    } else if (this.db.close) {
+                        this.db.close();
+                        console.warn("Warning: Called a potentially asynchronous close() method on a LibSQL non-pooled connection during closeDatabaseSync. Full synchronous cleanup cannot be guaranteed. Consider using the asynchronous close() method for LibSQL connections.");
+                    }
+                } else {
+                    // For other dbTypes like 'sqlite'
+                    if (this.db.close) {
+                        this.db.close();
+                    }
                 }
                 this.db = undefined;
             }
