@@ -1,15 +1,105 @@
 import type { Driver, Row, DBConfig } from '../types.js';
 import { DatabaseError } from '../errors.js';
 
+export interface ConnectionState {
+    isConnected: boolean;
+    isHealthy: boolean;
+    lastHealthCheck: number;
+    connectionAttempts: number;
+    lastError?: Error;
+}
+
 export abstract class BaseDriver implements Driver {
     protected isClosed = false;
     protected isInTransaction = false;
+    protected connectionState: ConnectionState = {
+        isConnected: false,
+        isHealthy: false,
+        lastHealthCheck: 0,
+        connectionAttempts: 0,
+    };
+    protected config: DBConfig;
+    protected autoReconnect: boolean;
+    protected maxReconnectAttempts: number;
+    protected reconnectDelay: number;
 
     constructor(config: DBConfig) {
+        this.config = config;
+        this.autoReconnect = config.autoReconnect ?? true;
+        this.maxReconnectAttempts = config.maxReconnectAttempts ?? 3;
+        this.reconnectDelay = config.reconnectDelay ?? 1000;
         // Child classes must call this.initializeDriver(config) after their setup
     }
 
-    protected abstract initializeDriver(config: DBConfig): void;
+    protected abstract initializeDriver(config: DBConfig): Promise<void> | void;
+
+    protected async ensureConnection(): Promise<void> {
+        if (this.isClosed) {
+            throw new DatabaseError('Driver is closed', 'DRIVER_CLOSED');
+        }
+
+        if (!this.connectionState.isConnected) {
+            await this.reconnect();
+        } else if (!this.connectionState.isHealthy) {
+            const shouldReconnect = await this.checkHealth();
+            if (!shouldReconnect && this.autoReconnect) {
+                await this.reconnect();
+            }
+        }
+    }
+
+    protected async reconnect(): Promise<void> {
+        if (this.connectionState.connectionAttempts >= this.maxReconnectAttempts) {
+            throw new DatabaseError(
+                `Max reconnection attempts (${this.maxReconnectAttempts}) exceeded`,
+                'MAX_RECONNECT_ATTEMPTS'
+            );
+        }
+
+        try {
+            await this.closeDatabase();
+            await this.delay(this.reconnectDelay * (this.connectionState.connectionAttempts + 1));
+            
+            await this.initializeDriver(this.config);
+            
+            this.connectionState = {
+                isConnected: true,
+                isHealthy: true,
+                lastHealthCheck: Date.now(),
+                connectionAttempts: 0,
+            };
+        } catch (error) {
+            this.connectionState.connectionAttempts++;
+            this.connectionState.lastError = error instanceof Error ? error : new Error(String(error));
+            throw error;
+        }
+    }
+
+    protected async checkHealth(): Promise<boolean> {
+        try {
+            await this.performHealthCheck();
+            this.connectionState.isHealthy = true;
+            this.connectionState.lastHealthCheck = Date.now();
+            return true;
+        } catch (error) {
+            this.connectionState.isHealthy = false;
+            this.connectionState.lastError = error instanceof Error ? error : new Error(String(error));
+            return false;
+        }
+    }
+
+    protected async performHealthCheck(): Promise<void> {
+        // Simple health check - override in child classes for driver-specific checks
+        await this.query('SELECT 1');
+    }
+
+    private delay(ms: number): Promise<void> {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    getConnectionState(): ConnectionState {
+        return { ...this.connectionState };
+    }
 
     protected configureSQLite(config: DBConfig): void {
         const sqliteConfig = {
@@ -62,6 +152,8 @@ export abstract class BaseDriver implements Driver {
             return await fn();
         }
 
+        await this.ensureConnection();
+        
         this.isInTransaction = true;
         await this.exec('BEGIN');
         try {
@@ -79,6 +171,8 @@ export abstract class BaseDriver implements Driver {
                 
                 // If database is closed, handle gracefully
                 if (this.handleClosedDatabase(rollbackError)) {
+                    this.connectionState.isConnected = false;
+                    this.connectionState.isHealthy = false;
                     this.isClosed = true;
                     this.isInTransaction = false;
                     throw new DatabaseError(

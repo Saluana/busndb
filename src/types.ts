@@ -20,6 +20,29 @@ export interface DBConfig {
         autoVacuum?: 'NONE' | 'FULL' | 'INCREMENTAL';
         walCheckpoint?: number; // pages before auto-checkpoint
     };
+    // Connection management options
+    autoReconnect?: boolean;
+    maxReconnectAttempts?: number;
+    reconnectDelay?: number;
+    sharedConnection?: boolean;
+    connectionPool?: {
+        maxConnections?: number;
+        maxIdleTime?: number;
+        healthCheckInterval?: number;
+        retryAttempts?: number;
+        retryDelay?: number;
+    };
+    // LibSQL specific pool options
+    libsqlPool?: {
+        maxConnections?: number;
+        minConnections?: number;
+        acquireTimeout?: number;
+        createTimeout?: number;
+        destroyTimeout?: number;
+        idleTimeout?: number;
+        reapInterval?: number;
+        maxRetries?: number;
+    };
 }
 
 export interface Driver {

@@ -2,102 +2,145 @@ import type { Row, DBConfig } from '../types';
 import { DatabaseError } from '../errors';
 import { createRequire } from 'module';
 import { BaseDriver } from './base.js';
+import { LibSQLConnectionPool, createLibSQLPool } from '../libsql-pool.js';
 
 // Create require function for ES modules
 const require = createRequire(import.meta.url);
 
 export class NodeDriver extends BaseDriver {
-    private db: any;
+    private db?: any;
     private dbType: 'sqlite' | 'libsql' = 'sqlite';
+    private libsqlPool?: LibSQLConnectionPool;
+    private currentConnection?: any;
 
     constructor(config: DBConfig = {}) {
         super(config);
-        this.initializeDriver(config);
+        // Lazy initialization - only connect when needed
+        if (!config.sharedConnection) {
+            this.initializeDriver(config);
+        }
     }
 
-    protected initializeDriver(config: DBConfig): void {
-        this.initializeDatabase(config);
+    protected async initializeDriver(config: DBConfig): Promise<void> {
+        await this.initializeDatabase(config);
     }
 
-    private initializeDatabase(config: DBConfig): void {
-        const path = config.path || ':memory:';
+    private async initializeDatabase(config: DBConfig): Promise<void> {
+        try {
+            const path = config.path || ':memory:';
 
-        // For local files, prefer better-sqlite3 to avoid sync operation issues
-        const isLocalFile =
-            path === ':memory:' ||
-            (!path.startsWith('http://') &&
-                !path.startsWith('https://') &&
-                !path.startsWith('libsql://'));
+            // Check if we should use LibSQL pooling for remote connections
+            const isRemoteLibSQL = path.startsWith('http://') || 
+                                   path.startsWith('https://') || 
+                                   path.startsWith('libsql://') ||
+                                   config.authToken;
 
-        if (
-            isLocalFile &&
-            !(config as any).libsql &&
-            !(config as any).authToken
-        ) {
-            // Try better-sqlite3 first for local files
-            try {
-                this.initializeSQLite(path);
-                this.dbType = 'sqlite';
-                // Configure SQLite pragmas
-                this.configureSQLite(config);
-                return;
-            } catch (sqliteError) {
-                // If better-sqlite3 fails, try LibSQL as fallback
-                try {
-                    this.initializeLibSQL(config, path);
-                    this.dbType = 'libsql';
-                } catch (libsqlError) {
-                    // Both failed, provide helpful error message
-                    throw new DatabaseError(
-                        'No compatible SQLite driver found. Install one of:\n' +
-                            '  npm install better-sqlite3    (recommended for local files)\n' +
-                            '  npm install @libsql/client    (works with SQLite and LibSQL)\n' +
-                            '\nSQLite error: ' +
-                            (sqliteError instanceof Error
-                                ? sqliteError.message
-                                : String(sqliteError)) +
-                            '\nLibSQL error: ' +
-                            (libsqlError instanceof Error
-                                ? libsqlError.message
-                                : String(libsqlError))
-                    );
-                }
-            }
-        } else {
-            // For remote URLs or explicit LibSQL config, try LibSQL first
-            try {
-                this.initializeLibSQL(config, path);
+            if (isRemoteLibSQL && config.libsqlPool) {
+                // Use LibSQL connection pool for remote connections
+                this.libsqlPool = createLibSQLPool(config, config.libsqlPool);
                 this.dbType = 'libsql';
-            } catch (libsqlError) {
+                
+                this.connectionState = {
+                    isConnected: true,
+                    isHealthy: true,
+                    lastHealthCheck: Date.now(),
+                    connectionAttempts: 0,
+                };
+                return;
+            }
+
+            // For local files, prefer better-sqlite3 to avoid sync operation issues
+            const isLocalFile =
+                path === ':memory:' ||
+                (!path.startsWith('http://') &&
+                    !path.startsWith('https://') &&
+                    !path.startsWith('libsql://'));
+
+            if (
+                isLocalFile &&
+                !(config as any).libsql &&
+                !(config as any).authToken
+            ) {
+                // Try better-sqlite3 first for local files
                 try {
-                    // Fallback to better-sqlite3 for pure SQLite usage
                     this.initializeSQLite(path);
                     this.dbType = 'sqlite';
                     // Configure SQLite pragmas
                     this.configureSQLite(config);
                 } catch (sqliteError) {
-                    // Both failed, provide helpful error message
-                    throw new DatabaseError(
-                        'No compatible SQLite driver found. Install one of:\n' +
-                            '  npm install @libsql/client    (recommended - works with SQLite and LibSQL)\n' +
-                            '  npm install better-sqlite3    (SQLite only)\n' +
-                            '\nLibSQL error: ' +
-                            (libsqlError instanceof Error
-                                ? libsqlError.message
-                                : String(libsqlError)) +
-                            '\nSQLite error: ' +
-                            (sqliteError instanceof Error
-                                ? sqliteError.message
-                                : String(sqliteError))
-                    );
+                    // If better-sqlite3 fails, try LibSQL as fallback
+                    try {
+                        await this.initializeLibSQL(config, path);
+                        this.dbType = 'libsql';
+                    } catch (libsqlError) {
+                        // Both failed, provide helpful error message
+                        throw new DatabaseError(
+                            'No compatible SQLite driver found. Install one of:\n' +
+                                '  npm install better-sqlite3    (recommended for local files)\n' +
+                                '  npm install @libsql/client    (works with SQLite and LibSQL)\n' +
+                                '\nSQLite error: ' +
+                                (sqliteError instanceof Error
+                                    ? sqliteError.message
+                                    : String(sqliteError)) +
+                                '\nLibSQL error: ' +
+                                (libsqlError instanceof Error
+                                    ? libsqlError.message
+                                    : String(libsqlError))
+                        );
+                    }
+                }
+            } else {
+                // For remote URLs or explicit LibSQL config, try LibSQL first
+                try {
+                    await this.initializeLibSQL(config, path);
+                    this.dbType = 'libsql';
+                } catch (libsqlError) {
+                    try {
+                        // Fallback to better-sqlite3 for pure SQLite usage
+                        this.initializeSQLite(path);
+                        this.dbType = 'sqlite';
+                        // Configure SQLite pragmas
+                        this.configureSQLite(config);
+                    } catch (sqliteError) {
+                        // Both failed, provide helpful error message
+                        throw new DatabaseError(
+                            'No compatible SQLite driver found. Install one of:\n' +
+                                '  npm install @libsql/client    (recommended - works with SQLite and LibSQL)\n' +
+                                '  npm install better-sqlite3    (SQLite only)\n' +
+                                '\nLibSQL error: ' +
+                                (libsqlError instanceof Error
+                                    ? libsqlError.message
+                                    : String(libsqlError)) +
+                                '\nSQLite error: ' +
+                                (sqliteError instanceof Error
+                                    ? sqliteError.message
+                                    : String(sqliteError))
+                        );
+                    }
                 }
             }
+
+            this.connectionState = {
+                isConnected: true,
+                isHealthy: true,
+                lastHealthCheck: Date.now(),
+                connectionAttempts: 0,
+            };
+        } catch (error) {
+            this.connectionState = {
+                isConnected: false,
+                isHealthy: false,
+                lastHealthCheck: Date.now(),
+                connectionAttempts: this.connectionState.connectionAttempts + 1,
+                lastError: error instanceof Error ? error : new Error(String(error)),
+            };
+            throw error;
         }
     }
 
 
 
-    private initializeLibSQL(config: DBConfig, path: string): void {
+    private async initializeLibSQL(config: DBConfig, path: string): Promise<void> {
         try {
             // Try to import @libsql/client
             const { createClient } = require('@libsql/client');
@@ -173,12 +216,26 @@ export class NodeDriver extends BaseDriver {
         if (this.isClosed) {
             return;
         }
+        
+        await this.ensureConnection();
+        
         try {
-            if (this.dbType === 'libsql') {
+            if (this.libsqlPool) {
+                // Use connection pool
+                const connection = await this.libsqlPool.acquire();
+                try {
+                    await connection.client.execute({ sql, args: params });
+                } finally {
+                    await this.libsqlPool.release(connection);
+                }
+            } else if (this.dbType === 'libsql') {
+                if (!this.db) {
+                    throw new DatabaseError('Database not initialized', 'DB_NOT_INITIALIZED');
+                }
                 await this.db.execute({ sql, args: params });
             } else {
-                if (this.isClosed) {
-                    throw new DatabaseError('Database is closed');
+                if (!this.db) {
+                    throw new DatabaseError('Database not initialized', 'DB_NOT_INITIALIZED');
                 }
                 if (this.db.prepare) {
                     const stmt = this.db.prepare(sql);
@@ -191,6 +248,8 @@ export class NodeDriver extends BaseDriver {
             }
         } catch (error) {
             if (this.handleClosedDatabase(error)) {
+                this.connectionState.isConnected = false;
+                this.connectionState.isHealthy = false;
                 return;
             }
             throw new DatabaseError(
@@ -206,15 +265,32 @@ export class NodeDriver extends BaseDriver {
         if (this.isClosed) {
             return [];
         }
+        
+        await this.ensureConnection();
+        
         try {
-            if (this.dbType === 'libsql') {
+            if (this.libsqlPool) {
+                // Use connection pool
+                const connection = await this.libsqlPool.acquire();
+                try {
+                    const result = await connection.client.execute({ sql, args: params });
+                    return result.rows.map((row: any) =>
+                        this.convertLibSQLRow(row, result.columns)
+                    );
+                } finally {
+                    await this.libsqlPool.release(connection);
+                }
+            } else if (this.dbType === 'libsql') {
+                if (!this.db) {
+                    throw new DatabaseError('Database not initialized', 'DB_NOT_INITIALIZED');
+                }
                 const result = await this.db.execute({ sql, args: params });
                 return result.rows.map((row: any) =>
                     this.convertLibSQLRow(row, result.columns)
                 );
             } else {
-                if (this.isClosed) {
-                    throw new DatabaseError('Database is closed');
+                if (!this.db) {
+                    throw new DatabaseError('Database not initialized', 'DB_NOT_INITIALIZED');
                 }
                 if (this.db.prepare) {
                     const stmt = this.db.prepare(sql);
@@ -227,6 +303,8 @@ export class NodeDriver extends BaseDriver {
             }
         } catch (error) {
             if (this.handleClosedDatabase(error)) {
+                this.connectionState.isConnected = false;
+                this.connectionState.isHealthy = false;
                 return [];
             }
             throw new DatabaseError(
@@ -323,6 +401,33 @@ export class NodeDriver extends BaseDriver {
         return result;
     }
 
+    protected async performHealthCheck(): Promise<void> {
+        if (this.libsqlPool) {
+            // Test pool health by acquiring and releasing a connection
+            const connection = await this.libsqlPool.acquire();
+            try {
+                await connection.client.execute({ sql: 'SELECT 1', args: [] });
+            } finally {
+                await this.libsqlPool.release(connection);
+            }
+        } else if (this.dbType === 'libsql') {
+            if (!this.db) {
+                throw new DatabaseError('Database not initialized', 'DB_NOT_INITIALIZED');
+            }
+            await this.db.execute({ sql: 'SELECT 1', args: [] });
+        } else {
+            if (!this.db) {
+                throw new DatabaseError('Database not initialized', 'DB_NOT_INITIALIZED');
+            }
+            if (this.db.prepare) {
+                const stmt = this.db.prepare('SELECT 1');
+                stmt.get();
+            } else {
+                throw new Error('Cannot perform health check on sqlite3 driver');
+            }
+        }
+    }
+
     async transaction<T>(fn: () => Promise<T>): Promise<T> {
         if (this.isClosed) {
             throw new DatabaseError(
@@ -358,7 +463,10 @@ export class NodeDriver extends BaseDriver {
 
     protected async closeDatabase(): Promise<void> {
         try {
-            if (this.db) {
+            if (this.libsqlPool) {
+                await this.libsqlPool.close();
+                this.libsqlPool = undefined;
+            } else if (this.db) {
                 if (this.dbType === 'libsql') {
                     if (this.db.close) {
                         await this.db.close();
@@ -368,7 +476,11 @@ export class NodeDriver extends BaseDriver {
                         this.db.close();
                     }
                 }
+                this.db = undefined;
             }
+            
+            this.connectionState.isConnected = false;
+            this.connectionState.isHealthy = false;
         } catch (error) {
             console.warn('Warning: Error closing database connection:', error);
         }
@@ -376,11 +488,19 @@ export class NodeDriver extends BaseDriver {
 
     protected closeDatabaseSync(): void {
         try {
-            if (this.db) {
+            if (this.libsqlPool) {
+                // Cannot close pool synchronously, just mark as closed
+                console.warn('Warning: Cannot close LibSQL pool synchronously');
+                this.libsqlPool = undefined;
+            } else if (this.db) {
                 if (this.db.close) {
                     this.db.close();
                 }
+                this.db = undefined;
             }
+            
+            this.connectionState.isConnected = false;
+            this.connectionState.isHealthy = false;
         } catch (error) {
             console.warn('Warning: Error closing database connection:', error);
         }
