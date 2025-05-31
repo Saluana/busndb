@@ -96,32 +96,6 @@ export class NodeDriver extends BaseDriver {
     }
 
 
-    private detectDatabaseType(
-        config: DBConfig,
-        path: string
-    ): 'sqlite' | 'libsql' {
-        // If config explicitly specifies libsql
-        if ((config as any).libsql) {
-            return 'libsql';
-        }
-
-        // If path looks like a libsql URL
-        if (
-            path.startsWith('http://') ||
-            path.startsWith('https://') ||
-            path.startsWith('libsql://')
-        ) {
-            return 'libsql';
-        }
-
-        // If auth token is provided, assume libsql
-        if ((config as any).authToken) {
-            return 'libsql';
-        }
-
-        // Default to sqlite
-        return 'sqlite';
-    }
 
     private initializeLibSQL(config: DBConfig, path: string): void {
         try {

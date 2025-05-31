@@ -7,8 +7,6 @@ import type {
     Row,
 } from './types';
 import type { SchemaConstraints } from './schema-constraints';
-// Conditional import to avoid Node.js trying to resolve bun: protocol
-// import { BunDriver } from './drivers/bun';
 import { NodeDriver } from './drivers/node';
 import { Collection } from './collection';
 import { Registry } from './registry';
