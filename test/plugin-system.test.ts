@@ -1,6 +1,8 @@
 import { test, expect, describe, beforeEach } from 'bun:test';
-import { PluginManager, PluginError, PluginTimeoutError } from '../src/plugin-system';
-import type { Plugin, PluginContext, CollectionSchema } from '../src/plugin-system'; // Assuming CollectionSchema is also exported or defined there, or adjust
+import { PluginManager } from '../src/plugin-system';
+import type { Plugin, PluginContext } from '../src/plugin-system';
+import { PluginError, PluginTimeoutError } from '../src/errors'; // Corrected path for errors
+import type { CollectionSchema } from '../src/types'; // Corrected path for CollectionSchema
 
 describe('PluginManager', () => {
     let pluginManager: PluginManager;

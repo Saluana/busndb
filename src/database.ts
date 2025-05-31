@@ -288,16 +288,22 @@ export class Database {
      * - For dedicated connections (`config.sharedConnection: false`), it attempts to close the
      *   driver synchronously.
      *
-     * @throws {DatabaseError} If called when `config.sharedConnection` is true (via proxy, see `getDriverProxy`).
-     *         However, this direct method call does not throw that error itself but exhibits the behaviors noted above.
+     * @throws {DatabaseError} If called when `config.sharedConnection` is true.
      */
     closeSync(): void {
-        // Existing note is good context for the implementation details below.
-        // Note: Plugin hooks are async, so we can't properly await them in sync mode
+        if (this.config.sharedConnection) {
+            throw new DatabaseError(
+                "Synchronous operations like 'closeSync' are not supported when using a shared connection. Please use asynchronous 'close()'.",
+                'SYNC_WITH_SHARED_CONNECTION'
+            );
+        }
+
+        // Original logic for non-shared connections (this.driver should be set)
+        // The this.managedConnection check below would only be relevant if, hypothetically,
+        // a non-shared connection somehow ended up with a managedConnection, which is not standard.
         if (this.managedConnection) {
-            // Cannot release managed connection synchronously
-            console.warn('Warning: Cannot release managed connection synchronously. The connection may not be properly released from the pool.');
-            this.managedConnection = undefined;
+            console.warn('Warning: CloseSync called on a DB with a managedConnection but not configured as shared. This is an inconsistent state.');
+            this.managedConnection = undefined; // Clear local ref
         } else if (this.driver) {
             this.driver.closeSync();
         }
@@ -345,12 +351,17 @@ export class Database {
      *
      * @param sql The SQL string to execute.
      * @param params Optional parameters for the SQL query.
-     * @throws {DatabaseError} If called when `config.sharedConnection` is true (via proxy, see `getDriverProxy`).
+     * @throws {DatabaseError} If called when `config.sharedConnection` is true.
      */
     execSync(sql: string, params?: any[]): void {
+        if (this.config.sharedConnection) {
+            throw new DatabaseError(
+                "Synchronous operations like 'execSync' are not supported when using a shared connection. Please use asynchronous methods instead.",
+                'SYNC_WITH_SHARED_CONNECTION'
+            );
+        }
         if (!this.driver) {
             // This logic is primarily for non-shared connections if the driver wasn't set in constructor.
-            // For shared connections, the proxy in getDriverProxy should prevent this method from being called.
             this.driver = this.createDriver(this.config);
         }
         return this.driver.execSync(sql, params);
@@ -365,12 +376,17 @@ export class Database {
      * @param sql The SQL string to query.
      * @param params Optional parameters for the SQL query.
      * @returns An array of rows resulting from the query.
-     * @throws {DatabaseError} If called when `config.sharedConnection` is true (via proxy, see `getDriverProxy`).
+     * @throws {DatabaseError} If called when `config.sharedConnection` is true.
      */
     querySync(sql: string, params?: any[]): Row[] {
+        if (this.config.sharedConnection) {
+            throw new DatabaseError(
+                "Synchronous operations like 'querySync' are not supported when using a shared connection. Please use asynchronous methods instead.",
+                'SYNC_WITH_SHARED_CONNECTION'
+            );
+        }
         if (!this.driver) {
             // This logic is primarily for non-shared connections if the driver wasn't set in constructor.
-            // For shared connections, the proxy in getDriverProxy should prevent this method from being called.
             this.driver = this.createDriver(this.config);
         }
         return this.driver.querySync(sql, params);
