@@ -100,9 +100,9 @@ describe('Integration: BusNDB End-to-End', () => {
     });
 
     test('put throws on non-existent', () => {
-        expect(() => users.putSync('non-existent-id', { name: 'Ghost' })).toThrow(
-            NotFoundError
-        );
+        expect(() =>
+            users.putSync('non-existent-id', { name: 'Ghost' })
+        ).toThrow(NotFoundError);
     });
 
     test('delete user', () => {
@@ -116,12 +116,18 @@ describe('Integration: BusNDB End-to-End', () => {
 
     test('delete bulk users', () => {
         const u1 = users.insertSync({ name: 'Ivy', email: 'ivy@example.com' });
-        const u2 = users.insertSync({ name: 'Jack', email: 'jack@example.com' });
+        const u2 = users.insertSync({
+            name: 'Jack',
+            email: 'jack@example.com',
+        });
         expect(users.deleteBulkSync([u1.id, u2.id])).toBe(2);
     });
 
     test('foreign key constraint', () => {
-        const user = users.insertSync({ name: 'Kim', email: 'kim@example.com' });
+        const user = users.insertSync({
+            name: 'Kim',
+            email: 'kim@example.com',
+        });
         const post = posts.insertSync({
             title: 'Hello',
             content: 'World',
@@ -183,7 +189,9 @@ describe('Integration: BusNDB End-to-End', () => {
 
     test('exists/notExists', () => {
         users.insertSync({ name: 'Sam', email: 'sam@example.com', age: 50 });
-        expect(users.where('age').exists().toArraySync().length).toBeGreaterThan(0);
+        expect(
+            users.where('age').exists().toArraySync().length
+        ).toBeGreaterThan(0);
         expect(
             users.where('age').notExists().toArraySync().length
         ).toBeGreaterThanOrEqual(0);
@@ -227,8 +235,16 @@ describe('Integration: BusNDB End-to-End', () => {
     });
 
     test('distinct', () => {
-        users.insertSync({ name: 'Xander', email: 'xander@example.com', age: 30 });
-        users.insertSync({ name: 'Xander', email: 'xander2@example.com', age: 30 });
+        users.insertSync({
+            name: 'Xander',
+            email: 'xander@example.com',
+            age: 30,
+        });
+        users.insertSync({
+            name: 'Xander',
+            email: 'xander2@example.com',
+            age: 30,
+        });
         const res = users.distinct().toArraySync();
         expect(res.length).toBeGreaterThan(1);
     });
@@ -246,7 +262,9 @@ describe('Integration: BusNDB End-to-End', () => {
 
     test('putBulk/upsert/upsertBulk', () => {
         const u = users.insertSync({ name: 'Bulk', email: 'bulk@example.com' });
-        const updated = users.putBulkSync([{ id: u.id, doc: { name: 'Bulk2' } }]);
+        const updated = users.putBulkSync([
+            { id: u.id, doc: { name: 'Bulk2' } },
+        ]);
         expect(updated[0].name).toBe('Bulk2');
         const up = users.upsertSync(u.id, {
             name: 'Bulk3',
@@ -274,21 +292,39 @@ describe('Integration: BusNDB End-to-End', () => {
     });
 
     test('edge: put with unique constraint', () => {
-        const u1 = users.insertSync({ name: 'Edge1', email: 'edge1@example.com' });
-        const u2 = users.insertSync({ name: 'Edge2', email: 'edge2@example.com' });
-        expect(() => users.putSync(u2.id, { email: 'edge1@example.com' })).toThrow(
-            UniqueConstraintError
-        );
+        const u1 = users.insertSync({
+            name: 'Edge1',
+            email: 'edge1@example.com',
+        });
+        const u2 = users.insertSync({
+            name: 'Edge2',
+            email: 'edge2@example.com',
+        });
+        expect(() =>
+            users.putSync(u2.id, { email: 'edge1@example.com' })
+        ).toThrow(UniqueConstraintError);
     });
 
     test('edge: upsert with unique constraint', () => {
-        const u1 = users.insertSync({ name: 'Edge3', email: 'edge3@example.com' });
+        const u1 = users.insertSync({
+            name: 'Edge3',
+            email: 'edge3@example.com',
+        });
         expect(() =>
-            users.upsertSync(u1.id, { name: 'Edge3', email: 'edge3@example.com' })
+            users.upsertSync(u1.id, {
+                name: 'Edge3',
+                email: 'edge3@example.com',
+            })
         ).not.toThrow();
-        const u2 = users.insertSync({ name: 'Edge4', email: 'edge4@example.com' });
+        const u2 = users.insertSync({
+            name: 'Edge4',
+            email: 'edge4@example.com',
+        });
         expect(() =>
-            users.upsertSync(u2.id, { name: 'Edge4', email: 'edge3@example.com' })
+            users.upsertSync(u2.id, {
+                name: 'Edge4',
+                email: 'edge3@example.com',
+            })
         ).toThrow(UniqueConstraintError);
     });
 
@@ -297,12 +333,18 @@ describe('Integration: BusNDB End-to-End', () => {
     });
 
     test('edge: deleteBulk with some non-existent', () => {
-        const u = users.insertSync({ name: 'Edge5', email: 'edge5@example.com' });
+        const u = users.insertSync({
+            name: 'Edge5',
+            email: 'edge5@example.com',
+        });
         expect(users.deleteBulkSync([u.id, 'bad-id'])).toBe(2);
     });
 
     test('edge: upsertBulk with new and existing', () => {
-        const u = users.insertSync({ name: 'Edge6', email: 'edge6@example.com' });
+        const u = users.insertSync({
+            name: 'Edge6',
+            email: 'edge6@example.com',
+        });
         // Generate a valid uuid for the new id
         const newId = crypto.randomUUID();
         const res = users.upsertBulkSync([
@@ -403,7 +445,10 @@ describe('Integration: BusNDB End-to-End', () => {
 
     test('upsert with invalid id type', () => {
         expect(() =>
-            users.upsertSync(123 as any, { name: 'Bad', email: 'bad@example.com' })
+            users.upsertSync(123 as any, {
+                name: 'Bad',
+                email: 'bad@example.com',
+            })
         ).toThrow();
     });
 
@@ -457,9 +502,9 @@ describe('Integration: BusNDB End-to-End', () => {
     });
 
     test('insert with nulls for required fields', () => {
-        expect(() => users.insertSync({ name: null, email: null } as any)).toThrow(
-            ValidationError
-        );
+        expect(() =>
+            users.insertSync({ name: null, email: null } as any)
+        ).toThrow(ValidationError);
     });
 
     test('insert with undefined for required fields', () => {
