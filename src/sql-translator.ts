@@ -327,10 +327,65 @@ export class SQLTranslator {
         tableName: string,
         constrainedFields?: { [fieldPath: string]: ConstrainedFieldDefinition }
     ): string {
+        // Handle table-prefixed fields like "users.name" or "posts.title"
+        if (field.includes('.')) {
+            const [tablePrefix, fieldName] = field.split('.', 2);
+            
+            // Check if this is actually a nested JSON path, not a table prefix
+            // If the full field path is a constrained field, it's a nested path
+            if (constrainedFields && constrainedFields[field]) {
+                return `${tableName}.${fieldPathToColumnName(field)}`;
+            }
+            
+            // Check if this field is a constrained field in any table
+            if (constrainedFields && constrainedFields[fieldName]) {
+                return `${tablePrefix}.${fieldPathToColumnName(fieldName)}`;
+            }
+            
+            // For id field, use _id column directly
+            if (fieldName === 'id') {
+                return `${tablePrefix}._id`;
+            }
+            
+            // Check if this looks like a nested path (contains multiple dots or known patterns)
+            // If so, treat it as a JSON path with the current table
+            if (field.split('.').length > 2 || this.isNestedJsonPath(field)) {
+                return `json_extract(${tableName}.doc, '$.${field}')`;
+            }
+            
+            // Use JSON extraction for document fields with table prefix
+            return `json_extract(${tablePrefix}.doc, '$.${fieldName}')`;
+        }
+        
+        // Handle non-prefixed fields (legacy behavior)
         if (constrainedFields && constrainedFields[field]) {
             return `${tableName}.${fieldPathToColumnName(field)}`;
         }
+        
+        // For id field, use _id column directly
+        if (field === 'id') {
+            return `${tableName}._id`;
+        }
+        
         return `json_extract(${tableName}.doc, '$.${field}')`;
+    }
+
+    /**
+     * Check if a field path represents a nested JSON path rather than a table.field reference
+     */
+    private static isNestedJsonPath(field: string): boolean {
+        // Common patterns that indicate nested JSON paths
+        const nestedPatterns = [
+            'metadata.',
+            'profile.',
+            'settings.',
+            'config.',
+            'performance.',
+            'address.',
+            'location.'
+        ];
+        
+        return nestedPatterns.some(pattern => field.startsWith(pattern));
     }
 
     static getFieldAccess(field: string): string {
@@ -571,23 +626,37 @@ export class SQLTranslator {
                 col = filter.field; // fallback
             }
         } else if (joins && joins.length > 0) {
-            // Simple heuristic: check if field name suggests it belongs to a joined table
-            let targetTable = tableName;
-            
-            for (const join of joins) {
-                // Heuristic: common fields that typically belong to specific tables
-                if ((filter.field === 'total' || filter.field === 'status') && join.collection === 'orders') {
-                    targetTable = 'orders';
-                    break;
+            // Handle table-prefixed field names like "posts.published"
+            if (filter.field.includes('.')) {
+                const [tablePrefix, fieldName] = filter.field.split('.', 2);
+                
+                // Use the specified table prefix
+                if (constrainedFields && constrainedFields[fieldName]) {
+                    col = `${tablePrefix}.${fieldPathToColumnName(fieldName)}`;
+                } else if (fieldName === 'id') {
+                    col = `${tablePrefix}._id`;
+                } else {
+                    col = `json_extract(${tablePrefix}.doc, '$.${fieldName}')`;
                 }
-                if (filter.field === 'price' && join.collection === 'products') {
-                    targetTable = 'products';
-                    break;
+            } else {
+                // Simple heuristic: check if field name suggests it belongs to a joined table
+                let targetTable = tableName;
+                
+                for (const join of joins) {
+                    // Heuristic: common fields that typically belong to specific tables
+                    if ((filter.field === 'total' || filter.field === 'status') && join.collection === 'orders') {
+                        targetTable = 'orders';
+                        break;
+                    }
+                    if (filter.field === 'price' && join.collection === 'products') {
+                        targetTable = 'products';
+                        break;
+                    }
+                    // Add more heuristics as needed
                 }
-                // Add more heuristics as needed
+                
+                col = this.qualifyFieldAccess(filter.field, targetTable || tableName || 'documents', constrainedFields);
             }
-            
-            col = this.qualifyFieldAccess(filter.field, targetTable || tableName || 'documents', constrainedFields);
         } else {
             col = tableName 
                 ? this.qualifyFieldAccess(filter.field, tableName, constrainedFields)

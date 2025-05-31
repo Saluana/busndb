@@ -184,8 +184,8 @@ async function runIndexBenchmarks() {
     const testData = Array.from({ length: 10000 }, (_, i) => generateUser(i));
 
     console.log('Inserting test data into both collections...');
-    usersIndexed.insertBulk(testData);
-    usersNonIndexed.insertBulk(testData);
+    usersIndexed.insertBulkSync(testData);
+    usersNonIndexed.insertBulkSync(testData);
 
     console.log(
         `Total documents in each collection: ${usersIndexed.toArraySync().length}\n`

@@ -8,7 +8,7 @@ import {
     NotFoundError,
     UniqueConstraintError,
 } from './errors.js';
-import { parseDoc } from './json-utils.js';
+import { parseDoc, mergeConstrainedFields } from './json-utils.js';
 import type { QueryablePaths, OrderablePaths } from './types/nested-paths';
 import type { PluginManager } from './plugin-system';
 
@@ -541,11 +541,22 @@ export class Collection<T extends z.ZodSchema> {
     }
 
     findByIdSync(id: string): InferSchema<T> | null {
-        const sql = `SELECT doc FROM ${this.collectionSchema.name} WHERE _id = ?`;
+        if (!this.collectionSchema.constrainedFields || Object.keys(this.collectionSchema.constrainedFields).length === 0) {
+            // Original behavior for collections without constrained fields
+            const sql = `SELECT doc FROM ${this.collectionSchema.name} WHERE _id = ?`;
+            const params = [id];
+            const rows = this.driver.querySync(sql, params);
+            if (rows.length === 0) return null;
+            return parseDoc(rows[0].doc);
+        }
+
+        // For collections with constrained fields, select both doc and constrained columns
+        const constrainedFieldColumns = Object.keys(this.collectionSchema.constrainedFields).join(', ');
+        const sql = `SELECT doc, ${constrainedFieldColumns} FROM ${this.collectionSchema.name} WHERE _id = ?`;
         const params = [id];
         const rows = this.driver.querySync(sql, params);
         if (rows.length === 0) return null;
-        return parseDoc(rows[0].doc);
+        return mergeConstrainedFields(rows[0], this.collectionSchema.constrainedFields);
     }
 
     toArraySync(): InferSchema<T>[] {
@@ -749,10 +760,30 @@ QueryBuilder.prototype.toArray = async function <T>(
         return rows as T[];
     }
     
-    // Check if this is a JOIN query with specific select fields
-    if (options.joins && options.joins.length > 0 && options.selectFields && options.selectFields.length > 0) {
-        // For JOIN queries with specific select fields, return the raw aliased results
-        return rows as T[];
+    // Check if this is a JOIN query
+    if (options.joins && options.joins.length > 0) {
+        // For JOIN queries, merge data from multiple tables into JSON objects
+        return rows.map(row => {
+            const mergedObject: any = {};
+            
+            // Parse the main table's doc if it exists
+            if (row.doc) {
+                Object.assign(mergedObject, parseDoc(row.doc));
+            }
+            
+            // Add any direct column values (non-JSON fields) from SELECT
+            Object.keys(row).forEach(key => {
+                if (key !== 'doc' && row[key] !== null && row[key] !== undefined) {
+                    // Handle table-prefixed field names like "users.name" -> "name"
+                    const fieldName = key.includes('.') ? key.split('.').pop() : key;
+                    if (fieldName) {
+                        mergedObject[fieldName] = row[key];
+                    }
+                }
+            });
+            
+            return mergedObject;
+        }) as T[];
     }
     
     return rows.map((row) => parseDoc(row.doc));
@@ -811,6 +842,32 @@ QueryBuilder.prototype.toArraySync = function <T>(
     if (options.aggregates && options.aggregates.length > 0) {
         // For aggregate queries, return the raw results without parsing doc
         return rows as T[];
+    }
+    
+    // Check if this is a JOIN query
+    if (options.joins && options.joins.length > 0) {
+        // For JOIN queries, merge data from multiple tables into JSON objects
+        return rows.map(row => {
+            const mergedObject: any = {};
+            
+            // Parse the main table's doc if it exists
+            if (row.doc) {
+                Object.assign(mergedObject, parseDoc(row.doc));
+            }
+            
+            // Add any direct column values (non-JSON fields) from SELECT
+            Object.keys(row).forEach(key => {
+                if (key !== 'doc' && row[key] !== null && row[key] !== undefined) {
+                    // Handle table-prefixed field names like "users.name" -> "name"
+                    const fieldName = key.includes('.') ? key.split('.').pop() : key;
+                    if (fieldName) {
+                        mergedObject[fieldName] = row[key];
+                    }
+                }
+            });
+            
+            return mergedObject;
+        }) as T[];
     }
     
     return rows.map((row) => parseDoc(row.doc));

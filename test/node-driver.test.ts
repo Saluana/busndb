@@ -21,7 +21,7 @@ describe('Node.js Driver', () => {
                 driver: 'node' as const,
                 path: ':memory:',
             };
-            
+
             // This should not throw an error during configuration
             expect(config.driver).toBe('node');
             expect(config.path).toBe(':memory:');
@@ -45,9 +45,16 @@ describe('Node.js Driver', () => {
 
     it('should detect database type from configuration', () => {
         // Test the logic that would be used in the NodeDriver
-        function detectDatabaseType(config: any, path: string): 'sqlite' | 'libsql' {
+        function detectDatabaseType(
+            config: any,
+            path: string
+        ): 'sqlite' | 'libsql' {
             if (config.libsql) return 'libsql';
-            if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('libsql://')) {
+            if (
+                path.startsWith('http://') ||
+                path.startsWith('https://') ||
+                path.startsWith('libsql://')
+            ) {
                 return 'libsql';
             }
             if (config.authToken) return 'libsql';
@@ -58,7 +65,9 @@ describe('Node.js Driver', () => {
         expect(detectDatabaseType({}, './test.db')).toBe('sqlite');
         expect(detectDatabaseType({}, 'libsql://test.turso.io')).toBe('libsql');
         expect(detectDatabaseType({}, 'https://test.turso.io')).toBe('libsql');
-        expect(detectDatabaseType({ authToken: 'token' }, 'file:test.db')).toBe('libsql');
+        expect(detectDatabaseType({ authToken: 'token' }, 'file:test.db')).toBe(
+            'libsql'
+        );
         expect(detectDatabaseType({ libsql: true }, 'test.db')).toBe('libsql');
     });
 
@@ -78,9 +87,9 @@ describe('Node.js Driver', () => {
     });
 
     // This test will only pass if better-sqlite3 is actually installed
-    it.skip('should work with better-sqlite3 when available', () => {
+    it.skip('should work with better-sqlite3 when available', async () => {
         const db = new Database({ driver: 'node', path: ':memory:' });
-        
+
         const users = db.collection('users', testSchema, {
             constraints: {
                 constraints: {
@@ -92,7 +101,7 @@ describe('Node.js Driver', () => {
             },
         });
 
-        const user = users.insert({
+        const user = await users.insert({
             name: 'Test User',
             email: 'test@example.com',
             age: 30,
@@ -101,7 +110,7 @@ describe('Node.js Driver', () => {
         expect(user.name).toBe('Test User');
         expect(user.email).toBe('test@example.com');
 
-        const found = users.where('email').eq('test@example.com').first();
+        const found = await users.where('email').eq('test@example.com').first();
         expect(found).not.toBeNull();
         expect(found?.name).toBe('Test User');
 
@@ -109,7 +118,7 @@ describe('Node.js Driver', () => {
     });
 
     // This test will only pass if @libsql/client is actually installed
-    it.skip('should work with libsql when available', () => {
+    it.skip('should work with libsql when available', async () => {
         const db = new Database({
             driver: 'node',
             path: 'file:test.db',
@@ -118,7 +127,7 @@ describe('Node.js Driver', () => {
 
         const users = db.collection('users', testSchema);
 
-        const user = users.insert({
+        const user = await users.insert({
             name: 'LibSQL User',
             email: 'libsql@example.com',
             age: 25,
@@ -139,7 +148,7 @@ describe('Node.js Driver', () => {
                 { driver: 'node' as const, path: 'file:./test.db' },
             ];
 
-            validConfigs.forEach(config => {
+            validConfigs.forEach((config) => {
                 expect(() => {
                     // Should not throw during configuration validation
                     expect(config.driver).toBe('node');
@@ -170,22 +179,22 @@ describe('Node.js Driver', () => {
                 {
                     driver: 'node' as const,
                     path: 'libsql://test.turso.io',
-                    authToken: 'test-token-123'
+                    authToken: 'test-token-123',
                 },
                 {
                     driver: 'node' as const,
                     path: 'file:./replica.db',
                     syncUrl: 'libsql://sync.turso.io',
-                    authToken: 'sync-token-456'
+                    authToken: 'sync-token-456',
                 },
                 {
                     driver: 'node' as const,
                     path: './local.db',
-                    libsql: true
-                }
+                    libsql: true,
+                },
             ];
 
-            libsqlConfigs.forEach(config => {
+            libsqlConfigs.forEach((config) => {
                 expect(config.driver).toBe('node');
                 if ('authToken' in config) {
                     expect(typeof config.authToken).toBe('string');
@@ -202,18 +211,45 @@ describe('Node.js Driver', () => {
     describe('Driver Selection Logic', () => {
         it('should prefer libsql over sqlite for various configurations', () => {
             const libsqlPreferredCases = [
-                { config: { libsql: true }, path: './test.db', reason: 'explicit libsql flag' },
-                { config: { authToken: 'token' }, path: './test.db', reason: 'auth token present' },
-                { config: {}, path: 'libsql://test.turso.io', reason: 'libsql URL scheme' },
-                { config: {}, path: 'https://test.turso.io', reason: 'https URL scheme' },
-                { config: { syncUrl: 'libsql://sync.turso.io' }, path: './test.db', reason: 'sync URL present' },
+                {
+                    config: { libsql: true },
+                    path: './test.db',
+                    reason: 'explicit libsql flag',
+                },
+                {
+                    config: { authToken: 'token' },
+                    path: './test.db',
+                    reason: 'auth token present',
+                },
+                {
+                    config: {},
+                    path: 'libsql://test.turso.io',
+                    reason: 'libsql URL scheme',
+                },
+                {
+                    config: {},
+                    path: 'https://test.turso.io',
+                    reason: 'https URL scheme',
+                },
+                {
+                    config: { syncUrl: 'libsql://sync.turso.io' },
+                    path: './test.db',
+                    reason: 'sync URL present',
+                },
             ];
 
             libsqlPreferredCases.forEach(({ config, path, reason }) => {
                 // Test the detection logic without actually instantiating drivers
-                function detectDatabaseType(cfg: any, p: string): 'sqlite' | 'libsql' {
+                function detectDatabaseType(
+                    cfg: any,
+                    p: string
+                ): 'sqlite' | 'libsql' {
                     if (cfg.libsql) return 'libsql';
-                    if (p.startsWith('http://') || p.startsWith('https://') || p.startsWith('libsql://')) {
+                    if (
+                        p.startsWith('http://') ||
+                        p.startsWith('https://') ||
+                        p.startsWith('libsql://')
+                    ) {
                         return 'libsql';
                     }
                     if (cfg.authToken || cfg.syncUrl) return 'libsql';
@@ -234,9 +270,16 @@ describe('Node.js Driver', () => {
             ];
 
             sqliteCases.forEach(({ config, path }) => {
-                function detectDatabaseType(cfg: any, p: string): 'sqlite' | 'libsql' {
+                function detectDatabaseType(
+                    cfg: any,
+                    p: string
+                ): 'sqlite' | 'libsql' {
                     if (cfg.libsql) return 'libsql';
-                    if (p.startsWith('http://') || p.startsWith('https://') || p.startsWith('libsql://')) {
+                    if (
+                        p.startsWith('http://') ||
+                        p.startsWith('https://') ||
+                        p.startsWith('libsql://')
+                    ) {
                         return 'libsql';
                     }
                     if (cfg.authToken || cfg.syncUrl) return 'libsql';
@@ -258,7 +301,7 @@ describe('Node.js Driver', () => {
             ];
 
             // Test that our expected error messages are properly formatted
-            expectedMessages.forEach(message => {
+            expectedMessages.forEach((message) => {
                 expect(typeof message).toBe('string');
                 expect(message.length).toBeGreaterThan(0);
             });
@@ -271,7 +314,7 @@ describe('Node.js Driver', () => {
                 { driver: 'node' as const, syncUrl: 'not-a-url' },
             ];
 
-            malformedConfigs.forEach(config => {
+            malformedConfigs.forEach((config) => {
                 // These should not crash during basic validation
                 expect(config.driver).toBe('node');
                 if ('path' in config && config.path === '') {
@@ -290,9 +333,10 @@ describe('Node.js Driver', () => {
             ];
 
             urlTests.forEach(({ url, valid }) => {
-                const isValidUrl = url.startsWith('http://') || 
-                                 url.startsWith('https://') || 
-                                 url.startsWith('libsql://');
+                const isValidUrl =
+                    url.startsWith('http://') ||
+                    url.startsWith('https://') ||
+                    url.startsWith('libsql://');
                 expect(isValidUrl).toBe(valid);
             });
         });
@@ -302,8 +346,8 @@ describe('Node.js Driver', () => {
         it('should support all required Driver interface methods', () => {
             // Test that our driver interface expectations are correct
             const driverMethods = ['exec', 'query', 'transaction', 'close'];
-            
-            driverMethods.forEach(method => {
+
+            driverMethods.forEach((method) => {
                 expect(typeof method).toBe('string');
                 expect(method.length).toBeGreaterThan(0);
             });
@@ -313,8 +357,14 @@ describe('Node.js Driver', () => {
             const parameterTests = [
                 { sql: 'SELECT * FROM users', params: [] },
                 { sql: 'SELECT * FROM users WHERE id = ?', params: ['123'] },
-                { sql: 'INSERT INTO users (name, age) VALUES (?, ?)', params: ['John', 30] },
-                { sql: 'UPDATE users SET name = ? WHERE id = ?', params: ['Jane', '456'] },
+                {
+                    sql: 'INSERT INTO users (name, age) VALUES (?, ?)',
+                    params: ['John', 30],
+                },
+                {
+                    sql: 'UPDATE users SET name = ? WHERE id = ?',
+                    params: ['Jane', '456'],
+                },
             ];
 
             parameterTests.forEach(({ sql, params }) => {
@@ -344,7 +394,7 @@ describe('Node.js Driver', () => {
                 { idleTimeout: 30000 },
             ];
 
-            poolingConfigs.forEach(config => {
+            poolingConfigs.forEach((config) => {
                 Object.entries(config).forEach(([key, value]) => {
                     expect(typeof key).toBe('string');
                     expect(typeof value).toBe('number');
@@ -361,7 +411,7 @@ describe('Node.js Driver', () => {
                 { tempStore: 'memory' },
             ];
 
-            optimizationSettings.forEach(setting => {
+            optimizationSettings.forEach((setting) => {
                 Object.entries(setting).forEach(([key, value]) => {
                     expect(typeof key).toBe('string');
                     expect(value).toBeDefined();
@@ -409,21 +459,21 @@ describe('Node.js Driver', () => {
     describe('Integration Scenarios', () => {
         it('should support development workflow configurations', () => {
             const devConfigs = [
-                { 
+                {
                     name: 'local-development',
-                    config: { driver: 'node' as const, path: './dev.db' }
+                    config: { driver: 'node' as const, path: './dev.db' },
                 },
-                { 
+                {
                     name: 'testing',
-                    config: { driver: 'node' as const, path: ':memory:' }
+                    config: { driver: 'node' as const, path: ':memory:' },
                 },
-                { 
+                {
                     name: 'staging',
-                    config: { 
-                        driver: 'node' as const, 
+                    config: {
+                        driver: 'node' as const,
                         path: 'file:./staging.db',
-                        libsql: true
-                    }
+                        libsql: true,
+                    },
                 },
             ];
 
@@ -441,8 +491,8 @@ describe('Node.js Driver', () => {
                     config: {
                         driver: 'node' as const,
                         path: 'libsql://prod.turso.io',
-                        authToken: 'prod-token'
-                    }
+                        authToken: 'prod-token',
+                    },
                 },
                 {
                     name: 'embedded-replica',
@@ -450,8 +500,8 @@ describe('Node.js Driver', () => {
                         driver: 'node' as const,
                         path: 'file:./replica.db',
                         syncUrl: 'libsql://prod.turso.io',
-                        authToken: 'sync-token'
-                    }
+                        authToken: 'sync-token',
+                    },
                 },
             ];
 
