@@ -1,6 +1,5 @@
 Critical Issues
 
-  - Plugin hook registration in `src/plugin-system.ts` might not be robust enough to find all hook methods.
 
 Important Improvements Needed
 
