@@ -109,67 +109,36 @@ export class NodeDriver extends BaseDriver {
                     !path.startsWith('https://') &&
                     !path.startsWith('libsql://'));
 
-            if (
-                isLocalFile &&
-                !(config as any).libsql &&
-                !(config as any).authToken
-            ) {
-                // Try better-sqlite3 first for local files
-                try {
-                    this.initializeSQLite(path);
-                    this.dbType = 'sqlite';
-                    // Configure SQLite pragmas
-                    this.configureSQLite(config);
-                } catch (sqliteError) {
-                    // If better-sqlite3 fails, try LibSQL as fallback
+            // Always try LibSQL first (supports both local and remote)
+            try {
+                await this.initializeLibSQL(config, path);
+                this.dbType = 'libsql';
+            } catch (libsqlError) {
+                // If LibSQL fails, fallback to SQLite drivers for local files only
+                if (isLocalFile) {
                     try {
-                        await this.initializeLibSQL(config, path);
-                        this.dbType = 'libsql';
-                    } catch (libsqlError) {
-                        // Both failed, provide helpful error message
-                        throw new DatabaseError(
-                            'No compatible SQLite driver found. Install one of:\n' +
-                                '  npm install better-sqlite3    (recommended for local files)\n' +
-                                '  npm install @libsql/client    (works with SQLite and LibSQL)\n' +
-                                '\nSQLite error: ' +
-                                (sqliteError instanceof Error
-                                    ? sqliteError.message
-                                    : String(sqliteError)) +
-                                '\nLibSQL error: ' +
-                                (libsqlError instanceof Error
-                                    ? libsqlError.message
-                                    : String(libsqlError))
-                        );
-                    }
-                }
-            } else {
-                // For remote URLs or explicit LibSQL config, try LibSQL first
-                try {
-                    await this.initializeLibSQL(config, path);
-                    this.dbType = 'libsql';
-                } catch (libsqlError) {
-                    try {
-                        // Fallback to better-sqlite3 for pure SQLite usage
                         this.initializeSQLite(path);
                         this.dbType = 'sqlite';
                         // Configure SQLite pragmas
                         this.configureSQLite(config);
                     } catch (sqliteError) {
-                        // Both failed, provide helpful error message
+                        // Both LibSQL and SQLite failed
                         throw new DatabaseError(
                             'No compatible SQLite driver found. Install one of:\n' +
                                 '  npm install @libsql/client    (recommended - works with SQLite and LibSQL)\n' +
-                                '  npm install better-sqlite3    (SQLite only)\n' +
-                                '\nLibSQL error: ' +
-                                (libsqlError instanceof Error
-                                    ? libsqlError.message
-                                    : String(libsqlError)) +
-                                '\nSQLite error: ' +
-                                (sqliteError instanceof Error
-                                    ? sqliteError.message
-                                    : String(sqliteError))
+                                '  npm install better-sqlite3    (local files only - sync operations)\n' +
+                                '\nErrors encountered:\n' +
+                                'LibSQL: ' + (libsqlError instanceof Error ? libsqlError.message : String(libsqlError)) + '\n' +
+                                'SQLite: ' + (sqliteError instanceof Error ? sqliteError.message : String(sqliteError))
                         );
                     }
+                } else {
+                    // For remote connections, LibSQL is required
+                    throw new DatabaseError(
+                        'LibSQL client required for remote connections. Install with:\n' +
+                            '  npm install @libsql/client\n' +
+                            '\nError: ' + (libsqlError instanceof Error ? libsqlError.message : String(libsqlError))
+                    );
                 }
             }
 
@@ -238,33 +207,44 @@ export class NodeDriver extends BaseDriver {
     }
 
     private initializeSQLite(path: string): void {
-        let lastError: any;
-
-        try {
-            // Try better-sqlite3 first (most popular and performant)
-            try {
-                const Database = require('better-sqlite3');
-                this.db = new Database(path === ':memory:' ? ':memory:' : path);
-                return;
-            } catch (e) {
-                lastError = e;
-                console.log('better-sqlite3 error:', e);
-                // Fall back to sqlite3
-                const sqlite3 = require('sqlite3');
-                this.db = new sqlite3.Database(path);
-                return;
+        // Try better-sqlite3 first (preferred for local files due to sync support)
+        // Then fallback to sqlite3 (async only)
+        const drivers = [
+            {
+                name: 'better-sqlite3',
+                init: () => {
+                    const Database = require('better-sqlite3');
+                    return new Database(path === ':memory:' ? ':memory:' : path);
+                },
+                supports: { sync: true, async: true }
+            },
+            {
+                name: 'sqlite3',
+                init: () => {
+                    const sqlite3 = require('sqlite3');
+                    return new sqlite3.Database(path);
+                },
+                supports: { sync: false, async: true }
             }
-        } catch (error) {
-            console.log('All SQLite drivers failed. Last error:', lastError);
-            throw new Error(
-                'SQLite driver not found. Install one of:\n' +
-                    '  npm install better-sqlite3  (recommended)\n' +
-                    '  npm install sqlite3\n' +
-                    'Or use libsql with: npm install @libsql/client\n' +
-                    'Last error: ' +
-                    (lastError ? lastError.message : String(error))
-            );
+        ];
+
+        const errors: string[] = [];
+        
+        for (const driver of drivers) {
+            try {
+                this.db = driver.init();
+                return;
+            } catch (error) {
+                errors.push(`${driver.name}: ${error instanceof Error ? error.message : String(error)}`);
+            }
         }
+
+        throw new Error(
+            'No SQLite driver found. Install one of:\n' +
+                '  npm install better-sqlite3    (recommended - sync operations)\n' +
+                '  npm install sqlite3           (async operations only)\n' +
+                '\nErrors encountered:\n' + errors.join('\n')
+        );
     }
 
     private ensureInitialized(): void {
@@ -291,7 +271,7 @@ export class NodeDriver extends BaseDriver {
 
         if (!this.db.prepare) {
             throw new DatabaseError(
-                'sqlite3 driver requires async operations. Use better-sqlite3 for sync interface or use async methods.',
+                'sqlite3 driver only supports async operations. For sync operations, install better-sqlite3: npm install better-sqlite3',
                 'SYNC_NOT_SUPPORTED'
             );
         }
@@ -328,8 +308,10 @@ export class NodeDriver extends BaseDriver {
                     const stmt = this.db.prepare(sql);
                     stmt.run(params);
                 } else {
-                    throw new Error(
-                        'sqlite3 driver requires async operations. Use better-sqlite3 for sync interface.'
+                    // sqlite3 driver detected - provide clear guidance
+                    throw new DatabaseError(
+                        'sqlite3 driver only supports async operations. For sync operations, install better-sqlite3: npm install better-sqlite3',
+                        'SYNC_NOT_SUPPORTED'
                     );
                 }
             }
@@ -388,8 +370,10 @@ export class NodeDriver extends BaseDriver {
                     const stmt = this.db.prepare(sql);
                     return stmt.all(params);
                 } else {
-                    throw new Error(
-                        'sqlite3 driver requires async operations. Use better-sqlite3 for sync interface.'
+                    // sqlite3 driver detected - provide clear guidance
+                    throw new DatabaseError(
+                        'sqlite3 driver only supports async operations. For sync operations, install better-sqlite3: npm install better-sqlite3',
+                        'SYNC_NOT_SUPPORTED'
                     );
                 }
             }
