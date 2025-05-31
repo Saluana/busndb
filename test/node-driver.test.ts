@@ -1,4 +1,5 @@
-import { describe, it, expect, beforeEach, mock, spyOn } from 'bun:test';
+
+import { describe, it, expect, beforeEach } from 'vitest';
 import { z } from 'zod';
 import { Database } from '../src/database';
 import { NodeDriver } from '../src/drivers/node.js';

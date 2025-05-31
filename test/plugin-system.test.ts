@@ -1,4 +1,4 @@
-import { test, expect, describe, beforeEach } from 'bun:test';
+import { test, expect, describe, beforeEach } from 'vitest';
 import { PluginManager } from '../src/plugin-system';
 import type { Plugin, PluginContext } from '../src/plugin-system';
 import { PluginError, PluginTimeoutError } from '../src/errors'; // Corrected path for errors
@@ -15,10 +15,17 @@ describe('PluginManager', () => {
             // A simplified CollectionSchema for tests if the real one is too complex or not easily mockable
             schema: {
                 name: 'testCollection',
-                fields: [{ name: 'id', type: 'string', unique: true, primaryKey: true }],
+                fields: [
+                    {
+                        name: 'id',
+                        type: 'string',
+                        unique: true,
+                        primaryKey: true,
+                    },
+                ],
                 primaryKey: 'id',
                 indexes: [],
-                constraints: []
+                constraints: [],
             } as unknown as CollectionSchema, // Using unknown to bypass strict CollectionSchema typing for tests
             operation: 'testOperation',
             data: { id: 1, name: 'testData' },
@@ -49,11 +56,15 @@ describe('PluginManager', () => {
             expect(error).toBeInstanceOf(PluginError);
 
             if (error instanceof PluginError) {
-                expect(error.message).toBe("Plugin 'ErrorPluginSync' hook 'onBeforeInsert' threw synchronous error: Intentional sync error in hook");
+                expect(error.message).toBe(
+                    "Plugin 'ErrorPluginSync' hook 'onBeforeInsert' threw synchronous error: Intentional sync error in hook"
+                );
                 expect(error.pluginName).toBe('ErrorPluginSync');
                 expect(error.hookName).toBe('onBeforeInsert');
                 expect(error.originalError).toBeInstanceOf(Error);
-                expect(error.originalError?.message).toBe('Intentional sync error in hook');
+                expect(error.originalError?.message).toBe(
+                    'Intentional sync error in hook'
+                );
             }
         }
     });

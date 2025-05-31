@@ -12,7 +12,12 @@ import { NodeDriver } from './drivers/node';
 import { Collection } from './collection';
 import { Registry } from './registry';
 import { PluginManager, type Plugin } from './plugin-system';
-import { globalConnectionManager, type ConnectionManager, type ManagedConnection } from './connection-manager';
+import {
+    globalConnectionManager,
+    type ConnectionManager,
+    type ManagedConnection,
+} from './connection-manager';
+import { detectDriver, type DriverDetectionResult } from './driver-detector';
 
 export class Database {
     private driver?: Driver;
@@ -26,8 +31,10 @@ export class Database {
 
     constructor(config: DBConfig = {}) {
         this.config = config;
-        this.connectionManager = config.connectionPool ? globalConnectionManager : globalConnectionManager;
-        
+        this.connectionManager = config.connectionPool
+            ? globalConnectionManager
+            : globalConnectionManager;
+
         // Initialize driver based on connection sharing preference
         if (config.sharedConnection) {
             this.initializeLazy();
@@ -35,7 +42,7 @@ export class Database {
         } else {
             this.driver = this.createDriver(config);
         }
-        
+
         this.initializePlugins();
     }
 
@@ -53,7 +60,10 @@ export class Database {
             // Obtain a driver from the connection manager.
             // Note: this.driver on the Database instance is NOT set for shared connections;
             // the driver is managed per-operation or per-connection from the pool.
-            this.managedConnection = await this.connectionManager.getConnection(this.config, true);
+            this.managedConnection = await this.connectionManager.getConnection(
+                this.config,
+                true
+            );
             return this.managedConnection.driver;
         } else {
             // Create dedicated driver
@@ -61,7 +71,8 @@ export class Database {
                 this.driver = this.createDriver(this.config);
                 return this.driver;
             } catch (error) {
-                const message = error instanceof Error ? error.message : String(error);
+                const message =
+                    error instanceof Error ? error.message : String(error);
                 throw new DatabaseError(
                     `Failed to create dedicated driver: ${message}`,
                     'DRIVER_CREATION_FAILED'
@@ -79,32 +90,78 @@ export class Database {
     }
 
     private createDriver(config: DBConfig): Driver {
-        // Better Bun detection
-        const isBun = typeof Bun !== 'undefined' || typeof process !== 'undefined' && process.versions?.bun;
-        const driver = config.driver || (isBun ? 'bun' : 'node');
+        const detection = detectDriver(config);
+
+        // Log warnings for debugging
+        if (detection.warnings.length > 0) {
+            console.warn('Driver Detection Warnings:', detection.warnings);
+        }
+
+        const driverType = detection.recommendedDriver;
 
         try {
-            switch (driver) {
-                case 'bun':
-                    // Dynamic import to avoid Node.js resolving bun: protocol during static analysis
-                    try {
-                        const { BunDriver } = require('./drivers/bun');
-                        return new BunDriver(config);
-                    } catch (e) {
-                        throw new Error(
-                            'BunDriver is only available in Bun runtime. Use driver: "node" instead.'
-                        );
-                    }
-                case 'node':
-                    return new NodeDriver(config);
-                default:
-                    throw new Error(`Unknown driver: ${driver}`);
-            }
+            return this.createDriverInstance(driverType, config, detection);
         } catch (error) {
+            // Try fallback drivers if the primary driver fails
+            for (const fallbackDriver of detection.fallbackDrivers) {
+                try {
+                    console.warn(
+                        `Primary driver '${driverType}' failed, trying fallback: '${fallbackDriver}'`
+                    );
+                    return this.createDriverInstance(
+                        fallbackDriver,
+                        config,
+                        detection
+                    );
+                } catch (fallbackError) {
+                    console.warn(
+                        `Fallback driver '${fallbackDriver}' also failed:`,
+                        fallbackError
+                    );
+                }
+            }
+
+            // If all drivers fail, throw the original error with enhanced context
+            const errorMessage =
+                error instanceof Error ? error.message : String(error);
             throw new DatabaseError(
-                `Failed to initialize database driver '${driver}': ${(error as Error).message}`,
+                `Failed to initialize database driver. ` +
+                    `Tried '${driverType}' and fallbacks: ${detection.fallbackDrivers.join(
+                        ', '
+                    )}. ` +
+                    `Error: ${errorMessage}. ` +
+                    `Environment: ${detection.environment.runtime} (confidence: ${detection.environment.confidence}%). ` +
+                    `Consider explicitly setting driver in config or check installation.`,
                 'DRIVER_INIT_FAILED'
             );
+        }
+    }
+
+    private createDriverInstance(
+        driverType: 'bun' | 'node',
+        config: DBConfig,
+        detection: DriverDetectionResult
+    ): Driver {
+        switch (driverType) {
+            case 'bun':
+                // Dynamic import to avoid Node.js resolving bun: protocol during static analysis
+                try {
+                    const { BunDriver } = require('./drivers/bun');
+                    return new BunDriver(config);
+                } catch (e) {
+                    const errorMessage =
+                        e instanceof Error ? e.message : String(e);
+                    throw new Error(
+                        `BunDriver is only available in Bun runtime. ` +
+                            `Current environment: ${detection.environment.runtime} ` +
+                            `(confidence: ${detection.environment.confidence}%). ` +
+                            `Error: ${errorMessage}`
+                    );
+                }
+            case 'node':
+                return new NodeDriver(config);
+            default:
+                throw new Error(`Unknown driver: ${driverType}`);
         }
     }
 
@@ -130,7 +187,7 @@ export class Database {
                 schema,
                 options
             );
-            
+
             // Create collection with lazy driver resolution
             const collection = new Collection<T>(
                 this.getDriverProxy(),
@@ -166,21 +223,32 @@ export class Database {
                 if (this.driver) {
                     return (this.driver as any)[prop];
                 }
-                
+
                 // Return async methods that ensure driver is initialized
-                if (prop === 'exec' || prop === 'query' || prop === 'transaction' || prop === 'close') {
+                if (
+                    prop === 'exec' ||
+                    prop === 'query' ||
+                    prop === 'transaction' ||
+                    prop === 'close'
+                ) {
                     return async (...args: any[]) => {
                         const driver = await this.ensureDriver();
                         return (driver as any)[prop](...args);
                     };
                 }
-                
+
                 // Return sync methods that ensure driver is initialized
-                if (prop === 'execSync' || prop === 'querySync' || prop === 'closeSync') {
+                if (
+                    prop === 'execSync' ||
+                    prop === 'querySync' ||
+                    prop === 'closeSync'
+                ) {
                     return (...args: any[]) => {
                         if (this.config.sharedConnection) {
                             throw new DatabaseError(
-                                `Synchronous operations like '${String(prop)}' are not supported when using a shared connection. Please use asynchronous methods instead.`,
+                                `Synchronous operations like '${String(
+                                    prop
+                                )}' are not supported when using a shared connection. Please use asynchronous methods instead.`,
                                 'SYNC_WITH_SHARED_CONNECTION'
                             );
                         }
@@ -194,14 +262,18 @@ export class Database {
                         return (this.driver as any)[prop](...args);
                     };
                 }
-                
+
                 // For other properties, try to get from current driver or throw
                 if (this.driver) {
                     return (this.driver as any)[prop];
                 }
-                
-                throw new Error(`Driver not initialized and property ${String(prop)} accessed`);
-            }
+
+                throw new Error(
+                    `Driver not initialized and property ${String(
+                        prop
+                    )} accessed`
+                );
+            },
         });
     }
 
@@ -224,8 +296,9 @@ export class Database {
             return result;
         } catch (error) {
             // Enhanced error recovery for transaction failures
-            const transactionError = error instanceof Error ? error : new Error(String(error));
-            
+            const transactionError =
+                error instanceof Error ? error : new Error(String(error));
+
             try {
                 await this.plugins.executeHookSafe('onTransactionError', {
                     ...context,
@@ -233,27 +306,34 @@ export class Database {
                 });
             } catch (pluginError) {
                 // If plugin error handling fails, log it but don't override the original error
-                console.warn('Transaction error plugin hook failed:', pluginError);
+                console.warn(
+                    'Transaction error plugin hook failed:',
+                    pluginError
+                );
             }
-            
+
             // Only wrap specific database-level errors, preserve application errors
-            if (transactionError.message.includes('database is locked') || 
+            if (
+                transactionError.message.includes('database is locked') ||
                 transactionError.message.includes('busy') ||
-                transactionError.message.includes('timeout')) {
+                transactionError.message.includes('timeout')
+            ) {
                 throw new DatabaseError(
                     `Transaction failed due to database lock or timeout: ${transactionError.message}`,
                     'TRANSACTION_LOCK_TIMEOUT'
                 );
             }
-            
-            if (transactionError.message.includes('rollback') ||
-                transactionError.message.includes('abort')) {
+
+            if (
+                transactionError.message.includes('rollback') ||
+                transactionError.message.includes('abort')
+            ) {
                 throw new DatabaseError(
                     `Transaction was rolled back: ${transactionError.message}`,
                     'TRANSACTION_ROLLBACK'
                 );
             }
-            
+
             // Re-throw original error to preserve validation and application errors
             throw error;
         }
@@ -265,10 +345,13 @@ export class Database {
             schema: {} as any,
             operation: 'database_close',
         });
-        
+
         if (this.managedConnection) {
             // Release managed connection back to pool
-            await this.connectionManager.releaseConnection(this.managedConnection.id, true);
+            await this.connectionManager.releaseConnection(
+                this.managedConnection.id,
+                true
+            );
             this.managedConnection = undefined;
         } else if (this.driver) {
             await this.driver.close();
@@ -302,7 +385,9 @@ export class Database {
         // The this.managedConnection check below would only be relevant if, hypothetically,
         // a non-shared connection somehow ended up with a managedConnection, which is not standard.
         if (this.managedConnection) {
-            console.warn('Warning: CloseSync called on a DB with a managedConnection but not configured as shared. This is an inconsistent state.');
+            console.warn(
+                'Warning: CloseSync called on a DB with a managedConnection but not configured as shared. This is an inconsistent state.'
+            );
             this.managedConnection = undefined; // Clear local ref
         } else if (this.driver) {
             this.driver.closeSync();

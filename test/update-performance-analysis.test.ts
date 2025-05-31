@@ -327,7 +327,7 @@ async function analyzeUpdatePerformance() {
 }
 
 // Test structure for running the analysis
-import { describe, it } from 'bun:test';
+import { describe, it } from 'vitest';
 
 describe('Update Performance Analysis', () => {
     it('should analyze update performance bottlenecks', async () => {

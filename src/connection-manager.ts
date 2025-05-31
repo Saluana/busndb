@@ -62,7 +62,9 @@ export class ConnectionManager {
         }
     }
 
-    private async checkConnectionHealth(connection: ManagedConnection): Promise<void> {
+    private async checkConnectionHealth(
+        connection: ManagedConnection
+    ): Promise<void> {
         try {
             // Simple health check query
             await connection.driver.query('SELECT 1');
@@ -78,7 +80,8 @@ export class ConnectionManager {
                 lastHealthCheck: Date.now(),
                 connectionCount: connection.useCount,
                 errorCount: connection.health.errorCount + 1,
-                lastError: error instanceof Error ? error : new Error(String(error)),
+                lastError:
+                    error instanceof Error ? error : new Error(String(error)),
             };
 
             // If connection is consistently unhealthy, remove it
@@ -101,17 +104,19 @@ export class ConnectionManager {
             }
         }
 
-        connectionsToRemove.forEach(id => this.removeConnection(id));
+        connectionsToRemove.forEach((id) => this.removeConnection(id));
     }
 
     async getConnection(
         config: DBConfig,
         shared: boolean = false
     ): Promise<ManagedConnection> {
+        // Auto-detect shared connection from config if not explicitly set
+        const isShared = shared || config.sharedConnection || false;
         const connectionKey = this.generateConnectionKey(config);
 
         // Check for existing shared connection
-        if (shared) {
+        if (isShared) {
             const existing = this.sharedConnections.get(connectionKey);
             if (existing && existing.health.isHealthy) {
                 existing.lastUsed = Date.now();
@@ -138,7 +143,11 @@ export class ConnectionManager {
         }
 
         // Create new connection with retry logic
-        return await this.createConnectionWithRetry(config, connectionKey, shared);
+        return await this.createConnectionWithRetry(
+            config,
+            connectionKey,
+            isShared
+        );
     }
 
     private async createConnectionWithRetry(
@@ -148,10 +157,18 @@ export class ConnectionManager {
     ): Promise<ManagedConnection> {
         let lastError: Error;
 
-        for (let attempt = 0; attempt < this.poolConfig.retryAttempts; attempt++) {
+        for (
+            let attempt = 0;
+            attempt < this.poolConfig.retryAttempts;
+            attempt++
+        ) {
             try {
-                const connection = await this.createConnection(config, connectionKey, shared);
-                
+                const connection = await this.createConnection(
+                    config,
+                    connectionKey,
+                    shared
+                );
+
                 if (shared) {
                     this.sharedConnections.set(connectionKey, connection);
                 } else {
@@ -160,16 +177,21 @@ export class ConnectionManager {
 
                 return connection;
             } catch (error) {
-                lastError = error instanceof Error ? error : new Error(String(error));
-                
+                lastError =
+                    error instanceof Error ? error : new Error(String(error));
+
                 if (attempt < this.poolConfig.retryAttempts - 1) {
-                    await this.delay(this.poolConfig.retryDelay * (attempt + 1));
+                    await this.delay(
+                        this.poolConfig.retryDelay * (attempt + 1)
+                    );
                 }
             }
         }
 
         throw new DatabaseError(
-            `Failed to create connection after ${this.poolConfig.retryAttempts} attempts: ${lastError!.message}`,
+            `Failed to create connection after ${
+                this.poolConfig.retryAttempts
+            } attempts: ${lastError!.message}`,
             'CONNECTION_CREATE_FAILED'
         );
     }
@@ -179,29 +201,62 @@ export class ConnectionManager {
         connectionKey: string,
         shared: boolean
     ): Promise<ManagedConnection> {
-        // Lazy driver creation - import drivers only when needed
-        let driver: Driver;
+        // Use enhanced driver detection for better reliability
+        const { detectDriver } = await import('./driver-detector.js');
+        const detection = detectDriver(config);
 
-        const driverType = config.driver || (typeof Bun !== 'undefined' ? 'bun' : 'node');
+        // Log warnings if any
+        if (detection.warnings.length > 0) {
+            console.warn('Driver detection warnings:', detection.warnings);
+        }
+
+        let driver: Driver;
+        const driverType = detection.recommendedDriver;
 
         try {
-            switch (driverType) {
-                case 'bun':
-                    const { BunDriver } = await import('./drivers/bun.js');
-                    driver = new BunDriver(config);
-                    break;
-                case 'node':
-                    const { NodeDriver } = await import('./drivers/node.js');
-                    driver = new NodeDriver(config);
-                    break;
-                default:
-                    throw new Error(`Unknown driver: ${driverType}`);
-            }
+            driver = await this.createDriverInstance(driverType, config);
         } catch (error) {
-            throw new DatabaseError(
-                `Failed to initialize driver '${driverType}': ${(error as Error).message}`,
-                'DRIVER_INIT_FAILED'
-            );
+            // Try fallback drivers if primary fails
+            if (detection.fallbackDrivers.length > 0) {
+                console.warn(
+                    `Primary driver '${driverType}' failed, trying fallbacks:`,
+                    error
+                );
+
+                for (const fallbackDriver of detection.fallbackDrivers) {
+                    try {
+                        driver = await this.createDriverInstance(
+                            fallbackDriver,
+                            config
+                        );
+                        console.warn(
+                            `Successfully fell back to '${fallbackDriver}' driver`
+                        );
+                        break;
+                    } catch (fallbackError) {
+                        console.warn(
+                            `Fallback driver '${fallbackDriver}' also failed:`,
+                            fallbackError
+                        );
+                    }
+                }
+
+                if (!driver!) {
+                    throw new DatabaseError(
+                        `All drivers failed. Primary: ${driverType} - ${
+                            (error as Error).message
+                        }`,
+                        'ALL_DRIVERS_FAILED'
+                    );
+                }
+            } else {
+                throw new DatabaseError(
+                    `Failed to initialize driver '${driverType}': ${
+                        (error as Error).message
+                    }`,
+                    'DRIVER_INIT_FAILED'
+                );
+            }
         }
 
         const connection: ManagedConnection = {
@@ -219,13 +274,65 @@ export class ConnectionManager {
         };
 
         // Perform initial health check
-        await this.checkConnectionHealth(connection);
+        try {
+            await this.performHealthCheck(connection);
+        } catch (error) {
+            console.warn(
+                `Initial health check failed for connection ${connection.id}:`,
+                error
+            );
+            connection.health.isHealthy = false;
+            connection.health.errorCount = 1;
+        }
 
         return connection;
     }
 
-    async releaseConnection(connectionId: string, shared: boolean = false): Promise<void> {
-        const connection = shared 
+    private async createDriverInstance(
+        driverType: 'bun' | 'node',
+        config: DBConfig
+    ): Promise<Driver> {
+        switch (driverType) {
+            case 'bun':
+                const { BunDriver } = await import('./drivers/bun.js');
+                return new BunDriver(config);
+            case 'node':
+                const { NodeDriver } = await import('./drivers/node.js');
+                return new NodeDriver(config);
+            default:
+                throw new Error(`Unknown driver: ${driverType}`);
+        }
+    }
+
+    private async performHealthCheck(
+        connection: ManagedConnection
+    ): Promise<void> {
+        try {
+            // Simple health check query
+            await connection.driver.query('SELECT 1');
+            connection.health = {
+                isHealthy: true,
+                lastHealthCheck: Date.now(),
+                connectionCount: connection.useCount,
+                errorCount: connection.health.errorCount,
+            };
+        } catch (error) {
+            connection.health = {
+                isHealthy: false,
+                lastHealthCheck: Date.now(),
+                connectionCount: connection.useCount,
+                errorCount: connection.health.errorCount + 1,
+                lastError:
+                    error instanceof Error ? error : new Error(String(error)),
+            };
+        }
+    }
+
+    async releaseConnection(
+        connectionId: string,
+        shared: boolean = false
+    ): Promise<void> {
+        const connection = shared
             ? this.sharedConnections.get(connectionId)
             : this.connections.get(connectionId);
 
@@ -236,14 +343,18 @@ export class ConnectionManager {
     }
 
     private async removeConnection(connectionId: string): Promise<void> {
-        const connection = this.connections.get(connectionId) || 
-                          this.sharedConnections.get(connectionId);
+        const connection =
+            this.connections.get(connectionId) ||
+            this.sharedConnections.get(connectionId);
 
         if (connection) {
             try {
                 await connection.driver.close();
             } catch (error) {
-                console.warn(`Error closing connection ${connectionId}:`, error);
+                console.warn(
+                    `Error closing connection ${connectionId}:`,
+                    error
+                );
             }
 
             this.connections.delete(connectionId);
@@ -262,11 +373,14 @@ export class ConnectionManager {
         ];
 
         await Promise.all(
-            allConnections.map(async connection => {
+            allConnections.map(async (connection) => {
                 try {
                     await connection.driver.close();
                 } catch (error) {
-                    console.warn(`Error closing connection ${connection.id}:`, error);
+                    console.warn(
+                        `Error closing connection ${connection.id}:`,
+                        error
+                    );
                 }
             })
         );
@@ -288,9 +402,10 @@ export class ConnectionManager {
 
         return {
             totalConnections: allConnections.length,
-            activeConnections: allConnections.filter(c => c.isActive).length,
+            activeConnections: allConnections.filter((c) => c.isActive).length,
             sharedConnections: this.sharedConnections.size,
-            healthyConnections: allConnections.filter(c => c.health.isHealthy).length,
+            healthyConnections: allConnections.filter((c) => c.health.isHealthy)
+                .length,
         };
     }
 
@@ -310,7 +425,7 @@ export class ConnectionManager {
     }
 
     private delay(ms: number): Promise<void> {
-        return new Promise(resolve => setTimeout(resolve, ms));
+        return new Promise((resolve) => setTimeout(resolve, ms));
     }
 }
 
