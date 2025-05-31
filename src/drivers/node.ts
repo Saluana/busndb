@@ -15,11 +15,57 @@ export class NodeDriver extends BaseDriver {
 
     constructor(config: DBConfig = {}) {
         super(config);
-        // Lazy initialization - will be done when first needed in ensureInitialized()
+        // Initialize the driver if not using shared connections
+        if (!config.sharedConnection) {
+            this.initializeDriverSync(config);
+        }
     }
 
     protected async initializeDriver(config: DBConfig): Promise<void> {
         await this.initializeDatabase(config);
+    }
+
+    private initializeDriverSync(config: DBConfig): void {
+        try {
+            const path = config.path || ':memory:';
+
+            // For sync initialization, prefer better-sqlite3 since it supports sync operations
+            // LibSQL requires async initialization
+            const isLocalFile =
+                path === ':memory:' ||
+                (!path.startsWith('http://') &&
+                    !path.startsWith('https://') &&
+                    !path.startsWith('libsql://') &&
+                    !(config as any).authToken &&
+                    !(config as any).libsql);
+
+            if (isLocalFile) {
+                this.initializeSQLite(path);
+                this.dbType = 'sqlite';
+                this.configureSQLite(config);
+            } else {
+                // For remote connections or LibSQL, defer to async initialization
+                // This case should be handled by ensureConnection() which calls async initializeDriver
+                return;
+            }
+
+            this.connectionState = {
+                isConnected: true,
+                isHealthy: true,
+                lastHealthCheck: Date.now(),
+                connectionAttempts: 0,
+            };
+        } catch (error) {
+            this.connectionState = {
+                isConnected: false,
+                isHealthy: false,
+                lastHealthCheck: Date.now(),
+                connectionAttempts: 1,
+                lastError:
+                    error instanceof Error ? error : new Error(String(error)),
+            };
+            throw error;
+        }
     }
 
     private async initializeDatabase(config: DBConfig): Promise<void> {
@@ -213,9 +259,9 @@ export class NodeDriver extends BaseDriver {
     }
 
     private ensureInitialized(): void {
-        if (!this.db && !this.libsqlPool) {
-            // Cannot call async initialization from sync context
-            // This will be handled by ensureConnection() in async methods
+        if (!this.db && !this.libsqlPool && !this.isClosed) {
+            // Try sync initialization for local SQLite files
+            this.initializeDriverSync(this.config);
         }
     }
 
