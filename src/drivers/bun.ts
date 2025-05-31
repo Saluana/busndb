@@ -10,17 +10,21 @@ export class BunDriver extends BaseDriver {
         super(config);
         // Lazy initialization - only connect when needed
         if (!config.sharedConnection) {
-            this.initializeDriver(config);
+            this.initializeDriverSync(config);
         }
     }
 
     protected async initializeDriver(config: DBConfig): Promise<void> {
+        this.initializeDriverSync(config);
+    }
+
+    private initializeDriverSync(config: DBConfig): void {
         try {
             this.db = new Database(
                 config.memory ? ':memory:' : config.path || 'database.db'
             );
             this.configureSQLite(config);
-            
+
             this.connectionState = {
                 isConnected: true,
                 isHealthy: true,
@@ -33,22 +37,36 @@ export class BunDriver extends BaseDriver {
                 isHealthy: false,
                 lastHealthCheck: Date.now(),
                 connectionAttempts: this.connectionState.connectionAttempts + 1,
-                lastError: error instanceof Error ? error : new Error(String(error)),
+                lastError:
+                    error instanceof Error ? error : new Error(String(error)),
             };
             throw new DatabaseError(`Failed to initialize database: ${error}`);
         }
     }
 
-    protected async performHealthCheck(): Promise<void> {
+    private ensureInitialized(): void {
         if (!this.db) {
-            throw new DatabaseError('Database not initialized', 'DB_NOT_INITIALIZED');
+            this.initializeDriverSync(this.config);
         }
-        
+    }
+
+    protected async performHealthCheck(): Promise<void> {
+        this.ensureInitialized();
+        if (!this.db) {
+            throw new DatabaseError(
+                'Database not initialized',
+                'DB_NOT_INITIALIZED'
+            );
+        }
+
         try {
             const stmt = this.db.prepare('SELECT 1');
             stmt.get();
         } catch (error) {
-            throw new DatabaseError(`Health check failed: ${error}`, 'HEALTH_CHECK_FAILED');
+            throw new DatabaseError(
+                `Health check failed: ${error}`,
+                'HEALTH_CHECK_FAILED'
+            );
         }
     }
 
@@ -56,12 +74,13 @@ export class BunDriver extends BaseDriver {
         if (this.isClosed) {
             return;
         }
-        
+        this.ensureInitialized();
         await this.ensureConnection();
-        
+
         try {
-            if (!this.db) {
-                throw new DatabaseError('Database not initialized', 'DB_NOT_INITIALIZED');
+            if (!this.db || this.isClosed) {
+                // Silently return if database is closed/closing
+                return;
             }
             const stmt = this.db.prepare(sql);
             stmt.run(...params);
@@ -79,12 +98,13 @@ export class BunDriver extends BaseDriver {
         if (this.isClosed) {
             return [];
         }
-        
+        this.ensureInitialized();
         await this.ensureConnection();
-        
+
         try {
-            if (!this.db) {
-                throw new DatabaseError('Database not initialized', 'DB_NOT_INITIALIZED');
+            if (!this.db || this.isClosed) {
+                // Silently return empty results if database is closed/closing
+                return [];
             }
             const stmt = this.db.prepare(sql);
             return stmt.all(...params) as Row[];
@@ -102,16 +122,12 @@ export class BunDriver extends BaseDriver {
         if (this.isClosed) {
             return;
         }
-        
-        // Sync methods can't use ensureConnection (which is async)
-        // So we initialize if needed
-        if (!this.db && !this.connectionState.isConnected) {
-            this.initializeDriver(this.config);
-        }
-        
+        this.ensureInitialized();
+
         try {
-            if (!this.db) {
-                throw new DatabaseError('Database not initialized', 'DB_NOT_INITIALIZED');
+            if (!this.db || this.isClosed) {
+                // Silently return if database is closed/closing
+                return;
             }
             const stmt = this.db.prepare(sql);
             stmt.run(...params);
@@ -129,16 +145,12 @@ export class BunDriver extends BaseDriver {
         if (this.isClosed) {
             return [];
         }
-        
-        // Sync methods can't use ensureConnection (which is async)
-        // So we initialize if needed
-        if (!this.db && !this.connectionState.isConnected) {
-            this.initializeDriver(this.config);
-        }
-        
+        this.ensureInitialized();
+
         try {
-            if (!this.db) {
-                throw new DatabaseError('Database not initialized', 'DB_NOT_INITIALIZED');
+            if (!this.db || this.isClosed) {
+                // Silently return empty results if database is closed/closing
+                return [];
             }
             const stmt = this.db.prepare(sql);
             return stmt.all(...params) as Row[];

@@ -113,7 +113,9 @@ async function analyzeUpdatePerformance() {
     }));
 
     constrainedCollection.insertBulk(constrainedData);
-    const constrainedIds = constrainedCollection.toArraySync().map((doc) => doc.id);
+    const constrainedIds = constrainedCollection
+        .toArraySync()
+        .map((doc) => doc.id);
 
     const constrainedUpdateResult = benchmark(
         'Updates with Unique Constraints',
@@ -222,6 +224,9 @@ async function analyzeUpdatePerformance() {
         });
     });
     results.push(validationResult);
+
+    // Small delay to ensure all async operations complete
+    await new Promise((resolve) => setTimeout(resolve, 10));
 
     db.close();
 

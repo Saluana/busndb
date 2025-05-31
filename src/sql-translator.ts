@@ -79,7 +79,7 @@ export class SQLTranslator {
         // Build GROUP BY clause
         if (options.groupBy && options.groupBy.length > 0) {
             const groupClauses = options.groupBy.map((field) =>
-                this.qualifyFieldAccess(field, tableName, constrainedFields)
+                this.qualifyFieldAccess(field, tableName, constrainedFields, options.joins)
             );
             sql += ` GROUP BY ${groupClauses.join(', ')}`;
         }
@@ -103,7 +103,8 @@ export class SQLTranslator {
                     `${this.qualifyFieldAccess(
                         order.field,
                         tableName,
-                        constrainedFields
+                        constrainedFields,
+                        options.joins
                     )} ${order.direction.toUpperCase()}`
             );
             sql += ` ORDER BY ${orderClauses.join(', ')}`;
@@ -256,7 +257,7 @@ export class SQLTranslator {
             
             if (options.selectFields && options.selectFields.length > 0) {
                 const selectedFields = options.selectFields.map(field => {
-                    const fieldAccess = this.qualifyFieldAccess(field, tableName, constrainedFields);
+                    const fieldAccess = this.qualifyFieldAccess(field, tableName, constrainedFields, options.joins);
                     // Add alias for better field names in results
                     if (fieldAccess.includes('json_extract')) {
                         return `${fieldAccess} AS "${field}"`;
@@ -269,7 +270,7 @@ export class SQLTranslator {
             }
         } else if (options.selectFields && options.selectFields.length > 0) {
             const selectedFields = options.selectFields.map(field => {
-                const fieldAccess = this.qualifyFieldAccess(field, tableName, constrainedFields);
+                const fieldAccess = this.qualifyFieldAccess(field, tableName, constrainedFields, options.joins);
                 // Add alias for better field names in results
                 if (fieldAccess.includes('json_extract')) {
                     return `${fieldAccess} AS "${field}"`;
@@ -325,7 +326,8 @@ export class SQLTranslator {
     static qualifyFieldAccess(
         field: string,
         tableName: string,
-        constrainedFields?: { [fieldPath: string]: ConstrainedFieldDefinition }
+        constrainedFields?: { [fieldPath: string]: ConstrainedFieldDefinition },
+        joins?: JoinClause[]
     ): string {
         // Handle table-prefixed fields like "users.name" or "posts.title"
         if (field.includes('.')) {
@@ -347,14 +349,19 @@ export class SQLTranslator {
                 return `${tablePrefix}._id`;
             }
             
-            // Check if this looks like a nested path (contains multiple dots or known patterns)
-            // If so, treat it as a JSON path with the current table
-            if (field.split('.').length > 2 || this.isNestedJsonPath(field)) {
-                return `json_extract(${tableName}.doc, '$.${field}')`;
+            // IMPROVED LOGIC: Check if we're in a JOIN context and if the prefix is a known table
+            const knownTables = [tableName];
+            if (joins && joins.length > 0) {
+                knownTables.push(...joins.map(join => join.collection));
             }
             
-            // Use JSON extraction for document fields with table prefix
-            return `json_extract(${tablePrefix}.doc, '$.${fieldName}')`;
+            if (knownTables.includes(tablePrefix)) {
+                // This is a real table.field reference (either main table or joined table)
+                return `json_extract(${tablePrefix}.doc, '$.${fieldName}')`;
+            } else {
+                // This is a nested JSON path (e.g., meta.bio, user.preferences.theme, anything.nested)
+                return `json_extract(${tableName}.doc, '$.${field}')`;
+            }
         }
         
         // Handle non-prefixed fields (legacy behavior)
@@ -370,23 +377,6 @@ export class SQLTranslator {
         return `json_extract(${tableName}.doc, '$.${field}')`;
     }
 
-    /**
-     * Check if a field path represents a nested JSON path rather than a table.field reference
-     */
-    private static isNestedJsonPath(field: string): boolean {
-        // Common patterns that indicate nested JSON paths
-        const nestedPatterns = [
-            'metadata.',
-            'profile.',
-            'settings.',
-            'config.',
-            'performance.',
-            'address.',
-            'location.'
-        ];
-        
-        return nestedPatterns.some(pattern => field.startsWith(pattern));
-    }
 
     static getFieldAccess(field: string): string {
         // Simple field access without table qualification for joins
@@ -619,7 +609,7 @@ export class SQLTranslator {
             if (fieldMatch) {
                 const actualField = fieldMatch[1];
                 const fieldAccess = tableName 
-                    ? this.qualifyFieldAccess(actualField, tableName, constrainedFields)
+                    ? this.qualifyFieldAccess(actualField, tableName, constrainedFields, joins)
                     : getFieldAccess(actualField, constrainedFields);
                 col = filter.field.replace(actualField, fieldAccess);
             } else {
@@ -655,11 +645,11 @@ export class SQLTranslator {
                     // Add more heuristics as needed
                 }
                 
-                col = this.qualifyFieldAccess(filter.field, targetTable || tableName || 'documents', constrainedFields);
+                col = this.qualifyFieldAccess(filter.field, targetTable || tableName || 'documents', constrainedFields, joins);
             }
         } else {
             col = tableName 
-                ? this.qualifyFieldAccess(filter.field, tableName, constrainedFields)
+                ? this.qualifyFieldAccess(filter.field, tableName, constrainedFields, joins)
                 : getFieldAccess(filter.field, constrainedFields);
         }
         const p: any[] = [];

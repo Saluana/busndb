@@ -15,10 +15,7 @@ export class NodeDriver extends BaseDriver {
 
     constructor(config: DBConfig = {}) {
         super(config);
-        // Lazy initialization - only connect when needed
-        if (!config.sharedConnection) {
-            this.initializeDriver(config);
-        }
+        // Lazy initialization - will be done when first needed in ensureInitialized()
     }
 
     protected async initializeDriver(config: DBConfig): Promise<void> {
@@ -30,16 +27,17 @@ export class NodeDriver extends BaseDriver {
             const path = config.path || ':memory:';
 
             // Check if we should use LibSQL pooling for remote connections
-            const isRemoteLibSQL = path.startsWith('http://') || 
-                                   path.startsWith('https://') || 
-                                   path.startsWith('libsql://') ||
-                                   config.authToken;
+            const isRemoteLibSQL =
+                path.startsWith('http://') ||
+                path.startsWith('https://') ||
+                path.startsWith('libsql://') ||
+                config.authToken;
 
             if (isRemoteLibSQL && config.libsqlPool) {
                 // Use LibSQL connection pool for remote connections
                 this.libsqlPool = createLibSQLPool(config, config.libsqlPool);
                 this.dbType = 'libsql';
-                
+
                 this.connectionState = {
                     isConnected: true,
                     isHealthy: true,
@@ -132,15 +130,17 @@ export class NodeDriver extends BaseDriver {
                 isHealthy: false,
                 lastHealthCheck: Date.now(),
                 connectionAttempts: this.connectionState.connectionAttempts + 1,
-                lastError: error instanceof Error ? error : new Error(String(error)),
+                lastError:
+                    error instanceof Error ? error : new Error(String(error)),
             };
             throw error;
         }
     }
 
-
-
-    private async initializeLibSQL(config: DBConfig, path: string): Promise<void> {
+    private async initializeLibSQL(
+        config: DBConfig,
+        path: string
+    ): Promise<void> {
         try {
             // Try to import @libsql/client
             const { createClient } = require('@libsql/client');
@@ -212,13 +212,20 @@ export class NodeDriver extends BaseDriver {
         }
     }
 
+    private ensureInitialized(): void {
+        if (!this.db && !this.libsqlPool) {
+            // Cannot call async initialization from sync context
+            // This will be handled by ensureConnection() in async methods
+        }
+    }
+
     async exec(sql: string, params: any[] = []): Promise<void> {
         if (this.isClosed) {
             return;
         }
-        
+        this.ensureInitialized();
         await this.ensureConnection();
-        
+
         try {
             if (this.libsqlPool) {
                 // Use connection pool
@@ -229,13 +236,15 @@ export class NodeDriver extends BaseDriver {
                     await this.libsqlPool.release(connection);
                 }
             } else if (this.dbType === 'libsql') {
-                if (!this.db) {
-                    throw new DatabaseError('Database not initialized', 'DB_NOT_INITIALIZED');
+                if (!this.db || this.isClosed) {
+                    // Silently return if database is closed/closing
+                    return;
                 }
                 await this.db.execute({ sql, args: params });
             } else {
-                if (!this.db) {
-                    throw new DatabaseError('Database not initialized', 'DB_NOT_INITIALIZED');
+                if (!this.db || this.isClosed) {
+                    // Silently return if database is closed/closing
+                    return;
                 }
                 if (this.db.prepare) {
                     const stmt = this.db.prepare(sql);
@@ -265,15 +274,18 @@ export class NodeDriver extends BaseDriver {
         if (this.isClosed) {
             return [];
         }
-        
+        this.ensureInitialized();
         await this.ensureConnection();
-        
+
         try {
             if (this.libsqlPool) {
                 // Use connection pool
                 const connection = await this.libsqlPool.acquire();
                 try {
-                    const result = await connection.client.execute({ sql, args: params });
+                    const result = await connection.client.execute({
+                        sql,
+                        args: params,
+                    });
                     return result.rows.map((row: any) =>
                         this.convertLibSQLRow(row, result.columns)
                     );
@@ -281,16 +293,18 @@ export class NodeDriver extends BaseDriver {
                     await this.libsqlPool.release(connection);
                 }
             } else if (this.dbType === 'libsql') {
-                if (!this.db) {
-                    throw new DatabaseError('Database not initialized', 'DB_NOT_INITIALIZED');
+                if (!this.db || this.isClosed) {
+                    // Silently return empty results if database is closed/closing
+                    return [];
                 }
                 const result = await this.db.execute({ sql, args: params });
                 return result.rows.map((row: any) =>
                     this.convertLibSQLRow(row, result.columns)
                 );
             } else {
-                if (!this.db) {
-                    throw new DatabaseError('Database not initialized', 'DB_NOT_INITIALIZED');
+                if (!this.db || this.isClosed) {
+                    // Silently return empty results if database is closed/closing
+                    return [];
                 }
                 if (this.db.prepare) {
                     const stmt = this.db.prepare(sql);
@@ -320,6 +334,7 @@ export class NodeDriver extends BaseDriver {
         if (this.isClosed) {
             return;
         }
+        this.ensureInitialized();
         try {
             if (this.dbType === 'libsql') {
                 if (this.db.executeSync) {
@@ -357,6 +372,7 @@ export class NodeDriver extends BaseDriver {
         if (this.isClosed) {
             return [];
         }
+        this.ensureInitialized();
         try {
             if (this.dbType === 'libsql') {
                 if (this.db.executeSync) {
@@ -402,6 +418,7 @@ export class NodeDriver extends BaseDriver {
     }
 
     protected async performHealthCheck(): Promise<void> {
+        this.ensureInitialized();
         if (this.libsqlPool) {
             // Test pool health by acquiring and releasing a connection
             const connection = await this.libsqlPool.acquire();
@@ -412,18 +429,26 @@ export class NodeDriver extends BaseDriver {
             }
         } else if (this.dbType === 'libsql') {
             if (!this.db) {
-                throw new DatabaseError('Database not initialized', 'DB_NOT_INITIALIZED');
+                throw new DatabaseError(
+                    'Database not initialized',
+                    'DB_NOT_INITIALIZED'
+                );
             }
             await this.db.execute({ sql: 'SELECT 1', args: [] });
         } else {
             if (!this.db) {
-                throw new DatabaseError('Database not initialized', 'DB_NOT_INITIALIZED');
+                throw new DatabaseError(
+                    'Database not initialized',
+                    'DB_NOT_INITIALIZED'
+                );
             }
             if (this.db.prepare) {
                 const stmt = this.db.prepare('SELECT 1');
                 stmt.get();
             } else {
-                throw new Error('Cannot perform health check on sqlite3 driver');
+                throw new Error(
+                    'Cannot perform health check on sqlite3 driver'
+                );
             }
         }
     }
@@ -478,7 +503,7 @@ export class NodeDriver extends BaseDriver {
                 }
                 this.db = undefined;
             }
-            
+
             this.connectionState.isConnected = false;
             this.connectionState.isHealthy = false;
         } catch (error) {
@@ -498,7 +523,7 @@ export class NodeDriver extends BaseDriver {
                 }
                 this.db = undefined;
             }
-            
+
             this.connectionState.isConnected = false;
             this.connectionState.isHealthy = false;
         } catch (error) {

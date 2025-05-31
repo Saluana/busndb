@@ -66,8 +66,9 @@ export class Database {
     }
 
     private createDriver(config: DBConfig): Driver {
-        const driver =
-            config.driver || (typeof Bun !== 'undefined' ? 'bun' : 'node');
+        // Better Bun detection
+        const isBun = typeof Bun !== 'undefined' || typeof process !== 'undefined' && process.versions?.bun;
+        const driver = config.driver || (isBun ? 'bun' : 'node');
 
         try {
             switch (driver) {
