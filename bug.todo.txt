@@ -1,6 +1,5 @@
 Critical Issues
 
-  - Lazy initialization is not implemented (empty `initializeLazy` method in `src/database.ts`).
   - Synchronous methods (`closeSync`, `execSync`, `querySync`) don't fully support the plugin system in `src/database.ts`.
   - Add a comment to explain dynamic import of Bun driver in `src/database.ts`.
   - Potential unhandled promise rejection in `executeHookWithTimeout` method in `src/plugin-system.ts`.

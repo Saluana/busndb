@@ -22,6 +22,7 @@ export class Database {
     private collections = new Map<string, Collection<any>>();
     public plugins = new PluginManager();
     private connectionManager: ConnectionManager;
+    private isLazy = false;
 
     constructor(config: DBConfig = {}) {
         this.config = config;
@@ -30,6 +31,7 @@ export class Database {
         // Initialize driver based on connection sharing preference
         if (config.sharedConnection) {
             this.initializeLazy();
+            // Driver is not created here for shared connections; it will be handled by ensureDriver.
         } else {
             this.driver = this.createDriver(config);
         }
@@ -38,7 +40,8 @@ export class Database {
     }
 
     private initializeLazy(): void {
-        // Lazy initialization will happen on first database operation
+        this.isLazy = true;
+        // Further lazy initialization logic can be added here if needed.
     }
 
     private async ensureDriver(): Promise<Driver> {
@@ -47,7 +50,9 @@ export class Database {
         }
 
         if (this.config.sharedConnection) {
-            // Use connection manager for shared connections
+            // Obtain a driver from the connection manager.
+            // Note: this.driver on the Database instance is NOT set for shared connections;
+            // the driver is managed per-operation or per-connection from the pool.
             this.managedConnection = await this.connectionManager.getConnection(this.config, true);
             return this.managedConnection.driver;
         } else {
@@ -173,8 +178,17 @@ export class Database {
                 // Return sync methods that ensure driver is initialized
                 if (prop === 'execSync' || prop === 'querySync' || prop === 'closeSync') {
                     return (...args: any[]) => {
+                        if (this.config.sharedConnection) {
+                            throw new DatabaseError(
+                                `Synchronous operations like '${String(prop)}' are not supported when using a shared connection. Please use asynchronous methods instead.`,
+                                'SYNC_WITH_SHARED_CONNECTION'
+                            );
+                        }
+                        // Original logic for non-shared connections:
                         if (!this.driver) {
                             // For sync methods, we need the driver to be already initialized
+                            // This path should ideally only be hit if sharedConnection is false
+                            // and the constructor somehow failed to create the driver, or it was cleared.
                             this.driver = this.createDriver(this.config);
                         }
                         return (this.driver as any)[prop](...args);

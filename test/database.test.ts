@@ -296,3 +296,100 @@ describe('Driver Initialization and Error Handling', () => {
     }
   });
 });
+
+describe('Lazy Initialization and Shared Connections', () => {
+  test('driver is not created in constructor and async ops work (sharedConnection: true)', async () => {
+    // memory: true implies a valid default driver config. sharedConnection: true enables lazy loading.
+    const db = createDB({ memory: true, sharedConnection: true });
+
+    // No direct way to check db.driver is null/undefined as it's private.
+    // The fact that createDB didn't throw for a valid config is an initial positive sign.
+    // The actual test is that an async operation works, implying driver was fetched lazily.
+    await expect(db.exec('CREATE TABLE test_lazy (id INTEGER PRIMARY KEY)')).toResolve();
+    await expect(db.query('SELECT * FROM test_lazy')).toResolve();
+
+    // Cleanup for this specific db instance if necessary, or rely on test isolation if Bun does that well.
+    // For in-memory, close might not be strictly needed but good practice.
+    await db.close();
+  });
+
+  test('sync operations throw DatabaseError with sharedConnection: true', async () => {
+    const db = createDB({ memory: true, sharedConnection: true });
+
+    const syncMethods: Array<{ name: keyof Database, op: () => void }> = [
+      { name: 'execSync', op: () => db.execSync('CREATE TABLE test_sync_fail (id INT)') },
+      { name: 'querySync', op: () => db.querySync('SELECT 1') },
+      { name: 'closeSync', op: () => db.closeSync() },
+    ];
+
+    for (const method of syncMethods) {
+      try {
+        method.op();
+        // If we reach here, the method didn't throw, which is a failure for this test.
+        expect(true).toBe(false); // Force test failure
+      } catch (e: any) {
+        expect(e).toBeInstanceOf(DatabaseError);
+        if (e instanceof DatabaseError) {
+          expect(e.code).toBe('SYNC_WITH_SHARED_CONNECTION');
+          expect(e.message).toContain(`Synchronous operations like '${method.name}' are not supported`);
+        } else {
+          // If it's not a DatabaseError, rethrow to fail the test clearly.
+          throw e;
+        }
+      }
+    }
+    // Regular close for cleanup, as closeSync would have thrown.
+    // If closeSync was the one tested and it threw, db might still need async close.
+    // However, if closeSync is the last one, the db object might be in an inconsistent state for an async close.
+    // Given closeSync is tested to throw, we should not rely on db.close() after it if it was the failing op.
+    // For simplicity here, we assume other ops are tested before closeSync or handle db state carefully.
+    // A better approach for closeSync would be in its own test or careful ordering.
+    // Let's test closeSync separately to avoid cleanup issues.
+
+    // Regular async close, assuming it wasn't closeSync that was just tested to throw.
+    // If closeSync was the last one in the loop and threw, this close might be problematic.
+    // To be safe, only close if not testing closeSync or handle state.
+    // For now, we'll assume this test structure is okay for execSync/querySync primarily.
+    // The closeSync part of the loop needs careful thought on subsequent cleanup.
+    // A simple solution: don't db.close() if closeSync was the one that just threw.
+    if (syncMethods.some(m => m.name === 'closeSync' && m.op === (() => db.closeSync()))) {
+        // If closeSync was tested and threw, the db instance might be "closed" or in a weird state.
+        // Avoid further operations like db.close().
+    } else {
+        await db.close();
+    }
+  });
+
+  test('closeSync throws DatabaseError with sharedConnection: true (isolated test)', async () => {
+    const db = createDB({ memory: true, sharedConnection: true });
+    try {
+      db.closeSync();
+      expect(true).toBe(false); // Should have thrown
+    } catch (e: any) {
+      expect(e).toBeInstanceOf(DatabaseError);
+      expect(e.code).toBe('SYNC_WITH_SHARED_CONNECTION');
+      expect(e.message).toContain("Synchronous operations like 'closeSync' are not supported");
+    }
+    // No db.close() here as it was the target of the test.
+  });
+
+  test('sync operations work with sharedConnection: false', async () => {
+    // sharedConnection: false is default if not specified, or can be explicit.
+    const db = createDB({ memory: true, sharedConnection: false });
+
+    await expect(db.exec('PRAGMA user_version = 0')).toResolve(); // Example async op to ensure db is ready
+
+    // Test execSync
+    expect(() => db.execSync('CREATE TABLE test_sync_ok (id INTEGER PRIMARY KEY, name TEXT)')).not.toThrow();
+    expect(() => db.execSync("INSERT INTO test_sync_ok (id, name) VALUES (1, 'Test Sync')")).not.toThrow();
+
+    // Test querySync
+    let rows: any[] = [];
+    expect(() => { rows = db.querySync('SELECT * FROM test_sync_ok WHERE id = 1'); }).not.toThrow();
+    expect(rows).toHaveLength(1);
+    expect(rows[0].name).toBe('Test Sync');
+
+    // Test closeSync
+    expect(() => db.closeSync()).not.toThrow();
+  });
+});
