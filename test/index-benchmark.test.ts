@@ -188,7 +188,9 @@ async function runIndexBenchmarks() {
     usersNonIndexed.insertBulkSync(testData);
 
     console.log(
-        `Total documents in each collection: ${usersIndexed.toArraySync().length}\n`
+        `Total documents in each collection: ${
+            usersIndexed.toArraySync().length
+        }\n`
     );
 
     // Benchmark 1: Point Queries (Equality) - Shallow Fields
@@ -500,7 +502,7 @@ async function runIndexBenchmarks() {
 }
 
 // Test structure for running the benchmark
-import { describe, it } from 'bun:test';
+import { describe, it } from 'vitest';
 
 describe('Index Performance Benchmark', () => {
     it('should demonstrate performance improvements with indexes', async () => {

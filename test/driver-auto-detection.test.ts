@@ -7,7 +7,7 @@
  * - driver-auto-detection-node.test.ts (Node.js-specific tests)
  */
 
-import { describe, it, expect } from 'bun:test';
+import { describe, it, expect } from 'vitest';
 import { Database } from '../src/database';
 import {
     detectDriver,
