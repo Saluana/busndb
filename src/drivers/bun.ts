@@ -94,7 +94,7 @@ export class BunDriver extends BaseDriver {
         }
     }
 
-    async query(sql: string, params: any[] = []): Promise<Row[]> {
+    protected async _query(sql: string, params: any[] = []): Promise<Row[]> {
         if (this.isClosed) {
             return [];
         }
@@ -141,7 +141,7 @@ export class BunDriver extends BaseDriver {
         }
     }
 
-    querySync(sql: string, params: any[] = []): Row[] {
+    protected _querySync(sql: string, params: any[] = []): Row[] {
         if (this.isClosed) {
             return [];
         }

@@ -43,18 +43,27 @@ export class NodeDriver extends BaseDriver {
                 this.initializeSQLite(path);
                 this.dbType = 'sqlite';
                 this.configureSQLite(config);
+
+                this.connectionState = {
+                    isConnected: true,
+                    isHealthy: true,
+                    lastHealthCheck: Date.now(),
+                    connectionAttempts: 0,
+                };
             } else {
                 // For remote connections or LibSQL, defer to async initialization
                 // This case should be handled by ensureConnection() which calls async initializeDriver
+                this.connectionState = {
+                    isConnected: false,
+                    isHealthy: false,
+                    lastHealthCheck: Date.now(),
+                    connectionAttempts: 0,
+                    lastError: new Error(
+                        'Sync initialization not possible for remote connections. Use async methods.'
+                    ),
+                };
                 return;
             }
-
-            this.connectionState = {
-                isConnected: true,
-                isHealthy: true,
-                lastHealthCheck: Date.now(),
-                connectionAttempts: 0,
-            };
         } catch (error) {
             this.connectionState = {
                 isConnected: false,
@@ -265,6 +274,29 @@ export class NodeDriver extends BaseDriver {
         }
     }
 
+    private ensureSyncOperationSupported(): void {
+        if (!this.db || this.isClosed) {
+            throw new DatabaseError(
+                'Database not available for synchronous operations. Use async methods or ensure proper initialization.',
+                'DB_NOT_AVAILABLE_SYNC'
+            );
+        }
+
+        if (this.dbType === 'libsql' && !this.db.executeSync) {
+            throw new DatabaseError(
+                'LibSQL sync operations not available. Use async methods (exec/query) or switch to better-sqlite3 for sync support.',
+                'SYNC_NOT_SUPPORTED'
+            );
+        }
+
+        if (!this.db.prepare) {
+            throw new DatabaseError(
+                'sqlite3 driver requires async operations. Use better-sqlite3 for sync interface or use async methods.',
+                'SYNC_NOT_SUPPORTED'
+            );
+        }
+    }
+
     async exec(sql: string, params: any[] = []): Promise<void> {
         if (this.isClosed) {
             return;
@@ -316,7 +348,7 @@ export class NodeDriver extends BaseDriver {
         }
     }
 
-    async query(sql: string, params: any[] = []): Promise<Row[]> {
+    protected async _query(sql: string, params: any[] = []): Promise<Row[]> {
         if (this.isClosed) {
             return [];
         }
@@ -381,25 +413,14 @@ export class NodeDriver extends BaseDriver {
             return;
         }
         this.ensureInitialized();
+        this.ensureSyncOperationSupported();
+
         try {
             if (this.dbType === 'libsql') {
-                if (this.db.executeSync) {
-                    this.db.executeSync({ sql, args: params });
-                } else {
-                    throw new DatabaseError(
-                        'LibSQL sync operations not available. Use async methods (exec) or switch to better-sqlite3 for sync support.',
-                        sql
-                    );
-                }
+                this.db.executeSync({ sql, args: params });
             } else {
-                if (this.db.prepare) {
-                    const stmt = this.db.prepare(sql);
-                    stmt.run(params);
-                } else {
-                    throw new Error(
-                        'sqlite3 driver requires async operations. Use better-sqlite3 for sync interface.'
-                    );
-                }
+                const stmt = this.db.prepare(sql);
+                stmt.run(params);
             }
         } catch (error) {
             if (this.handleClosedDatabase(error)) {
@@ -414,33 +435,22 @@ export class NodeDriver extends BaseDriver {
         }
     }
 
-    querySync(sql: string, params: any[] = []): Row[] {
+    protected _querySync(sql: string, params: any[] = []): Row[] {
         if (this.isClosed) {
             return [];
         }
         this.ensureInitialized();
+        this.ensureSyncOperationSupported();
+
         try {
             if (this.dbType === 'libsql') {
-                if (this.db.executeSync) {
-                    const result = this.db.executeSync({ sql, args: params });
-                    return result.rows.map((row: any) =>
-                        this.convertLibSQLRow(row, result.columns)
-                    );
-                } else {
-                    throw new DatabaseError(
-                        'LibSQL sync operations not available. Use async methods (query) or switch to better-sqlite3 for sync support.',
-                        sql
-                    );
-                }
+                const result = this.db.executeSync({ sql, args: params });
+                return result.rows.map((row: any) =>
+                    this.convertLibSQLRow(row, result.columns)
+                );
             } else {
-                if (this.db.prepare) {
-                    const stmt = this.db.prepare(sql);
-                    return stmt.all(params);
-                } else {
-                    throw new Error(
-                        'sqlite3 driver requires async operations. Use better-sqlite3 for sync interface.'
-                    );
-                }
+                const stmt = this.db.prepare(sql);
+                return stmt.all(params);
             }
         } catch (error) {
             if (this.handleClosedDatabase(error)) {
@@ -569,7 +579,9 @@ export class NodeDriver extends BaseDriver {
                         this.db.closeSync();
                     } else if (this.db.close) {
                         this.db.close();
-                        console.warn("Warning: Called a potentially asynchronous close() method on a LibSQL non-pooled connection during closeDatabaseSync. Full synchronous cleanup cannot be guaranteed. Consider using the asynchronous close() method for LibSQL connections.");
+                        console.warn(
+                            'Warning: Called a potentially asynchronous close() method on a LibSQL non-pooled connection during closeDatabaseSync. Full synchronous cleanup cannot be guaranteed. Consider using the asynchronous close() method for LibSQL connections.'
+                        );
                     }
                 } else {
                     // For other dbTypes like 'sqlite'

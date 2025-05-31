@@ -51,7 +51,9 @@ export abstract class BaseDriver implements Driver {
     }
 
     protected async reconnect(): Promise<void> {
-        if (this.connectionState.connectionAttempts >= this.maxReconnectAttempts) {
+        if (
+            this.connectionState.connectionAttempts >= this.maxReconnectAttempts
+        ) {
             throw new DatabaseError(
                 `Max reconnection attempts (${this.maxReconnectAttempts}) exceeded`,
                 'MAX_RECONNECT_ATTEMPTS'
@@ -60,10 +62,13 @@ export abstract class BaseDriver implements Driver {
 
         try {
             await this.closeDatabase();
-            await this.delay(this.reconnectDelay * (this.connectionState.connectionAttempts + 1));
-            
+            await this.delay(
+                this.reconnectDelay *
+                    (this.connectionState.connectionAttempts + 1)
+            );
+
             await this.initializeDriver(this.config);
-            
+
             this.connectionState = {
                 isConnected: true,
                 isHealthy: true,
@@ -72,7 +77,8 @@ export abstract class BaseDriver implements Driver {
             };
         } catch (error) {
             this.connectionState.connectionAttempts++;
-            this.connectionState.lastError = error instanceof Error ? error : new Error(String(error));
+            this.connectionState.lastError =
+                error instanceof Error ? error : new Error(String(error));
             throw error;
         }
     }
@@ -85,7 +91,8 @@ export abstract class BaseDriver implements Driver {
             return true;
         } catch (error) {
             this.connectionState.isHealthy = false;
-            this.connectionState.lastError = error instanceof Error ? error : new Error(String(error));
+            this.connectionState.lastError =
+                error instanceof Error ? error : new Error(String(error));
             return false;
         }
     }
@@ -96,7 +103,7 @@ export abstract class BaseDriver implements Driver {
     }
 
     private delay(ms: number): Promise<void> {
-        return new Promise(resolve => setTimeout(resolve, ms));
+        return new Promise((resolve) => setTimeout(resolve, ms));
     }
 
     getConnectionState(): ConnectionState {
@@ -121,12 +128,12 @@ export abstract class BaseDriver implements Driver {
             if (freeMemoryBytes < 160 * MB_IN_BYTES) {
                 calculatedCacheKiB = MIN_CACHE_KIB;
             } else {
-                let baseCacheBytes = freeMemoryBytes * 0.10; // 10% of free memory
+                let baseCacheBytes = freeMemoryBytes * 0.1; // 10% of free memory
 
                 if (this.queryCount < 100) {
-                    baseCacheBytes *= 0.50; // 50% of base for low query count
+                    baseCacheBytes *= 0.5; // 50% of base for low query count
                 } else if (this.queryCount >= 1000) {
-                    baseCacheBytes *= 1.50; // 150% of base for high query count
+                    baseCacheBytes *= 1.5; // 150% of base for high query count
                 }
                 // For 100 <= queryCount < 1000, it's 100% of base, so no change.
 
@@ -136,10 +143,16 @@ export abstract class BaseDriver implements Driver {
                 // Clamp the value within defined min/max bounds
                 // Note: Since values are negative, Math.max is used for lower bound (less negative)
                 // and Math.min for upper bound (more negative).
-                calculatedCacheKiB = Math.max(MAX_CACHE_KIB, Math.min(MIN_CACHE_KIB, -cacheKiB));
+                calculatedCacheKiB = Math.max(
+                    MAX_CACHE_KIB,
+                    Math.min(MIN_CACHE_KIB, -cacheKiB)
+                );
             }
         } catch (error) {
-            console.warn('Warning: Failed to calculate dynamic cache size, defaulting to MIN_CACHE_KIB. Error:', error);
+            console.warn(
+                'Warning: Failed to calculate dynamic cache size, defaulting to MIN_CACHE_KIB. Error:',
+                error
+            );
             calculatedCacheKiB = MIN_CACHE_KIB;
         }
 
@@ -147,7 +160,6 @@ export abstract class BaseDriver implements Driver {
             journalMode: 'WAL',
             synchronous: 'NORMAL',
             busyTimeout: 5000,
-            cacheSize: calculatedCacheKiB,
             tempStore: 'MEMORY',
             lockingMode: 'NORMAL',
             autoVacuum: 'NONE',
@@ -188,14 +200,13 @@ export abstract class BaseDriver implements Driver {
         );
     }
 
-
     async transaction<T>(fn: () => Promise<T>): Promise<T> {
         if (this.isInTransaction) {
             return await fn();
         }
 
         await this.ensureConnection();
-        
+
         this.isInTransaction = true;
         await this.exec('BEGIN');
         try {
@@ -210,7 +221,7 @@ export abstract class BaseDriver implements Driver {
             } catch (rollbackError) {
                 // If rollback fails, log the error but don't override the original error
                 console.warn('Failed to rollback transaction:', rollbackError);
-                
+
                 // If database is closed, handle gracefully
                 if (this.handleClosedDatabase(rollbackError)) {
                     this.connectionState.isConnected = false;
@@ -218,12 +229,14 @@ export abstract class BaseDriver implements Driver {
                     this.isClosed = true;
                     this.isInTransaction = false;
                     throw new DatabaseError(
-                        `Transaction failed and database was closed during rollback: ${(error as Error).message}`,
+                        `Transaction failed and database was closed during rollback: ${
+                            (error as Error).message
+                        }`,
                         'TRANSACTION_ROLLBACK_DB_CLOSED'
                     );
                 }
             }
-            
+
             this.isInTransaction = false;
             throw error;
         }

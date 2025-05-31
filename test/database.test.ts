@@ -332,7 +332,7 @@ describe('Driver Initialization and Error Handling', () => {
                         'Failed to create connection'
                     );
                     expect(error.message).toContain(
-                        'Unknown driver: invalid-driver-name'
+                        'Invalid driver: invalid-driver-name'
                     );
                 } else {
                     // Should not happen if toBeInstanceOf passed
