@@ -1,6 +1,5 @@
 Critical Issues
 
-  - Add a comment to explain dynamic import of Bun driver in `src/database.ts`.
   - Potential unhandled promise rejection in `executeHookWithTimeout` method in `src/plugin-system.ts`.
   - Plugin hook registration in `src/plugin-system.ts` might not be robust enough to find all hook methods.
 
