@@ -2,6 +2,7 @@ import { describe, test, expect, beforeEach, afterEach } from 'vitest';
 import { z } from 'zod';
 import { Database } from '../src/database';
 import type { CollectionSchema, VectorSearchOptions } from '../src/types';
+import 'dotenv/config';
 
 // OpenAI API helper
 async function getEmbedding(text: string): Promise<number[]> {
