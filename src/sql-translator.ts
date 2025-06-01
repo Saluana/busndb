@@ -232,14 +232,19 @@ export class SQLTranslator {
             const vectorValue = constrainedValues[fieldPath];
             
             if (vectorValue && Array.isArray(vectorValue)) {
-                // Update or insert vector data
-                const sql = `INSERT OR REPLACE INTO ${vectorTableName} (rowid, ${columnName}) VALUES (
+                // For updates, first delete existing vector, then insert new one
+                // Delete existing vector data
+                const deleteSql = `DELETE FROM ${vectorTableName} WHERE rowid = (SELECT rowid FROM ${tableName} WHERE _id = ?)`;
+                queries.push({ sql: deleteSql, params: [id] });
+                
+                // Insert new vector data
+                const insertSql = `INSERT INTO ${vectorTableName} (rowid, ${columnName}) VALUES (
                     (SELECT rowid FROM ${tableName} WHERE _id = ?), ?
                 )`;
                 // Convert to Float32Array for sqlite-vec, compatible with better-sqlite3
                 const vectorArray = new Float32Array(vectorValue);
                 const params = [id, Buffer.from(vectorArray.buffer)];
-                queries.push({ sql, params });
+                queries.push({ sql: insertSql, params });
             }
         }
         
