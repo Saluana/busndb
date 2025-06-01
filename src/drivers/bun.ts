@@ -2,6 +2,7 @@ import { Database } from 'bun:sqlite';
 import type { Row, DBConfig } from '../types';
 import { DatabaseError } from '../errors';
 import { BaseDriver } from './base';
+import * as sqliteVec from 'sqlite-vec';
 
 export class BunDriver extends BaseDriver {
     private db?: Database;
@@ -20,9 +21,65 @@ export class BunDriver extends BaseDriver {
 
     private initializeDriverSync(config: DBConfig): void {
         try {
+            // Set custom SQLite library for extension support
+            try {
+                // Try common SQLite library paths
+                const sqlitePaths = [
+                    '/opt/homebrew/lib/libsqlite3.dylib', // Homebrew on Apple Silicon
+                    '/usr/local/opt/sqlite/lib/libsqlite3.dylib', // Homebrew on Intel macOS
+                    '/usr/lib/x86_64-linux-gnu/libsqlite3.so.0', // Ubuntu/Debian
+                    '/usr/lib/libsqlite3.so', // Generic Linux
+                ];
+
+                let sqliteSet = false;
+                for (const path of sqlitePaths) {
+                    try {
+                        // Check if file exists using require('fs')
+                        const fs = require('fs');
+                        if (fs.existsSync(path)) {
+                            Database.setCustomSQLite(path);
+                            sqliteSet = true;
+                            console.log(`Using SQLite library: ${path}`);
+                            break;
+                        }
+                    } catch (e) {
+                        // Continue to next path
+                        continue;
+                    }
+                }
+
+                if (!sqliteSet) {
+                    console.warn(
+                        'Warning: No compatible SQLite library found. Extension loading may fail.'
+                    );
+                }
+            } catch (error) {
+                console.warn(
+                    'Warning: Could not set custom SQLite library:',
+                    error
+                );
+            }
+
             this.db = new Database(
                 config.memory ? ':memory:' : config.path || 'database.db'
             );
+            if (!this.db) {
+                throw new DatabaseError('Failed to create SQLite database');
+            }
+            // Load sqlite-vec extension
+            try {
+                // Use the proper sqlite-vec loading approach for Bun
+                const vec0Path = sqliteVec.getLoadablePath();
+                this.db.loadExtension(vec0Path);
+                console.log('Successfully loaded sqlite-vec extension');
+            } catch (error) {
+                console.warn(
+                    'Warning: Failed to load sqlite-vec extension. Vector operations will not be available:',
+                    error
+                );
+                // Vector search functionality will not be available, but basic operations should still work
+            }
+
             this.configureSQLite(config);
 
             this.connectionState = {

@@ -3,6 +3,7 @@ import { DatabaseError } from '../errors';
 import { createRequire } from 'module';
 import { BaseDriver } from './base.js';
 import { LibSQLConnectionPool, createLibSQLPool } from '../libsql-pool';
+import * as sqliteVec from 'sqlite-vec';
 
 // Create require function for ES modules
 const require = createRequire(import.meta.url);
@@ -128,8 +129,15 @@ export class NodeDriver extends BaseDriver {
                                 '  npm install @libsql/client    (recommended - works with SQLite and LibSQL)\n' +
                                 '  npm install better-sqlite3    (local files only - sync operations)\n' +
                                 '\nErrors encountered:\n' +
-                                'LibSQL: ' + (libsqlError instanceof Error ? libsqlError.message : String(libsqlError)) + '\n' +
-                                'SQLite: ' + (sqliteError instanceof Error ? sqliteError.message : String(sqliteError))
+                                'LibSQL: ' +
+                                (libsqlError instanceof Error
+                                    ? libsqlError.message
+                                    : String(libsqlError)) +
+                                '\n' +
+                                'SQLite: ' +
+                                (sqliteError instanceof Error
+                                    ? sqliteError.message
+                                    : String(sqliteError))
                         );
                     }
                 } else {
@@ -137,7 +145,10 @@ export class NodeDriver extends BaseDriver {
                     throw new DatabaseError(
                         'LibSQL client required for remote connections. Install with:\n' +
                             '  npm install @libsql/client\n' +
-                            '\nError: ' + (libsqlError instanceof Error ? libsqlError.message : String(libsqlError))
+                            '\nError: ' +
+                            (libsqlError instanceof Error
+                                ? libsqlError.message
+                                : String(libsqlError))
                     );
                 }
             }
@@ -199,6 +210,23 @@ export class NodeDriver extends BaseDriver {
             }
 
             this.db = createClient(clientConfig);
+
+            // Load sqlite-vec extension for LibSQL
+            try {
+                // For LibSQL we need to use a different approach since it doesn't have direct access to the JS object
+                // Get the extension path and use SQL to load it
+                const extensionPath = sqliteVec
+                    .getLoadablePath()
+                    .replace(/\\/g, '\\\\');
+                await this.db.execute({
+                    sql: `SELECT load_extension('${extensionPath}')`,
+                });
+            } catch (error) {
+                console.warn(
+                    'Warning: Failed to load sqlite-vec extension for LibSQL:',
+                    error
+                );
+            }
         } catch (error) {
             throw new Error(
                 'libsql client not found. Install with: npm install @libsql/client'
@@ -214,9 +242,23 @@ export class NodeDriver extends BaseDriver {
                 name: 'better-sqlite3',
                 init: () => {
                     const Database = require('better-sqlite3');
-                    return new Database(path === ':memory:' ? ':memory:' : path);
+                    const db = new Database(
+                        path === ':memory:' ? ':memory:' : path
+                    );
+
+                    // Load sqlite-vec extension for better-sqlite3
+                    try {
+                        sqliteVec.load(db);
+                    } catch (error) {
+                        console.warn(
+                            'Warning: Failed to load sqlite-vec extension for better-sqlite3:',
+                            error
+                        );
+                    }
+
+                    return db;
                 },
-                supports: { sync: true, async: true }
+                supports: { sync: true, async: true },
             },
             {
                 name: 'sqlite3',
@@ -224,18 +266,22 @@ export class NodeDriver extends BaseDriver {
                     const sqlite3 = require('sqlite3');
                     return new sqlite3.Database(path);
                 },
-                supports: { sync: false, async: true }
-            }
+                supports: { sync: false, async: true },
+            },
         ];
 
         const errors: string[] = [];
-        
+
         for (const driver of drivers) {
             try {
                 this.db = driver.init();
                 return;
             } catch (error) {
-                errors.push(`${driver.name}: ${error instanceof Error ? error.message : String(error)}`);
+                errors.push(
+                    `${driver.name}: ${
+                        error instanceof Error ? error.message : String(error)
+                    }`
+                );
             }
         }
 
@@ -243,7 +289,8 @@ export class NodeDriver extends BaseDriver {
             'No SQLite driver found. Install one of:\n' +
                 '  npm install better-sqlite3    (recommended - sync operations)\n' +
                 '  npm install sqlite3           (async operations only)\n' +
-                '\nErrors encountered:\n' + errors.join('\n')
+                '\nErrors encountered:\n' +
+                errors.join('\n')
         );
     }
 

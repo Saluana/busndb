@@ -78,6 +78,12 @@ export function inferSQLiteType(zodType: z.ZodType, fieldDef?: ConstrainedFieldD
         case 'ZodDate':
             return 'TEXT'; // Store as ISO string
         case 'ZodArray':
+            // Check if this is a vector array (number array)
+            const itemType = (zodType as any)._def.type;
+            if (itemType && (itemType._def as any).typeName === 'ZodNumber') {
+                return 'VECTOR';
+            }
+            return 'TEXT'; // Regular arrays serialize as JSON
         case 'ZodObject':
             return 'TEXT'; // Serialize as JSON
         case 'ZodOptional':
@@ -184,6 +190,12 @@ export function convertValueForStorage(value: any, sqliteType: string): any {
             return String(value);
         case 'BLOB':
             return value; // Let SQLite handle blob conversion
+        case 'VECTOR':
+            // Convert array to JSON string for vec0 storage
+            if (Array.isArray(value)) {
+                return JSON.stringify(value);
+            }
+            return JSON.stringify([value]); // Single number becomes array
         default:
             return value;
     }
@@ -214,6 +226,16 @@ export function convertValueFromStorage(value: any, sqliteType: string): any {
             return String(value);
         case 'BLOB':
             return value;
+        case 'VECTOR':
+            // Parse vector from JSON string
+            if (typeof value === 'string') {
+                try {
+                    return JSON.parse(value);
+                } catch {
+                    return [];
+                }
+            }
+            return Array.isArray(value) ? value : [];
         default:
             return value;
     }

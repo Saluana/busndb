@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { Driver, CollectionSchema, InferSchema } from './types';
+import type { Driver, CollectionSchema, InferSchema, VectorSearchOptions, VectorSearchResult } from './types';
 import { QueryBuilder, FieldBuilder } from './query-builder';
 import { SQLTranslator } from './sql-translator';
 import { SchemaSQLGenerator } from './schema-sql-generator.js';
@@ -12,6 +12,7 @@ import { parseDoc, mergeConstrainedFields } from './json-utils.js';
 import type { QueryablePaths, OrderablePaths } from './types/nested-paths';
 import type { PluginManager } from './plugin-system';
 import { Migrator } from './migrator';
+import { fieldPathToColumnName } from './constrained-fields';
 
 export class Collection<T extends z.ZodSchema> {
     private driver: Driver;
@@ -67,7 +68,19 @@ export class Collection<T extends z.ZodSchema> {
 
             // Execute additional SQL for indexes and constraints
             for (const additionalQuery of additionalSQL) {
-                this.driver.execSync(additionalQuery);
+                try {
+                    this.driver.execSync(additionalQuery);
+                } catch (error) {
+                    // If vector table creation fails, log warning but continue
+                    if (error instanceof Error && (
+                        error.message.includes('vec0') || 
+                        error.message.includes('no such module')
+                    )) {
+                        console.warn(`Warning: Vector table creation failed (extension not available): ${error.message}. Vector search functionality will be disabled.`);
+                    } else {
+                        throw error;
+                    }
+                }
             }
             
             this.isInitialized = true;
@@ -101,7 +114,19 @@ export class Collection<T extends z.ZodSchema> {
             await this.driver.exec(sql);
 
             for (const additionalQuery of additionalSQL) {
-                await this.driver.exec(additionalQuery);
+                try {
+                    await this.driver.exec(additionalQuery);
+                } catch (error) {
+                    // If vector table creation fails, log warning but continue
+                    if (error instanceof Error && (
+                        error.message.includes('vec0') || 
+                        error.message.includes('no such module')
+                    )) {
+                        console.warn(`Warning: Vector table creation failed (extension not available): ${error.message}. Vector search functionality will be disabled.`);
+                    } else {
+                        throw error;
+                    }
+                }
             }
             
             this.isInitialized = true;
@@ -135,6 +160,25 @@ export class Collection<T extends z.ZodSchema> {
             return this.collectionSchema.schema.parse(doc);
         } catch (error) {
             throw new ValidationError('Document validation failed', error);
+        }
+    }
+
+    private async executeVectorQueries(vectorQueries: { sql: string; params: any[] }[]): Promise<void> {
+        for (const vectorQuery of vectorQueries) {
+            try {
+                await this.driver.exec(vectorQuery.sql, vectorQuery.params);
+            } catch (error) {
+                // If vector operations fail, log warning but continue
+                if (error instanceof Error && (
+                    error.message.includes('vec0') || 
+                    error.message.includes('no such module') ||
+                    error.message.includes('no such table')
+                )) {
+                    console.warn(`Warning: Vector operation failed (extension not available): ${error.message}. Vector search functionality will be disabled for this field.`);
+                } else {
+                    throw error;
+                }
+            }
         }
     }
 
@@ -189,6 +233,15 @@ export class Collection<T extends z.ZodSchema> {
                 this.collectionSchema.schema
             );
             await this.driver.exec(sql, params);
+
+            // Handle vector insertions
+            const vectorQueries = SQLTranslator.buildVectorInsertQueries(
+                this.collectionSchema.name,
+                validatedDoc,
+                id,
+                this.collectionSchema.constrainedFields
+            );
+            await this.executeVectorQueries(vectorQueries);
 
             // Execute after hook (now properly awaited)
             const resultContext = { ...context, result: validatedDoc };
@@ -291,6 +344,17 @@ export class Collection<T extends z.ZodSchema> {
 
             await this.driver.exec(batchSQL, allParams);
 
+            // Handle vector insertions for all documents
+            for (const validatedDoc of validatedDocs) {
+                const vectorQueries = SQLTranslator.buildVectorInsertQueries(
+                    this.collectionSchema.name,
+                    validatedDoc,
+                    (validatedDoc as any).id,
+                    this.collectionSchema.constrainedFields
+                );
+                await this.executeVectorQueries(vectorQueries);
+            }
+
             const resultContext = { ...context, result: validatedDocs };
             await this.pluginManager?.executeHookSafe('onAfterInsert', resultContext);
 
@@ -351,6 +415,15 @@ export class Collection<T extends z.ZodSchema> {
             this.collectionSchema.schema
         );
         await this.driver.exec(sql, params);
+
+        // Handle vector updates
+        const vectorQueries = SQLTranslator.buildVectorUpdateQueries(
+            this.collectionSchema.name,
+            validatedDoc,
+            id,
+            this.collectionSchema.constrainedFields
+        );
+        await this.executeVectorQueries(vectorQueries);
 
         // Plugin hook: after update
         const resultContext = {
@@ -455,6 +528,14 @@ export class Collection<T extends z.ZodSchema> {
             id
         );
         await this.driver.exec(sql, params);
+
+        // Handle vector deletions
+        const vectorQueries = SQLTranslator.buildVectorDeleteQueries(
+            this.collectionSchema.name,
+            id,
+            this.collectionSchema.constrainedFields
+        );
+        await this.executeVectorQueries(vectorQueries);
 
         // Plugin hook: after delete
         const resultContext = {
@@ -1276,6 +1357,106 @@ export class Collection<T extends z.ZodSchema> {
         );
         const rows = await this.driver.query(sql, params);
         return rows.length > 0 ? parseDoc(rows[0].doc) : null;
+    }
+
+    /**
+     * Perform vector similarity search
+     */
+    async vectorSearch(options: VectorSearchOptions): Promise<VectorSearchResult<InferSchema<T>>[]> {
+        await this.ensureInitialized();
+
+        // Validate that the field is a vector field
+        if (!this.collectionSchema.constrainedFields || !this.collectionSchema.constrainedFields[options.field]) {
+            throw new ValidationError(`Field '${options.field}' is not defined as a constrained field`);
+        }
+
+        const fieldDef = this.collectionSchema.constrainedFields[options.field];
+        if (fieldDef.type !== 'VECTOR') {
+            throw new ValidationError(`Field '${options.field}' is not a vector field`);
+        }
+
+        if (!fieldDef.vectorDimensions || !Array.isArray(options.vector) || options.vector.length !== fieldDef.vectorDimensions) {
+            throw new ValidationError(`Query vector must have ${fieldDef.vectorDimensions} dimensions`);
+        }
+
+        // Plugin hook: before vector search
+        const context = {
+            collectionName: this.collectionSchema.name,
+            schema: this.collectionSchema,
+            operation: 'vectorSearch',
+            data: options,
+        };
+        await this.pluginManager?.executeHookSafe('onBeforeQuery', context);
+
+        const vectorTableName = SchemaSQLGenerator.getVectorTableName(this.collectionSchema.name, options.field);
+        const columnName = fieldPathToColumnName(options.field);
+        const limit = options.limit || 10;
+        const distance = options.distance || 'cosine';
+
+        // Build vector search query using sqlite-vec format
+        let sql = `
+            SELECT 
+                ${this.collectionSchema.name}._id,
+                ${this.collectionSchema.name}.doc,
+                ${vectorTableName}.distance
+            FROM ${vectorTableName}
+            INNER JOIN ${this.collectionSchema.name} ON ${vectorTableName}.rowid = ${this.collectionSchema.name}.rowid
+            WHERE ${vectorTableName}.${columnName} MATCH ?
+                AND k = ?
+        `;
+
+        // Convert query vector to Float32Array for sqlite-vec, compatible with better-sqlite3  
+        const queryVectorArray = new Float32Array(options.vector);
+        const params: any[] = [Buffer.from(queryVectorArray.buffer), limit];
+
+        // Add additional WHERE conditions if provided
+        if (options.where && options.where.length > 0) {
+            const { whereClause, whereParams } = SQLTranslator.buildWhereClause(
+                options.where,
+                'AND',
+                this.collectionSchema.constrainedFields,
+                this.collectionSchema.name
+            );
+            sql += ` AND ${whereClause}`;
+            params.push(...whereParams);
+        }
+
+        sql += ` ORDER BY ${vectorTableName}.distance ASC`;
+
+        try {
+            const rows = await this.driver.query(sql, params);
+            const results: VectorSearchResult<InferSchema<T>>[] = rows.map(row => ({
+                document: parseDoc(row.doc),
+                distance: row.distance as number,
+                id: row._id as string
+            }));
+
+            // Plugin hook: after vector search
+            const resultContext = {
+                ...context,
+                result: results,
+            };
+            await this.pluginManager?.executeHookSafe('onAfterQuery', resultContext);
+
+            return results;
+        } catch (error) {
+            const errorContext = { ...context, error: error as Error };
+            await this.pluginManager?.executeHookSafe('onError', errorContext);
+            
+            // If vector search fails due to missing extension, throw a helpful error
+            if (error instanceof Error && (
+                error.message.includes('vec0') || 
+                error.message.includes('no such module') ||
+                error.message.includes('no such table')
+            )) {
+                throw new ValidationError(
+                    `Vector search functionality is not available. The sqlite-vec extension is not loaded. ` +
+                    `Install SQLite with extension support for vector operations.`
+                );
+            }
+            
+            throw error;
+        }
     }
 }
 

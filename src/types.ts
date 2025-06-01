@@ -64,13 +64,16 @@ export interface Row {
 }
 
 export interface ConstrainedFieldDefinition {
-    type?: 'TEXT' | 'INTEGER' | 'REAL' | 'BLOB';
+    type?: 'TEXT' | 'INTEGER' | 'REAL' | 'BLOB' | 'VECTOR';
     unique?: boolean;
     foreignKey?: string; // 'table.column'
     onDelete?: 'CASCADE' | 'SET NULL' | 'RESTRICT';
     onUpdate?: 'CASCADE' | 'SET NULL' | 'RESTRICT';
     nullable?: boolean;
     checkConstraint?: string;
+    // Vector-specific properties
+    vectorDimensions?: number; // Required when type is 'VECTOR'
+    vectorType?: 'float' | 'int8' | 'binary'; // Default: 'float'
 }
 
 export interface CollectionSchema<T = any> {
@@ -107,9 +110,11 @@ export interface QueryFilter {
         | 'exists'
         | 'between'
         | 'json_array_contains'
-        | 'json_array_not_contains';
+        | 'json_array_not_contains'
+        | 'vector_match'; // For vector similarity searches
     value: any;
     value2?: any; // For between operator
+    vectorDistance?: 'cosine' | 'euclidean' | 'l1' | 'l2'; // For vector searches, default: cosine
 }
 
 export interface QueryGroup {
@@ -166,6 +171,21 @@ export interface PluginClass {
 
 export interface PluginFactory {
     (options?: any): Plugin;
+}
+
+// Vector search specific types
+export interface VectorSearchOptions {
+    field: string; // The vector field to search
+    vector: number[]; // Query vector
+    limit?: number; // Number of results to return (default: 10)
+    where?: QueryFilter[]; // Additional filters to apply
+    distance?: 'cosine' | 'euclidean' | 'l1' | 'l2'; // Distance function (default: cosine)
+}
+
+export interface VectorSearchResult<T = any> {
+    document: T;
+    distance: number;
+    id: string;
 }
 
 // Re-export Plugin from plugin-system for convenience

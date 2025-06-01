@@ -15,6 +15,7 @@ import {
     inferSQLiteType,
     getZodTypeForPath,
 } from './constrained-fields';
+import { SchemaSQLGenerator } from './schema-sql-generator';
 
 /**
  * Small helper: cache `"json_extract(doc,'$.field')"` strings so we build
@@ -172,6 +173,101 @@ export class SQLTranslator {
         )}) VALUES (${placeholders})`;
 
         return { sql, params };
+    }
+
+    /**
+     * Build vector insertion queries for vec0 virtual tables
+     */
+    static buildVectorInsertQueries(
+        tableName: string,
+        doc: any,
+        id: string,
+        constrainedFields?: { [fieldPath: string]: ConstrainedFieldDefinition }
+    ): { sql: string; params: any[] }[] {
+        const queries: { sql: string; params: any[] }[] = [];
+        
+        if (!constrainedFields) return queries;
+        
+        const vectorFields = SchemaSQLGenerator.getVectorFields(constrainedFields);
+        const constrainedValues = extractConstrainedValues(doc, constrainedFields);
+        
+        for (const [fieldPath, fieldDef] of Object.entries(vectorFields)) {
+            const vectorTableName = SchemaSQLGenerator.getVectorTableName(tableName, fieldPath);
+            const columnName = fieldPathToColumnName(fieldPath);
+            const vectorValue = constrainedValues[fieldPath];
+            
+            if (vectorValue && Array.isArray(vectorValue)) {
+                const sql = `INSERT INTO ${vectorTableName} (rowid, ${columnName}) VALUES (
+                    (SELECT rowid FROM ${tableName} WHERE _id = ?), ?
+                )`;
+                // Convert to Float32Array for sqlite-vec, compatible with better-sqlite3
+                const vectorArray = new Float32Array(vectorValue);
+                const params = [id, Buffer.from(vectorArray.buffer)];
+                queries.push({ sql, params });
+            }
+        }
+        
+        return queries;
+    }
+
+    /**
+     * Build vector update queries for vec0 virtual tables
+     */
+    static buildVectorUpdateQueries(
+        tableName: string,
+        doc: any,
+        id: string,
+        constrainedFields?: { [fieldPath: string]: ConstrainedFieldDefinition }
+    ): { sql: string; params: any[] }[] {
+        const queries: { sql: string; params: any[] }[] = [];
+        
+        if (!constrainedFields) return queries;
+        
+        const vectorFields = SchemaSQLGenerator.getVectorFields(constrainedFields);
+        const constrainedValues = extractConstrainedValues(doc, constrainedFields);
+        
+        for (const [fieldPath, fieldDef] of Object.entries(vectorFields)) {
+            const vectorTableName = SchemaSQLGenerator.getVectorTableName(tableName, fieldPath);
+            const columnName = fieldPathToColumnName(fieldPath);
+            const vectorValue = constrainedValues[fieldPath];
+            
+            if (vectorValue && Array.isArray(vectorValue)) {
+                // Update or insert vector data
+                const sql = `INSERT OR REPLACE INTO ${vectorTableName} (rowid, ${columnName}) VALUES (
+                    (SELECT rowid FROM ${tableName} WHERE _id = ?), ?
+                )`;
+                // Convert to Float32Array for sqlite-vec, compatible with better-sqlite3
+                const vectorArray = new Float32Array(vectorValue);
+                const params = [id, Buffer.from(vectorArray.buffer)];
+                queries.push({ sql, params });
+            }
+        }
+        
+        return queries;
+    }
+
+    /**
+     * Build vector deletion queries for vec0 virtual tables
+     */
+    static buildVectorDeleteQueries(
+        tableName: string,
+        id: string,
+        constrainedFields?: { [fieldPath: string]: ConstrainedFieldDefinition }
+    ): { sql: string; params: any[] }[] {
+        const queries: { sql: string; params: any[] }[] = [];
+        
+        if (!constrainedFields) return queries;
+        
+        const vectorFields = SchemaSQLGenerator.getVectorFields(constrainedFields);
+        
+        for (const [fieldPath] of Object.entries(vectorFields)) {
+            const vectorTableName = SchemaSQLGenerator.getVectorTableName(tableName, fieldPath);
+            const sql = `DELETE FROM ${vectorTableName} WHERE rowid = (SELECT rowid FROM ${tableName} WHERE _id = ?)`;
+            const params = [id];
+            queries.push({ sql, params });
+        }
+        
+        return queries;
     }
 
     static buildUpdateQuery(

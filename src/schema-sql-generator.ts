@@ -26,6 +26,7 @@ export class SchemaSQLGenerator {
         sql += `  doc TEXT NOT NULL`;
 
         const additionalSQL: string[] = [];
+        const vectorFields: { [fieldPath: string]: ConstrainedFieldDefinition } = {};
         
         // Add constrained field columns
         if (constrainedFields && schema) {
@@ -38,9 +39,31 @@ export class SchemaSQLGenerator {
             for (const [fieldPath, fieldDef] of Object.entries(constrainedFields)) {
                 const columnName = fieldPathToColumnName(fieldPath);
                 const zodType = getZodTypeForPath(schema, fieldPath);
-                const sqliteType = zodType ? inferSQLiteType(zodType, fieldDef) : 'TEXT';
+                let sqliteType = zodType ? inferSQLiteType(zodType, fieldDef) : 'TEXT';
                 
-                // Build column definition
+                // Handle vector fields - they need both regular column and vec0 virtual tables
+                if (sqliteType === 'VECTOR' || fieldDef.type === 'VECTOR') {
+                    vectorFields[fieldPath] = fieldDef;
+                    
+                    // Validate vector dimensions are specified
+                    if (!fieldDef.vectorDimensions) {
+                        throw new Error(`Vector field '${fieldPath}' must specify vectorDimensions`);
+                    }
+                    
+                    // Create vec0 virtual table for this vector field
+                    const vectorType = fieldDef.vectorType || 'float';
+                    const vectorTableName = `${tableName}_${columnName}_vec`;
+                    
+                    additionalSQL.push(
+                        `CREATE VIRTUAL TABLE IF NOT EXISTS ${vectorTableName} USING vec0(${columnName} ${vectorType}[${fieldDef.vectorDimensions}])`
+                    );
+                    
+                    // Continue to create regular column for JSON storage - don't skip
+                    // Set sqliteType to TEXT for the regular column
+                    sqliteType = 'TEXT';
+                }
+                
+                // Build column definition for non-vector fields
                 let columnDef = `${columnName} ${sqliteType}`;
                 
                 // Add NOT NULL if not nullable (default is nullable for constrained fields)
@@ -117,6 +140,30 @@ export class SchemaSQLGenerator {
             : '';
 
         return `CREATE ${uniqueKeyword}INDEX IF NOT EXISTS ${indexName} ON ${tableName} (${fields})${whereClause}`;
+    }
+
+    /**
+     * Get vector table name for a field
+     */
+    static getVectorTableName(tableName: string, fieldPath: string): string {
+        const columnName = fieldPathToColumnName(fieldPath);
+        return `${tableName}_${columnName}_vec`;
+    }
+
+    /**
+     * Get all vector fields from constrained fields
+     */
+    static getVectorFields(constrainedFields?: { [fieldPath: string]: ConstrainedFieldDefinition }): { [fieldPath: string]: ConstrainedFieldDefinition } {
+        if (!constrainedFields) return {};
+        
+        const vectorFields: { [fieldPath: string]: ConstrainedFieldDefinition } = {};
+        for (const [fieldPath, fieldDef] of Object.entries(constrainedFields)) {
+            if (fieldDef.type === 'VECTOR') {
+                vectorFields[fieldPath] = fieldDef;
+            }
+        }
+        
+        return vectorFields;
     }
 
 
