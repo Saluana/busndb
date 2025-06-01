@@ -20,6 +20,7 @@ import {
     type ManagedConnection,
 } from './connection-manager';
 import { detectDriver, type DriverDetectionResult } from './driver-detector';
+import { Migrator, type MigrationInfo } from './migrator';
 
 export class Database {
     private driver?: Driver;
@@ -172,6 +173,7 @@ export class Database {
         schema?: T,
         options?: {
             primaryKey?: string;
+            version?: number;
             indexes?: string[];
             constraints?: SchemaConstraints;
             constrainedFields?: {
@@ -518,6 +520,12 @@ export class Database {
 
     async closeAllConnections(): Promise<void> {
         await this.connectionManager.closeAll();
+    }
+
+    async getMigrationStatus(): Promise<MigrationInfo[]> {
+        const driver = await this.ensureDriver();
+        const migrator = new Migrator(driver);
+        return migrator.getMigrationStatus();
     }
 }
 

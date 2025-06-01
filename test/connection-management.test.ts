@@ -146,30 +146,23 @@ describe('Connection Management', () => {
                 email: z.string().email(),
             });
 
-            // With sharedConnection: true, if Collection constructor performs sync DDL (e.g., CREATE TABLE),
-            // it will go through the proxy's sync path, which now throws SYNC_WITH_SHARED_CONNECTION.
-            // This test now verifies this protective behavior.
-            // A full fix would require Collection.ts to be async-aware for DDL.
-            try {
-                const users = db.collection('users', userSchema);
-                // The following line was part of the original test's intent,
-                // but now we expect the db.collection() call (if it triggers sync DDL)
-                // or subsequent sync operations by the Collection constructor to throw.
-                // If db.collection() itself doesn't throw but a later implicit sync op does, this await might not be reached.
-                // For this test, the primary expectation is the SYNC_WITH_SHARED_CONNECTION error.
-                await users.insert({
-                    name: 'John Doe',
-                    email: 'john@example.com',
-                });
-                expect(true).toBe(false); // Should not reach here if error is thrown as expected
-            } catch (error: any) {
-                expect(error).toBeInstanceOf(DatabaseError);
-                if (error instanceof DatabaseError) {
-                    expect(error.code).toBe('SYNC_WITH_SHARED_CONNECTION');
-                } else {
-                    throw error; // Re-throw if it's not the expected DatabaseError type
-                }
-            }
+            // With shared connections, collections should now work properly
+            // as the Collection constructor has been made async-aware for DDL
+            const users = db.collection('users', userSchema);
+            
+            // Should be able to insert and query with shared connections
+            const insertedUser = await users.insert({
+                name: 'John Doe',
+                email: 'john@example.com',
+            });
+            
+            expect(insertedUser.id).toBeDefined();
+            expect(insertedUser.name).toBe('John Doe');
+            expect(insertedUser.email).toBe('john@example.com');
+            
+            // Should be able to query the inserted user
+            const foundUser = await users.findById(insertedUser.id);
+            expect(foundUser).toEqual(insertedUser);
         });
     });
 

@@ -11,11 +11,15 @@ import {
 import { parseDoc, mergeConstrainedFields } from './json-utils.js';
 import type { QueryablePaths, OrderablePaths } from './types/nested-paths';
 import type { PluginManager } from './plugin-system';
+import { Migrator } from './migrator';
 
 export class Collection<T extends z.ZodSchema> {
     private driver: Driver;
     private collectionSchema: CollectionSchema<InferSchema<T>>;
     private pluginManager?: PluginManager;
+
+    private isInitialized = false;
+    private initializationPromise?: Promise<void>;
 
     constructor(
         driver: Driver,
@@ -29,6 +33,23 @@ export class Collection<T extends z.ZodSchema> {
     }
 
     private createTable(): void {
+        // Try sync table creation first for backward compatibility
+        // Fall back to async initialization if sync methods aren't available (shared connections)
+        try {
+            this.createTableSync();
+            this.initializationPromise = this.runMigrationsAsync();
+        } catch (error) {
+            // If sync methods fail (e.g., shared connection), initialize everything async
+            if (error instanceof Error && error.message.includes('not supported when using a shared connection')) {
+                this.initializationPromise = this.initializeTableAsync();
+            } else {
+                console.warn(`Table creation failed for collection '${this.collectionSchema.name}':`, error);
+                this.initializationPromise = this.runMigrationsAsync();
+            }
+        }
+    }
+
+    private createTableSync(): void {
         const { sql, additionalSQL } =
             SchemaSQLGenerator.buildCreateTableWithConstraints(
                 this.collectionSchema.name,
@@ -37,12 +58,72 @@ export class Collection<T extends z.ZodSchema> {
                 this.collectionSchema.schema
             );
 
-        // Use sync methods for table creation during collection initialization
-        this.driver.execSync(sql);
+        try {
+            // Use sync methods for initial table creation
+            this.driver.execSync(sql);
 
-        // Execute additional SQL for indexes and constraints
-        for (const additionalQuery of additionalSQL) {
-            this.driver.execSync(additionalQuery);
+            // Execute additional SQL for indexes and constraints
+            for (const additionalQuery of additionalSQL) {
+                this.driver.execSync(additionalQuery);
+            }
+            
+            this.isInitialized = true;
+        } catch (error) {
+            if (!(error instanceof Error && error.message.includes('already exists'))) {
+                throw error;
+            } else {
+                this.isInitialized = true;
+            }
+        }
+    }
+
+    private async initializeTableAsync(): Promise<void> {
+        const migrator = new Migrator(this.driver);
+        
+        try {
+            await migrator.checkAndRunMigration(this.collectionSchema);
+        } catch (error) {
+            console.warn(`Migration check failed for collection '${this.collectionSchema.name}':`, error);
+        }
+
+        const { sql, additionalSQL } =
+            SchemaSQLGenerator.buildCreateTableWithConstraints(
+                this.collectionSchema.name,
+                this.collectionSchema.constraints,
+                this.collectionSchema.constrainedFields,
+                this.collectionSchema.schema
+            );
+
+        try {
+            await this.driver.exec(sql);
+
+            for (const additionalQuery of additionalSQL) {
+                await this.driver.exec(additionalQuery);
+            }
+            
+            this.isInitialized = true;
+        } catch (error) {
+            if (!(error instanceof Error && error.message.includes('already exists'))) {
+                console.warn(`Table creation failed for collection '${this.collectionSchema.name}':`, error);
+            } else {
+                this.isInitialized = true;
+            }
+        }
+    }
+
+    private async runMigrationsAsync(): Promise<void> {
+        try {
+            const migrator = new Migrator(this.driver);
+            await migrator.checkAndRunMigration(this.collectionSchema);
+        } catch (error) {
+            // Migration errors are non-fatal for backwards compatibility
+            console.warn(`Migration check failed for collection '${this.collectionSchema.name}':`, error);
+        }
+    }
+
+    private async ensureInitialized(): Promise<void> {
+        if (!this.isInitialized && this.initializationPromise) {
+            await this.initializationPromise;
         }
     }
 
@@ -59,6 +140,8 @@ export class Collection<T extends z.ZodSchema> {
     }
 
     async insert(doc: Omit<InferSchema<T>, 'id'>): Promise<InferSchema<T>> {
+        await this.ensureInitialized();
+        
         const context = {
             collectionName: this.collectionSchema.name,
             schema: this.collectionSchema,
@@ -142,6 +225,7 @@ export class Collection<T extends z.ZodSchema> {
     async insertBulk(
         docs: Omit<InferSchema<T>, 'id'>[]
     ): Promise<InferSchema<T>[]> {
+        await this.ensureInitialized();
         if (docs.length === 0) return [];
         
         const context = {
@@ -237,6 +321,7 @@ export class Collection<T extends z.ZodSchema> {
         id: string,
         doc: Partial<InferSchema<T>>
     ): Promise<InferSchema<T>> {
+        await this.ensureInitialized();
         const existing = await this.findById(id);
         if (!existing) {
             throw new NotFoundError('Document not found', id);
@@ -553,6 +638,7 @@ export class Collection<T extends z.ZodSchema> {
     }
 
     async findById(id: string): Promise<InferSchema<T> | null> {
+        await this.ensureInitialized();
         const sql = `SELECT doc FROM ${this.collectionSchema.name} WHERE _id = ?`;
         const params = [id];
         const rows = await this.driver.query(sql, params);

@@ -56,6 +56,7 @@ export class Registry {
         schema: T,
         options: {
             primaryKey?: string;
+            version?: number;
             indexes?: string[];
             constraints?: SchemaConstraints;
             constrainedFields?: { [fieldPath: string]: ConstrainedFieldDefinition };
@@ -76,6 +77,7 @@ export class Registry {
             name,
             schema,
             primaryKey: options.primaryKey || 'id',
+            version: options.version || 1,
             indexes: options.indexes || [],
             constraints: options.constraints,
             constrainedFields: finalConstrainedFields,

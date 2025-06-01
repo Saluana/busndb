@@ -1,6 +1,8 @@
 export { createDB, Database } from './database';
 export { Collection } from './collection';
 export { QueryBuilder, FieldBuilder } from './query-builder';
+export { Migrator } from './migrator';
+export type { MigrationInfo, SchemaDiff, MigrationContext } from './migrator';
 export {
     ValidationError,
     UniqueConstraintError,
