@@ -1,3 +1,4 @@
+import type { z } from 'zod';
 import type { Collection } from './collection';
 import type { Database } from './database';
 import type { Migrator } from './migrator';
@@ -12,22 +13,22 @@ export interface UpgradeContext {
     exec: (query: string, params?: any[]) => Promise<void>;
 }
 
-export type UpgradeFunction<T> = (
+export type UpgradeFunction<T extends z.ZodTypeAny> = (
     collection: Collection<T>,
     context: UpgradeContext
 ) => Promise<void>;
 
-export interface ConditionalUpgrade<T> {
+export interface ConditionalUpgrade<T extends z.ZodTypeAny> {
     condition?: (collection: Collection<T>) => Promise<boolean>;
     migrate: UpgradeFunction<T>;
 }
 
-export type UpgradeDefinition<T> = 
+export type UpgradeDefinition<T extends z.ZodTypeAny> = 
     | UpgradeFunction<T> 
     | ConditionalUpgrade<T>;
 
-export interface UpgradeMap<T> {
+export interface UpgradeMap<T extends z.ZodTypeAny> {
     [version: number]: UpgradeDefinition<T>;
 }
 
-export type SeedFunction<T> = (collection: Collection<T>) => Promise<void>;
+export type SeedFunction<T extends z.ZodTypeAny> = (collection: Collection<T>) => Promise<void>;

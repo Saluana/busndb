@@ -1,0 +1,68 @@
+# Development files
+*.todo.txt
+bug.todo.txt
+test.ts
+test-*
+*.test.ts
+*.test.js
+test/
+benchmark.ts
+quick-test.ts
+
+# Build artifacts
+tsconfig.json
+tsconfig.build.json
+vite.config.ts
+vitest.config.ts
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Development scripts
+example/
+examples/
+hello-world-plugin.js
+install.sh
+
+# Documentation (keep README.md)
+docs/
+
+# Runtime files
+bun.lockb
+package-lock.json
+
+# Environment files
+.env
+.env.local
+.env.example
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Coverage directory used by tools like istanbul
+coverage/
+*.lcov
+
+# Node modules (already in .gitignore but being explicit)
+node_modules/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db

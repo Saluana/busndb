@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import type { Database } from './database';
 import type { Collection } from './collection';
 import type { Driver } from './types';
@@ -9,7 +10,6 @@ import type {
     SeedFunction,
 } from './upgrade-types';
 import { DatabaseError } from './errors';
-import { z } from 'zod';
 
 export class UpgradeRunner {
     constructor(private driver: Driver, private database: Database) {}
@@ -120,7 +120,7 @@ export class UpgradeRunner {
         }
     }
 
-    async printUpgradePlan<T>(
+    async printUpgradePlan<T extends z.ZodTypeAny>(
         collectionName: string,
         upgrades: UpgradeMap<T>,
         fromVersion: number,
