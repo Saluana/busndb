@@ -142,11 +142,95 @@ export class Collection<T extends z.ZodSchema> {
     async insertBulk(
         docs: Omit<InferSchema<T>, 'id'>[]
     ): Promise<InferSchema<T>[]> {
-        const results: InferSchema<T>[] = [];
-        for (const doc of docs) {
-            results.push(await this.insert(doc));
+        if (docs.length === 0) return [];
+        
+        const context = {
+            collectionName: this.collectionSchema.name,
+            schema: this.collectionSchema,
+            operation: 'insertBulk',
+            data: docs,
+        };
+
+        await this.pluginManager?.executeHookSafe('onBeforeInsert', context);
+
+        try {
+            const validatedDocs: InferSchema<T>[] = [];
+            const sqlParts: string[] = [];
+            const allParams: any[] = [];
+
+            for (const doc of docs) {
+                const docWithPossibleId = doc as any;
+                let id: string;
+
+                if (docWithPossibleId.id) {
+                    id = docWithPossibleId.id;
+                    const existing = await this.findById(id);
+                    if (existing) {
+                        throw new UniqueConstraintError(
+                            `Document with id '${id}' already exists`,
+                            'id'
+                        );
+                    }
+                } else {
+                    id = this.generateId();
+                }
+
+                const fullDoc = { ...doc, id };
+                const validatedDoc = this.validateDocument(fullDoc);
+                validatedDocs.push(validatedDoc);
+
+                const { sql, params } = SQLTranslator.buildInsertQuery(
+                    this.collectionSchema.name,
+                    validatedDoc,
+                    id,
+                    this.collectionSchema.constrainedFields,
+                    this.collectionSchema.schema
+                );
+
+                const valuePart = sql.substring(sql.indexOf('VALUES ') + 7);
+                sqlParts.push(valuePart);
+                allParams.push(...params);
+            }
+
+            const firstQuery = SQLTranslator.buildInsertQuery(
+                this.collectionSchema.name,
+                validatedDocs[0],
+                (validatedDocs[0] as any).id,
+                this.collectionSchema.constrainedFields,
+                this.collectionSchema.schema
+            );
+            const baseSQL = firstQuery.sql.substring(0, firstQuery.sql.indexOf('VALUES ') + 7);
+            const batchSQL = baseSQL + sqlParts.join(', ');
+
+            await this.driver.exec(batchSQL, allParams);
+
+            const resultContext = { ...context, result: validatedDocs };
+            await this.pluginManager?.executeHookSafe('onAfterInsert', resultContext);
+
+            return validatedDocs;
+        } catch (error) {
+            const errorContext = { ...context, error: error as Error };
+            await this.pluginManager?.executeHookSafe('onError', errorContext);
+
+            if (error instanceof Error) {
+                if (error.message.includes('UNIQUE constraint')) {
+                    const fieldMatch = error.message.match(
+                        /UNIQUE constraint failed: [^.]+\.([^,\s]+)/
+                    );
+                    const field = fieldMatch ? fieldMatch[1] : 'unknown';
+                    throw new UniqueConstraintError(
+                        `Document violates unique constraint on field: ${field}`,
+                        'unknown'
+                    );
+                } else if (error.message.includes('FOREIGN KEY constraint')) {
+                    throw new ValidationError(
+                        'Document validation failed: Invalid foreign key reference',
+                        error
+                    );
+                }
+            }
+            throw error;
         }
-        return results;
     }
 
     async put(
@@ -193,11 +277,79 @@ export class Collection<T extends z.ZodSchema> {
     async putBulk(
         updates: { id: string; doc: Partial<InferSchema<T>> }[]
     ): Promise<InferSchema<T>[]> {
-        const results: InferSchema<T>[] = [];
-        for (const update of updates) {
-            results.push(await this.put(update.id, update.doc));
+        if (updates.length === 0) return [];
+
+        const context = {
+            collectionName: this.collectionSchema.name,
+            schema: this.collectionSchema,
+            operation: 'putBulk',
+            data: updates,
+        };
+
+        await this.pluginManager?.executeHookSafe('onBeforeUpdate', context);
+
+        try {
+            const validatedDocs: InferSchema<T>[] = [];
+            const sqlStatements: { sql: string; params: any[] }[] = [];
+
+            for (const update of updates) {
+                const existing = await this.findById(update.id);
+                if (!existing) {
+                    throw new NotFoundError('Document not found', update.id);
+                }
+
+                const updatedDoc = { ...existing, ...update.doc, id: update.id };
+                const validatedDoc = this.validateDocument(updatedDoc);
+                validatedDocs.push(validatedDoc);
+
+                const { sql, params } = SQLTranslator.buildUpdateQuery(
+                    this.collectionSchema.name,
+                    validatedDoc,
+                    update.id,
+                    this.collectionSchema.constrainedFields,
+                    this.collectionSchema.schema
+                );
+                sqlStatements.push({ sql, params });
+            }
+
+            await this.driver.exec('BEGIN TRANSACTION', []);
+            try {
+                for (const statement of sqlStatements) {
+                    await this.driver.exec(statement.sql, statement.params);
+                }
+                await this.driver.exec('COMMIT', []);
+            } catch (error) {
+                await this.driver.exec('ROLLBACK', []);
+                throw error;
+            }
+
+            const resultContext = { ...context, result: validatedDocs };
+            await this.pluginManager?.executeHookSafe('onAfterUpdate', resultContext);
+
+            return validatedDocs;
+        } catch (error) {
+            const errorContext = { ...context, error: error as Error };
+            await this.pluginManager?.executeHookSafe('onError', errorContext);
+
+            if (error instanceof Error) {
+                if (error.message.includes('UNIQUE constraint')) {
+                    const fieldMatch = error.message.match(
+                        /UNIQUE constraint failed: [^.]+\.([^,\s]+)/
+                    );
+                    const field = fieldMatch ? fieldMatch[1] : 'unknown';
+                    throw new UniqueConstraintError(
+                        `Document violates unique constraint on field: ${field}`,
+                        'unknown'
+                    );
+                } else if (error.message.includes('FOREIGN KEY constraint')) {
+                    throw new ValidationError(
+                        'Document validation failed: Invalid foreign key reference',
+                        error
+                    );
+                }
+            }
+            throw error;
         }
-        return results;
     }
 
     async delete(id: string): Promise<boolean> {
@@ -308,12 +460,96 @@ export class Collection<T extends z.ZodSchema> {
     async upsertBulk(
         updates: { id: string; doc: Omit<InferSchema<T>, 'id'> }[]
     ): Promise<InferSchema<T>[]> {
-        // Use optimized approach for bulk operations
-        const results: InferSchema<T>[] = [];
-        for (const update of updates) {
-            results.push(await this.upsertOptimized(update.id, update.doc));
+        if (updates.length === 0) return [];
+
+        const context = {
+            collectionName: this.collectionSchema.name,
+            schema: this.collectionSchema,
+            operation: 'upsertBulk',
+            data: updates,
+        };
+
+        await this.pluginManager?.executeHookSafe('onBeforeInsert', context);
+
+        try {
+            const validatedDocs: InferSchema<T>[] = [];
+            const sqlParts: string[] = [];
+            const allParams: any[] = [];
+
+            for (const update of updates) {
+                const fullDoc = { ...update.doc, id: update.id };
+                const validatedDoc = this.validateDocument(fullDoc);
+                validatedDocs.push(validatedDoc);
+
+                if (
+                    !this.collectionSchema.constrainedFields ||
+                    Object.keys(this.collectionSchema.constrainedFields).length === 0
+                ) {
+                    const valuePart = `(?, ?)`;
+                    sqlParts.push(valuePart);
+                    allParams.push(update.id, JSON.stringify(validatedDoc));
+                } else {
+                    const { sql, params } = SQLTranslator.buildInsertQuery(
+                        this.collectionSchema.name,
+                        validatedDoc,
+                        update.id,
+                        this.collectionSchema.constrainedFields,
+                        this.collectionSchema.schema
+                    );
+
+                    const valuePart = sql.substring(sql.indexOf('VALUES ') + 7);
+                    sqlParts.push(valuePart);
+                    allParams.push(...params);
+                }
+            }
+
+            let batchSQL: string;
+            if (
+                !this.collectionSchema.constrainedFields ||
+                Object.keys(this.collectionSchema.constrainedFields).length === 0
+            ) {
+                batchSQL = `INSERT OR REPLACE INTO ${this.collectionSchema.name} (_id, doc) VALUES ${sqlParts.join(', ')}`;
+            } else {
+                const firstQuery = SQLTranslator.buildInsertQuery(
+                    this.collectionSchema.name,
+                    validatedDocs[0],
+                    updates[0].id,
+                    this.collectionSchema.constrainedFields,
+                    this.collectionSchema.schema
+                );
+                const baseSQL = firstQuery.sql.substring(0, firstQuery.sql.indexOf('VALUES ') + 7);
+                batchSQL = baseSQL.replace('INSERT INTO', 'INSERT OR REPLACE INTO') + sqlParts.join(', ');
+            }
+
+            await this.driver.exec(batchSQL, allParams);
+
+            const resultContext = { ...context, result: validatedDocs };
+            await this.pluginManager?.executeHookSafe('onAfterInsert', resultContext);
+
+            return validatedDocs;
+        } catch (error) {
+            const errorContext = { ...context, error: error as Error };
+            await this.pluginManager?.executeHookSafe('onError', errorContext);
+
+            if (error instanceof Error) {
+                if (error.message.includes('UNIQUE constraint')) {
+                    const fieldMatch = error.message.match(
+                        /UNIQUE constraint failed: [^.]+\.([^,\s]+)/
+                    );
+                    const field = fieldMatch ? fieldMatch[1] : 'unknown';
+                    throw new UniqueConstraintError(
+                        `Document violates unique constraint on field: ${field}`,
+                        'unknown'
+                    );
+                } else if (error.message.includes('FOREIGN KEY constraint')) {
+                    throw new ValidationError(
+                        'Document validation failed: Invalid foreign key reference',
+                        error
+                    );
+                }
+            }
+            throw error;
         }
-        return results;
     }
 
     async findById(id: string): Promise<InferSchema<T> | null> {
@@ -584,11 +820,79 @@ export class Collection<T extends z.ZodSchema> {
     }
 
     insertBulkSync(docs: Omit<InferSchema<T>, 'id'>[]): InferSchema<T>[] {
-        const results: InferSchema<T>[] = [];
-        for (const doc of docs) {
-            results.push(this.insertSync(doc));
+        if (docs.length === 0) return [];
+
+        try {
+            const validatedDocs: InferSchema<T>[] = [];
+            const sqlParts: string[] = [];
+            const allParams: any[] = [];
+
+            for (const doc of docs) {
+                const docWithPossibleId = doc as any;
+                let id: string;
+
+                if (docWithPossibleId.id) {
+                    id = docWithPossibleId.id;
+                    const existing = this.findByIdSync(id);
+                    if (existing) {
+                        throw new UniqueConstraintError(
+                            `Document with id '${id}' already exists`,
+                            'id'
+                        );
+                    }
+                } else {
+                    id = this.generateId();
+                }
+
+                const fullDoc = { ...doc, id };
+                const validatedDoc = this.validateDocument(fullDoc);
+                validatedDocs.push(validatedDoc);
+
+                const { sql, params } = SQLTranslator.buildInsertQuery(
+                    this.collectionSchema.name,
+                    validatedDoc,
+                    id,
+                    this.collectionSchema.constrainedFields,
+                    this.collectionSchema.schema
+                );
+
+                const valuePart = sql.substring(sql.indexOf('VALUES ') + 7);
+                sqlParts.push(valuePart);
+                allParams.push(...params);
+            }
+
+            const firstQuery = SQLTranslator.buildInsertQuery(
+                this.collectionSchema.name,
+                validatedDocs[0],
+                (validatedDocs[0] as any).id,
+                this.collectionSchema.constrainedFields,
+                this.collectionSchema.schema
+            );
+            const baseSQL = firstQuery.sql.substring(0, firstQuery.sql.indexOf('VALUES ') + 7);
+            const batchSQL = baseSQL + sqlParts.join(', ');
+
+            this.driver.execSync(batchSQL, allParams);
+            return validatedDocs;
+        } catch (error) {
+            if (error instanceof Error) {
+                if (error.message.includes('UNIQUE constraint')) {
+                    const fieldMatch = error.message.match(
+                        /UNIQUE constraint failed: [^.]+\.([^,\s]+)/
+                    );
+                    const field = fieldMatch ? fieldMatch[1] : 'unknown';
+                    throw new UniqueConstraintError(
+                        `Document violates unique constraint on field: ${field}`,
+                        'unknown'
+                    );
+                } else if (error.message.includes('FOREIGN KEY constraint')) {
+                    throw new ValidationError(
+                        'Document validation failed: Invalid foreign key reference',
+                        error
+                    );
+                }
+            }
+            throw error;
         }
-        return results;
     }
 
     findByIdSync(id: string): InferSchema<T> | null {
@@ -729,21 +1033,143 @@ export class Collection<T extends z.ZodSchema> {
     upsertBulkSync(
         docs: { id: string; doc: Omit<InferSchema<T>, 'id'> }[]
     ): InferSchema<T>[] {
-        const results: InferSchema<T>[] = [];
-        for (const item of docs) {
-            results.push(this.upsertSync(item.id, item.doc));
+        if (docs.length === 0) return [];
+
+        try {
+            const validatedDocs: InferSchema<T>[] = [];
+            const sqlParts: string[] = [];
+            const allParams: any[] = [];
+
+            for (const item of docs) {
+                const fullDoc = { ...item.doc, id: item.id };
+                const validatedDoc = this.validateDocument(fullDoc);
+                validatedDocs.push(validatedDoc);
+
+                if (
+                    !this.collectionSchema.constrainedFields ||
+                    Object.keys(this.collectionSchema.constrainedFields).length === 0
+                ) {
+                    const valuePart = `(?, ?)`;
+                    sqlParts.push(valuePart);
+                    allParams.push(item.id, JSON.stringify(validatedDoc));
+                } else {
+                    const { sql, params } = SQLTranslator.buildInsertQuery(
+                        this.collectionSchema.name,
+                        validatedDoc,
+                        item.id,
+                        this.collectionSchema.constrainedFields,
+                        this.collectionSchema.schema
+                    );
+
+                    const valuePart = sql.substring(sql.indexOf('VALUES ') + 7);
+                    sqlParts.push(valuePart);
+                    allParams.push(...params);
+                }
+            }
+
+            let batchSQL: string;
+            if (
+                !this.collectionSchema.constrainedFields ||
+                Object.keys(this.collectionSchema.constrainedFields).length === 0
+            ) {
+                batchSQL = `INSERT OR REPLACE INTO ${this.collectionSchema.name} (_id, doc) VALUES ${sqlParts.join(', ')}`;
+            } else {
+                const firstQuery = SQLTranslator.buildInsertQuery(
+                    this.collectionSchema.name,
+                    validatedDocs[0],
+                    docs[0].id,
+                    this.collectionSchema.constrainedFields,
+                    this.collectionSchema.schema
+                );
+                const baseSQL = firstQuery.sql.substring(0, firstQuery.sql.indexOf('VALUES ') + 7);
+                batchSQL = baseSQL.replace('INSERT INTO', 'INSERT OR REPLACE INTO') + sqlParts.join(', ');
+            }
+
+            this.driver.execSync(batchSQL, allParams);
+            return validatedDocs;
+        } catch (error) {
+            if (error instanceof Error) {
+                if (error.message.includes('UNIQUE constraint')) {
+                    const fieldMatch = error.message.match(
+                        /UNIQUE constraint failed: [^.]+\.([^,\s]+)/
+                    );
+                    const field = fieldMatch ? fieldMatch[1] : 'unknown';
+                    throw new UniqueConstraintError(
+                        `Document violates unique constraint on field: ${field}`,
+                        'unknown'
+                    );
+                } else if (error.message.includes('FOREIGN KEY constraint')) {
+                    throw new ValidationError(
+                        'Document validation failed: Invalid foreign key reference',
+                        error
+                    );
+                }
+            }
+            throw error;
         }
-        return results;
     }
 
     putBulkSync(
         updates: { id: string; doc: Partial<InferSchema<T>> }[]
     ): InferSchema<T>[] {
-        const results: InferSchema<T>[] = [];
-        for (const update of updates) {
-            results.push(this.putSync(update.id, update.doc));
+        if (updates.length === 0) return [];
+
+        try {
+            const validatedDocs: InferSchema<T>[] = [];
+            const sqlStatements: { sql: string; params: any[] }[] = [];
+
+            for (const update of updates) {
+                const existing = this.findByIdSync(update.id);
+                if (!existing) {
+                    throw new NotFoundError('Document not found', update.id);
+                }
+
+                const updatedDoc = { ...existing, ...update.doc, id: update.id };
+                const validatedDoc = this.validateDocument(updatedDoc);
+                validatedDocs.push(validatedDoc);
+
+                const { sql, params } = SQLTranslator.buildUpdateQuery(
+                    this.collectionSchema.name,
+                    validatedDoc,
+                    update.id,
+                    this.collectionSchema.constrainedFields,
+                    this.collectionSchema.schema
+                );
+                sqlStatements.push({ sql, params });
+            }
+
+            this.driver.execSync('BEGIN TRANSACTION', []);
+            try {
+                for (const statement of sqlStatements) {
+                    this.driver.execSync(statement.sql, statement.params);
+                }
+                this.driver.execSync('COMMIT', []);
+            } catch (error) {
+                this.driver.execSync('ROLLBACK', []);
+                throw error;
+            }
+
+            return validatedDocs;
+        } catch (error) {
+            if (error instanceof Error) {
+                if (error.message.includes('UNIQUE constraint')) {
+                    const fieldMatch = error.message.match(
+                        /UNIQUE constraint failed: [^.]+\.([^,\s]+)/
+                    );
+                    const field = fieldMatch ? fieldMatch[1] : 'unknown';
+                    throw new UniqueConstraintError(
+                        `Document violates unique constraint on field: ${field}`,
+                        'unknown'
+                    );
+                } else if (error.message.includes('FOREIGN KEY constraint')) {
+                    throw new ValidationError(
+                        'Document validation failed: Invalid foreign key reference',
+                        error
+                    );
+                }
+            }
+            throw error;
         }
-        return results;
     }
 
     // Add count and first methods to Collection (async by default)
