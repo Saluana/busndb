@@ -21,6 +21,7 @@ import {
 } from './connection-manager';
 import { detectDriver, type DriverDetectionResult } from './driver-detector';
 import { Migrator, type MigrationInfo } from './migrator';
+import type { UpgradeMap, SeedFunction } from './upgrade-types';
 
 export class Database {
     private driver?: Driver;
@@ -179,6 +180,8 @@ export class Database {
             constrainedFields?: {
                 [fieldPath: string]: ConstrainedFieldDefinition;
             };
+            upgrade?: UpgradeMap<InferSchema<T>>;
+            seed?: SeedFunction<InferSchema<T>>;
         }
     ): Collection<T> {
         if (schema) {
@@ -196,7 +199,8 @@ export class Database {
             const collection = new Collection<T>(
                 this.getDriverProxy(),
                 collectionSchema,
-                this.plugins
+                this.plugins,
+                this // Pass database reference for upgrade functions
             );
             this.collections.set(name, collection);
 

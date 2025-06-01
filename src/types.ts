@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { SchemaConstraints } from './schema-constraints';
+import type { UpgradeMap, SeedFunction } from './upgrade-types';
 
 export interface DBConfig {
     path?: string;
@@ -81,6 +82,8 @@ export interface CollectionSchema<T = any> {
     /** @deprecated Use constrainedFields instead. Will be removed in v2.0.0 */
     constraints?: SchemaConstraints;
     constrainedFields?: { [fieldPath: string]: ConstrainedFieldDefinition };
+    upgrade?: UpgradeMap<T>;
+    seed?: SeedFunction<T>;
 }
 
 export type InferSchema<T> = T extends z.ZodSchema<infer U> ? U : never;

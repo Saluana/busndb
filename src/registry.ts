@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { CollectionSchema, InferSchema, ConstrainedFieldDefinition } from './types';
 import type { SchemaConstraints, Constraint } from './schema-constraints';
+import type { UpgradeMap, SeedFunction } from './upgrade-types';
 
 export class Registry {
     private collections = new Map<string, CollectionSchema>();
@@ -60,6 +61,8 @@ export class Registry {
             indexes?: string[];
             constraints?: SchemaConstraints;
             constrainedFields?: { [fieldPath: string]: ConstrainedFieldDefinition };
+            upgrade?: UpgradeMap<InferSchema<T>>;
+            seed?: SeedFunction<InferSchema<T>>;
         } = {}
     ): CollectionSchema<InferSchema<T>> {
         if (this.collections.has(name)) {
@@ -81,6 +84,8 @@ export class Registry {
             indexes: options.indexes || [],
             constraints: options.constraints,
             constrainedFields: finalConstrainedFields,
+            upgrade: options.upgrade,
+            seed: options.seed,
         };
 
         this.collections.set(name, collectionSchema);

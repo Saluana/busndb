@@ -17,6 +17,7 @@ export class Collection<T extends z.ZodSchema> {
     private driver: Driver;
     private collectionSchema: CollectionSchema<InferSchema<T>>;
     private pluginManager?: PluginManager;
+    private database?: any; // Reference to the Database instance
 
     private isInitialized = false;
     private initializationPromise?: Promise<void>;
@@ -24,11 +25,13 @@ export class Collection<T extends z.ZodSchema> {
     constructor(
         driver: Driver,
         schema: CollectionSchema<InferSchema<T>>,
-        pluginManager?: PluginManager
+        pluginManager?: PluginManager,
+        database?: any
     ) {
         this.driver = driver;
         this.collectionSchema = schema;
         this.pluginManager = pluginManager;
+        this.database = database;
         this.createTable();
     }
 
@@ -81,7 +84,7 @@ export class Collection<T extends z.ZodSchema> {
         const migrator = new Migrator(this.driver);
         
         try {
-            await migrator.checkAndRunMigration(this.collectionSchema);
+            await migrator.checkAndRunMigration(this.collectionSchema, this, this.database);
         } catch (error) {
             console.warn(`Migration check failed for collection '${this.collectionSchema.name}':`, error);
         }
@@ -114,7 +117,7 @@ export class Collection<T extends z.ZodSchema> {
     private async runMigrationsAsync(): Promise<void> {
         try {
             const migrator = new Migrator(this.driver);
-            await migrator.checkAndRunMigration(this.collectionSchema);
+            await migrator.checkAndRunMigration(this.collectionSchema, this, this.database);
         } catch (error) {
             // Migration errors are non-fatal for backwards compatibility
             console.warn(`Migration check failed for collection '${this.collectionSchema.name}':`, error);

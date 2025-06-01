@@ -2,6 +2,431 @@
 
 SkibbaDB provides a **zero-friction, code-first migration system** that automatically handles schema changes when you bump version numbers in your code. No SQL files, no CLI commands, no separate migration tracking—just update your schema and restart your app.
 
+## Custom Upgrade Functions
+
+Beyond automatic schema migrations, SkibbaDB provides **custom upgrade functions** for complex data transformations, validation, and business logic that can't be handled by simple ALTER TABLE statements.
+
+### Basic Usage
+
+```typescript
+import { z } from 'zod';
+import { createDB } from 'skibbadb';
+
+const db = createDB({ path: './app.db' });
+
+const UserSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  email: z.string().email(),
+  fullName: z.string().optional(), // New computed field
+});
+
+const users = db.collection('users', UserSchema, {
+  version: 3,
+  upgrade: {
+    2: async (collection, ctx) => {
+      // v1 → v2: Add email validation and normalization
+      const users = await collection.toArray();
+      
+      for (const user of users) {
+        if (!user.email || !user.email.includes('@')) {
+          await collection.put(user.id, {
+            ...user,
+            email: `${user.name.toLowerCase().replace(' ', '.')}@example.com`
+          });
+        }
+      }
+    },
+    3: async (collection, ctx) => {
+      // v2 → v3: Generate fullName from existing data
+      const users = await collection.toArray();
+      
+      for (const user of users) {
+        if (!user.fullName) {
+          await collection.put(user.id, {
+            ...user,
+            fullName: user.name
+          });
+        }
+      }
+    }
+  }
+});
+```
+
+### Upgrade Context
+
+Upgrade functions receive a powerful context object with database access:
+
+```typescript
+const users = db.collection('users', UserSchema, {
+  version: 2,
+  upgrade: {
+    2: async (collection, ctx) => {
+      console.log(`Upgrading from v${ctx.fromVersion} to v${ctx.toVersion}`);
+      
+      // Access other collections
+      const profiles = ctx.database.collection('profiles', ProfileSchema);
+      
+      // Execute raw SQL
+      await ctx.exec(`
+        UPDATE users 
+        SET doc = JSON_SET(doc, '$.processed', 1)
+        WHERE JSON_EXTRACT(doc, '$.processed') IS NULL
+      `);
+      
+      // Query with raw SQL
+      const results = await ctx.sql('SELECT COUNT(*) as count FROM users');
+      console.log(`Processed ${results[0].count} users`);
+    }
+  }
+});
+```
+
+### Conditional Upgrades
+
+Run upgrades only when certain conditions are met:
+
+```typescript
+const users = db.collection('users', UserSchema, {
+  version: 3,
+  upgrade: {
+    2: {
+      condition: async (collection) => {
+        // Only run if there are users without email
+        const count = await collection
+          .where('email').exists().not()
+          .count();
+        return count > 0;
+      },
+      migrate: async (collection, ctx) => {
+        // Migration logic here
+        const users = await collection
+          .where('email').exists().not()
+          .toArray();
+        
+        for (const user of users) {
+          await collection.put(user.id, {
+            ...user,
+            email: `${user.name.toLowerCase()}@example.com`
+          });
+        }
+      }
+    },
+    3: async (collection, ctx) => {
+      // This always runs
+      console.log('Always running upgrade v3');
+    }
+  }
+});
+```
+
+### Sequential Execution
+
+Upgrade functions run sequentially in version order:
+
+```typescript
+const users = db.collection('users', UserSchema, {
+  version: 4,
+  upgrade: {
+    2: async (collection) => {
+      console.log('Running upgrade v2');
+      await collection.insert({ name: 'Test User' });
+    },
+    3: async (collection) => {
+      console.log('Running upgrade v3');
+      const users = await collection.toArray();
+      // Process the user created in v2
+    },
+    4: async (collection) => {
+      console.log('Running upgrade v4');
+      // Final transformations
+    }
+  }
+});
+```
+
+### Cross-Collection Migrations
+
+Access other collections during upgrades:
+
+```typescript
+const users = db.collection('users', UserSchema, {
+  version: 2,
+  upgrade: {
+    2: async (collection, { database }) => {
+      // Create profiles collection
+      const profiles = database.collection('profiles', ProfileSchema, { version: 1 });
+      
+      // Create profile for each existing user
+      const users = await collection.toArray();
+      for (const user of users) {
+        const existingProfile = await profiles.findById(user.id);
+        
+        if (!existingProfile) {
+          await profiles.insert({
+            id: user.id,
+            userId: user.id,
+            bio: `Profile for ${user.name}`,
+            avatar: null,
+            createdAt: new Date()
+          });
+        }
+      }
+    }
+  }
+});
+```
+
+### Seed Functions
+
+Initialize collections with default data:
+
+```typescript
+const users = db.collection('users', UserSchema, {
+  version: 1,
+  seed: async (collection) => {
+    // Only runs for new collections (version 0 → 1)
+    await collection.insert({
+      name: 'Admin User',
+      email: 'admin@example.com',
+      role: 'admin'
+    });
+    
+    await collection.insert({
+      name: 'Guest User', 
+      email: 'guest@example.com',
+      role: 'guest'
+    });
+  }
+});
+```
+
+### Bulk Operations with SQL
+
+For performance-critical migrations, use raw SQL:
+
+```typescript
+const posts = db.collection('posts', PostSchema, {
+  version: 2,
+  upgrade: {
+    2: async (collection, { exec }) => {
+      // Bulk update using SQL
+      await exec(`
+        UPDATE posts 
+        SET doc = JSON_SET(
+          doc, 
+          '$.slug', 
+          LOWER(REPLACE(JSON_EXTRACT(doc, '$.title'), ' ', '-'))
+        )
+        WHERE JSON_EXTRACT(doc, '$.slug') IS NULL
+      `);
+      
+      // Remove duplicate posts by title
+      await exec(`
+        DELETE FROM posts 
+        WHERE rowid NOT IN (
+          SELECT MIN(rowid) 
+          FROM posts 
+          GROUP BY JSON_EXTRACT(doc, '$.title')
+        )
+      `);
+    }
+  }
+});
+```
+
+### Data Transformation Example
+
+Transform complex data structures:
+
+```typescript
+const UserSchemaV3 = z.object({
+  id: z.string(),
+  name: z.string(), 
+  email: z.string(),
+  preferences: z.object({
+    theme: z.enum(['light', 'dark']),
+    notifications: z.boolean(),
+    language: z.string()
+  }).optional()
+});
+
+const users = db.collection('users', UserSchemaV3, {
+  version: 3,
+  upgrade: {
+    3: async (collection) => {
+      // Convert string preferences to object
+      const users = await collection.toArray();
+      
+      for (const user of users) {
+        // Assume preferences were stored as string like 'dark,true,en'
+        if (typeof user.preferences === 'string') {
+          const [theme, notifications, language] = user.preferences.split(',');
+          
+          await collection.put(user.id, {
+            ...user,
+            preferences: {
+              theme: theme === 'dark' ? 'dark' : 'light',
+              notifications: notifications === 'true',
+              language: language || 'en'
+            }
+          });
+        }
+      }
+    }
+  }
+});
+```
+
+### Error Handling
+
+Upgrade functions run in transactions and will rollback on errors:
+
+```typescript
+const users = db.collection('users', UserSchema, {
+  version: 2,
+  upgrade: {
+    2: async (collection, ctx) => {
+      try {
+        // Migration logic
+        const users = await collection.toArray();
+        
+        for (const user of users) {
+          if (!user.email) {
+            throw new Error(`User ${user.id} missing email`);
+          }
+          // Process user...
+        }
+      } catch (error) {
+        console.error('Upgrade v2 failed:', error);
+        throw error; // Will rollback the transaction
+      }
+    }
+  }
+});
+```
+
+### Dry-Run Mode
+
+Preview upgrade functions without executing them:
+
+```typescript
+// Set environment variable to preview migrations
+process.env.SKIBBADB_MIGRATE = 'print';
+
+const users = db.collection('users', UserSchemaV2, {
+  version: 2,
+  upgrade: {
+    2: async (collection) => {
+      // This will be printed but not executed
+      console.log('Would run upgrade v2');
+    }
+  }
+});
+
+// Console output:
+// Migration plan for users (v1 → v2):
+//   ALTER TABLE users ADD COLUMN email TEXT;
+//   Custom upgrade functions for users:
+//     v2: Custom migration function
+```
+
+### Best Practices
+
+#### 1. **Keep Upgrades Idempotent**
+```typescript
+upgrade: {
+  2: async (collection) => {
+    // Check if work is already done
+    const unprocessed = await collection
+      .where('processed').exists().not()
+      .toArray();
+    
+    // Only process unprocessed records
+    for (const item of unprocessed) {
+      await collection.put(item.id, { ...item, processed: true });
+    }
+  }
+}
+```
+
+#### 2. **Use Conditional Upgrades for Optional Work**
+```typescript
+upgrade: {
+  2: {
+    condition: async (collection) => {
+      const needsUpgrade = await collection
+        .where('needsProcessing').eq(true)
+        .count();
+      return needsUpgrade > 0;
+    },
+    migrate: async (collection) => {
+      // Only runs if condition is true
+    }
+  }
+}
+```
+
+#### 3. **Handle Large Datasets in Batches**
+```typescript
+upgrade: {
+  2: async (collection) => {
+    const batchSize = 1000;
+    let offset = 0;
+    
+    while (true) {
+      const batch = await collection
+        .where('processed').exists().not()
+        .limit(batchSize)
+        .offset(offset)
+        .toArray();
+      
+      if (batch.length === 0) break;
+      
+      for (const item of batch) {
+        await collection.put(item.id, { ...item, processed: true });
+      }
+      
+      offset += batchSize;
+    }
+  }
+}
+```
+
+#### 4. **Log Progress for Long Operations**
+```typescript
+upgrade: {
+  2: async (collection) => {
+    const total = await collection.count();
+    let processed = 0;
+    
+    const users = await collection.toArray();
+    
+    for (const user of users) {
+      // Process user...
+      processed++;
+      
+      if (processed % 100 === 0) {
+        console.log(`Processed ${processed}/${total} users`);
+      }
+    }
+  }
+}
+```
+
+### Migration Order
+
+When you create a collection, the following happens automatically:
+
+1. **Schema Analysis**: Compare stored version with schema version
+2. **Automatic Migrations**: Run ALTER TABLE statements for schema changes  
+3. **Custom Upgrades**: Execute upgrade functions sequentially
+4. **Seed Data**: Run seed function for new collections (version 0 → 1)
+5. **Version Update**: Mark migration as complete
+
+This provides the perfect balance of automatic schema evolution with the power to handle complex data transformations when needed.
+
 ## Quick Start
 
 ### 1. Basic Schema with Version

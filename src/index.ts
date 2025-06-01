@@ -2,7 +2,16 @@ export { createDB, Database } from './database';
 export { Collection } from './collection';
 export { QueryBuilder, FieldBuilder } from './query-builder';
 export { Migrator } from './migrator';
+export { UpgradeRunner } from './upgrade-runner';
 export type { MigrationInfo, SchemaDiff, MigrationContext } from './migrator';
+export type { 
+    UpgradeContext, 
+    UpgradeFunction, 
+    ConditionalUpgrade, 
+    UpgradeDefinition, 
+    UpgradeMap, 
+    SeedFunction 
+} from './upgrade-types';
 export {
     ValidationError,
     UniqueConstraintError,

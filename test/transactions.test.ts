@@ -147,9 +147,9 @@ describe('Transactions', () => {
         const users = db.collection('users', userSchema);
         await users.insert({ name: 'X', email: 'x@example.com' });
         const result = await db.transaction(async () => {
-            const before = users.toArraySync().length;
+            const before = (await users.toArray()).length;
             await users.insert({ name: 'Y', email: 'y@example.com' });
-            const after = users.toArraySync().length;
+            const after = (await users.toArray()).length;
             return { before, after };
         });
         expect(result.before).toBe(1);
@@ -260,8 +260,8 @@ describe('Transactions', () => {
                 content: 'C',
                 authorId: author.id!,
             });
-            expect(users.toArraySync()).toHaveLength(2);
-            expect(posts.toArraySync()).toHaveLength(1);
+            expect(await users.toArray()).toHaveLength(2);
+            expect(await posts.toArray()).toHaveLength(1);
         });
         expect(users.toArraySync()).toHaveLength(2);
         expect(posts.toArraySync()).toHaveLength(1);
