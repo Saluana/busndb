@@ -23,10 +23,13 @@ export class BunDriver extends BaseDriver {
         try {
             // Set custom SQLite library for extension support
             try {
-                // Try common SQLite library paths
+                // Try common SQLite library paths that support extensions
                 const sqlitePaths = [
-                    '/opt/homebrew/lib/libsqlite3.dylib', // Homebrew on Apple Silicon
-                    '/usr/local/opt/sqlite/lib/libsqlite3.dylib', // Homebrew on Intel macOS
+                    '/opt/homebrew/opt/sqlite/lib/libsqlite3.dylib', // Homebrew sqlite package on Apple Silicon
+                    '/usr/local/opt/sqlite/lib/libsqlite3.dylib', // Homebrew sqlite package on Intel
+                    '/usr/local/opt/sqlite3/lib/libsqlite3.dylib', // Homebrew sqlite3 package (as shown in docs)
+                    '/opt/homebrew/lib/libsqlite3.dylib', // Homebrew on Apple Silicon (alternative)
+                    '/usr/local/lib/libsqlite3.dylib', // Generic /usr/local
                     '/usr/lib/x86_64-linux-gnu/libsqlite3.so.0', // Ubuntu/Debian
                     '/usr/lib/libsqlite3.so', // Generic Linux
                 ];
@@ -39,7 +42,7 @@ export class BunDriver extends BaseDriver {
                         if (fs.existsSync(path)) {
                             Database.setCustomSQLite(path);
                             sqliteSet = true;
-                            console.log(`Using SQLite library: ${path}`);
+                            console.log(`Using SQLite library with extension support: ${path}`);
                             break;
                         }
                     } catch (e) {
@@ -49,9 +52,10 @@ export class BunDriver extends BaseDriver {
                 }
 
                 if (!sqliteSet) {
-                    console.warn(
-                        'Warning: No compatible SQLite library found. Extension loading may fail.'
-                    );
+                    console.warn('Warning: No SQLite library with extension support found. Vector functionality may not work.');
+                    console.warn('To enable vector functionality in Bun, install SQLite with extension support:');
+                    console.warn('  macOS: brew install sqlite3');
+                    console.warn('  Linux: sudo apt-get install sqlite3-dev');
                 }
             } catch (error) {
                 console.warn(
@@ -69,8 +73,7 @@ export class BunDriver extends BaseDriver {
             // Load sqlite-vec extension
             try {
                 // Use the proper sqlite-vec loading approach for Bun
-                const vec0Path = sqliteVec.getLoadablePath();
-                this.db.loadExtension(vec0Path);
+                sqliteVec.load(this.db);
                 console.log('Successfully loaded sqlite-vec extension');
             } catch (error) {
                 console.warn(
