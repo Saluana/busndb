@@ -1,5 +1,11 @@
 import { z } from 'zod';
-import type { Driver, CollectionSchema, InferSchema, VectorSearchOptions, VectorSearchResult } from './types';
+import type {
+    Driver,
+    CollectionSchema,
+    InferSchema,
+    VectorSearchOptions,
+    VectorSearchResult,
+} from './types';
 import { QueryBuilder, FieldBuilder } from './query-builder';
 import { SQLTranslator } from './sql-translator';
 import { SchemaSQLGenerator } from './schema-sql-generator.js';
@@ -44,10 +50,18 @@ export class Collection<T extends z.ZodSchema> {
             this.initializationPromise = this.runMigrationsAsync();
         } catch (error) {
             // If sync methods fail (e.g., shared connection), initialize everything async
-            if (error instanceof Error && error.message.includes('not supported when using a shared connection')) {
+            if (
+                error instanceof Error &&
+                error.message.includes(
+                    'not supported when using a shared connection'
+                )
+            ) {
                 this.initializationPromise = this.initializeTableAsync();
             } else {
-                console.warn(`Table creation failed for collection '${this.collectionSchema.name}':`, error);
+                console.warn(
+                    `Table creation failed for collection '${this.collectionSchema.name}':`,
+                    error
+                );
                 this.initializationPromise = this.runMigrationsAsync();
             }
         }
@@ -72,20 +86,28 @@ export class Collection<T extends z.ZodSchema> {
                     this.driver.execSync(additionalQuery);
                 } catch (error) {
                     // If vector table creation fails, log warning but continue
-                    if (error instanceof Error && (
-                        error.message.includes('vec0') || 
-                        error.message.includes('no such module')
-                    )) {
-                        console.warn(`Warning: Vector table creation failed (extension not available): ${error.message}. Vector search functionality will be disabled.`);
+                    if (
+                        error instanceof Error &&
+                        (error.message.includes('vec0') ||
+                            error.message.includes('no such module'))
+                    ) {
+                        console.warn(
+                            `Warning: Vector table creation failed (extension not available): ${error.message}. Vector search functionality will be disabled.`
+                        );
                     } else {
                         throw error;
                     }
                 }
             }
-            
+
             this.isInitialized = true;
         } catch (error) {
-            if (!(error instanceof Error && error.message.includes('already exists'))) {
+            if (
+                !(
+                    error instanceof Error &&
+                    error.message.includes('already exists')
+                )
+            ) {
                 throw error;
             } else {
                 this.isInitialized = true;
@@ -95,11 +117,18 @@ export class Collection<T extends z.ZodSchema> {
 
     private async initializeTableAsync(): Promise<void> {
         const migrator = new Migrator(this.driver);
-        
+
         try {
-            await migrator.checkAndRunMigration(this.collectionSchema, this, this.database);
+            await migrator.checkAndRunMigration(
+                this.collectionSchema,
+                this,
+                this.database
+            );
         } catch (error) {
-            console.warn(`Migration check failed for collection '${this.collectionSchema.name}':`, error);
+            console.warn(
+                `Migration check failed for collection '${this.collectionSchema.name}':`,
+                error
+            );
         }
 
         const { sql, additionalSQL } =
@@ -118,21 +147,32 @@ export class Collection<T extends z.ZodSchema> {
                     await this.driver.exec(additionalQuery);
                 } catch (error) {
                     // If vector table creation fails, log warning but continue
-                    if (error instanceof Error && (
-                        error.message.includes('vec0') || 
-                        error.message.includes('no such module')
-                    )) {
-                        console.warn(`Warning: Vector table creation failed (extension not available): ${error.message}. Vector search functionality will be disabled.`);
+                    if (
+                        error instanceof Error &&
+                        (error.message.includes('vec0') ||
+                            error.message.includes('no such module'))
+                    ) {
+                        console.warn(
+                            `Warning: Vector table creation failed (extension not available): ${error.message}. Vector search functionality will be disabled.`
+                        );
                     } else {
                         throw error;
                     }
                 }
             }
-            
+
             this.isInitialized = true;
         } catch (error) {
-            if (!(error instanceof Error && error.message.includes('already exists'))) {
-                console.warn(`Table creation failed for collection '${this.collectionSchema.name}':`, error);
+            if (
+                !(
+                    error instanceof Error &&
+                    error.message.includes('already exists')
+                )
+            ) {
+                console.warn(
+                    `Table creation failed for collection '${this.collectionSchema.name}':`,
+                    error
+                );
             } else {
                 this.isInitialized = true;
             }
@@ -142,10 +182,17 @@ export class Collection<T extends z.ZodSchema> {
     private async runMigrationsAsync(): Promise<void> {
         try {
             const migrator = new Migrator(this.driver);
-            await migrator.checkAndRunMigration(this.collectionSchema, this, this.database);
+            await migrator.checkAndRunMigration(
+                this.collectionSchema,
+                this,
+                this.database
+            );
         } catch (error) {
             // Migration errors are non-fatal for backwards compatibility
-            console.warn(`Migration check failed for collection '${this.collectionSchema.name}':`, error);
+            console.warn(
+                `Migration check failed for collection '${this.collectionSchema.name}':`,
+                error
+            );
         }
     }
 
@@ -163,18 +210,23 @@ export class Collection<T extends z.ZodSchema> {
         }
     }
 
-    private async executeVectorQueries(vectorQueries: { sql: string; params: any[] }[]): Promise<void> {
+    private async executeVectorQueries(
+        vectorQueries: { sql: string; params: any[] }[]
+    ): Promise<void> {
         for (const vectorQuery of vectorQueries) {
             try {
                 await this.driver.exec(vectorQuery.sql, vectorQuery.params);
             } catch (error) {
                 // If vector operations fail, log warning but continue
-                if (error instanceof Error && (
-                    error.message.includes('vec0') || 
-                    error.message.includes('no such module') ||
-                    error.message.includes('no such table')
-                )) {
-                    console.warn(`Warning: Vector operation failed (extension not available): ${error.message}. Vector search functionality will be disabled for this field.`);
+                if (
+                    error instanceof Error &&
+                    (error.message.includes('vec0') ||
+                        error.message.includes('no such module') ||
+                        error.message.includes('no such table'))
+                ) {
+                    console.warn(
+                        `Warning: Vector operation failed (extension not available): ${error.message}. Vector search functionality will be disabled for this field.`
+                    );
                 } else {
                     throw error;
                 }
@@ -188,7 +240,7 @@ export class Collection<T extends z.ZodSchema> {
 
     async insert(doc: Omit<InferSchema<T>, 'id'>): Promise<InferSchema<T>> {
         await this.ensureInitialized();
-        
+
         const context = {
             collectionName: this.collectionSchema.name,
             schema: this.collectionSchema,
@@ -283,7 +335,7 @@ export class Collection<T extends z.ZodSchema> {
     ): Promise<InferSchema<T>[]> {
         await this.ensureInitialized();
         if (docs.length === 0) return [];
-        
+
         const context = {
             collectionName: this.collectionSchema.name,
             schema: this.collectionSchema,
@@ -339,7 +391,10 @@ export class Collection<T extends z.ZodSchema> {
                 this.collectionSchema.constrainedFields,
                 this.collectionSchema.schema
             );
-            const baseSQL = firstQuery.sql.substring(0, firstQuery.sql.indexOf('VALUES ') + 7);
+            const baseSQL = firstQuery.sql.substring(
+                0,
+                firstQuery.sql.indexOf('VALUES ') + 7
+            );
             const batchSQL = baseSQL + sqlParts.join(', ');
 
             await this.driver.exec(batchSQL, allParams);
@@ -356,7 +411,10 @@ export class Collection<T extends z.ZodSchema> {
             }
 
             const resultContext = { ...context, result: validatedDocs };
-            await this.pluginManager?.executeHookSafe('onAfterInsert', resultContext);
+            await this.pluginManager?.executeHookSafe(
+                'onAfterInsert',
+                resultContext
+            );
 
             return validatedDocs;
         } catch (error) {
@@ -430,7 +488,10 @@ export class Collection<T extends z.ZodSchema> {
             ...context,
             result: validatedDoc,
         };
-        await this.pluginManager?.executeHookSafe('onAfterUpdate', resultContext);
+        await this.pluginManager?.executeHookSafe(
+            'onAfterUpdate',
+            resultContext
+        );
 
         return validatedDoc;
     }
@@ -459,7 +520,11 @@ export class Collection<T extends z.ZodSchema> {
                     throw new NotFoundError('Document not found', update.id);
                 }
 
-                const updatedDoc = { ...existing, ...update.doc, id: update.id };
+                const updatedDoc = {
+                    ...existing,
+                    ...update.doc,
+                    id: update.id,
+                };
                 const validatedDoc = this.validateDocument(updatedDoc);
                 validatedDocs.push(validatedDoc);
 
@@ -485,7 +550,10 @@ export class Collection<T extends z.ZodSchema> {
             }
 
             const resultContext = { ...context, result: validatedDocs };
-            await this.pluginManager?.executeHookSafe('onAfterUpdate', resultContext);
+            await this.pluginManager?.executeHookSafe(
+                'onAfterUpdate',
+                resultContext
+            );
 
             return validatedDocs;
         } catch (error) {
@@ -542,7 +610,10 @@ export class Collection<T extends z.ZodSchema> {
             ...context,
             result: { id, deleted: true },
         };
-        await this.pluginManager?.executeHookSafe('onAfterDelete', resultContext);
+        await this.pluginManager?.executeHookSafe(
+            'onAfterDelete',
+            resultContext
+        );
 
         return true;
     }
@@ -652,7 +723,8 @@ export class Collection<T extends z.ZodSchema> {
 
                 if (
                     !this.collectionSchema.constrainedFields ||
-                    Object.keys(this.collectionSchema.constrainedFields).length === 0
+                    Object.keys(this.collectionSchema.constrainedFields)
+                        .length === 0
                 ) {
                     const valuePart = `(?, ?)`;
                     sqlParts.push(valuePart);
@@ -675,9 +747,12 @@ export class Collection<T extends z.ZodSchema> {
             let batchSQL: string;
             if (
                 !this.collectionSchema.constrainedFields ||
-                Object.keys(this.collectionSchema.constrainedFields).length === 0
+                Object.keys(this.collectionSchema.constrainedFields).length ===
+                    0
             ) {
-                batchSQL = `INSERT OR REPLACE INTO ${this.collectionSchema.name} (_id, doc) VALUES ${sqlParts.join(', ')}`;
+                batchSQL = `INSERT OR REPLACE INTO ${
+                    this.collectionSchema.name
+                } (_id, doc) VALUES ${sqlParts.join(', ')}`;
             } else {
                 const firstQuery = SQLTranslator.buildInsertQuery(
                     this.collectionSchema.name,
@@ -686,14 +761,22 @@ export class Collection<T extends z.ZodSchema> {
                     this.collectionSchema.constrainedFields,
                     this.collectionSchema.schema
                 );
-                const baseSQL = firstQuery.sql.substring(0, firstQuery.sql.indexOf('VALUES ') + 7);
-                batchSQL = baseSQL.replace('INSERT INTO', 'INSERT OR REPLACE INTO') + sqlParts.join(', ');
+                const baseSQL = firstQuery.sql.substring(
+                    0,
+                    firstQuery.sql.indexOf('VALUES ') + 7
+                );
+                batchSQL =
+                    baseSQL.replace('INSERT INTO', 'INSERT OR REPLACE INTO') +
+                    sqlParts.join(', ');
             }
 
             await this.driver.exec(batchSQL, allParams);
 
             const resultContext = { ...context, result: validatedDocs };
-            await this.pluginManager?.executeHookSafe('onAfterInsert', resultContext);
+            await this.pluginManager?.executeHookSafe(
+                'onAfterInsert',
+                resultContext
+            );
 
             return validatedDocs;
         } catch (error) {
@@ -723,11 +806,31 @@ export class Collection<T extends z.ZodSchema> {
 
     async findById(id: string): Promise<InferSchema<T> | null> {
         await this.ensureInitialized();
-        const sql = `SELECT doc FROM ${this.collectionSchema.name} WHERE _id = ?`;
+
+        if (
+            !this.collectionSchema.constrainedFields ||
+            Object.keys(this.collectionSchema.constrainedFields).length === 0
+        ) {
+            const sql = `SELECT doc FROM ${this.collectionSchema.name} WHERE _id = ?`;
+            const params = [id];
+            const rows = await this.driver.query(sql, params);
+            if (rows.length === 0) return null;
+            return parseDoc(rows[0].doc);
+        }
+
+        const constrainedFieldColumns = Object.keys(
+            this.collectionSchema.constrainedFields
+        )
+            .map((f) => fieldPathToColumnName(f))
+            .join(', ');
+        const sql = `SELECT doc, ${constrainedFieldColumns} FROM ${this.collectionSchema.name} WHERE _id = ?`;
         const params = [id];
         const rows = await this.driver.query(sql, params);
         if (rows.length === 0) return null;
-        return parseDoc(rows[0].doc);
+        return mergeConstrainedFields(
+            rows[0],
+            this.collectionSchema.constrainedFields
+        );
     }
 
     private validateFieldName(fieldName: string): void {
@@ -822,7 +925,10 @@ export class Collection<T extends z.ZodSchema> {
             ...context,
             result: results,
         };
-        await this.pluginManager?.executeHookSafe('onAfterQuery', resultContext);
+        await this.pluginManager?.executeHookSafe(
+            'onAfterQuery',
+            resultContext
+        );
 
         return results;
     }
@@ -1038,7 +1144,10 @@ export class Collection<T extends z.ZodSchema> {
                 this.collectionSchema.constrainedFields,
                 this.collectionSchema.schema
             );
-            const baseSQL = firstQuery.sql.substring(0, firstQuery.sql.indexOf('VALUES ') + 7);
+            const baseSQL = firstQuery.sql.substring(
+                0,
+                firstQuery.sql.indexOf('VALUES ') + 7
+            );
             const batchSQL = baseSQL + sqlParts.join(', ');
 
             this.driver.execSync(batchSQL, allParams);
@@ -1066,7 +1175,10 @@ export class Collection<T extends z.ZodSchema> {
     }
 
     findByIdSync(id: string): InferSchema<T> | null {
-        if (!this.collectionSchema.constrainedFields || Object.keys(this.collectionSchema.constrainedFields).length === 0) {
+        if (
+            !this.collectionSchema.constrainedFields ||
+            Object.keys(this.collectionSchema.constrainedFields).length === 0
+        ) {
             // Original behavior for collections without constrained fields
             const sql = `SELECT doc FROM ${this.collectionSchema.name} WHERE _id = ?`;
             const params = [id];
@@ -1076,12 +1188,19 @@ export class Collection<T extends z.ZodSchema> {
         }
 
         // For collections with constrained fields, select both doc and constrained columns
-        const constrainedFieldColumns = Object.keys(this.collectionSchema.constrainedFields).join(', ');
+        const constrainedFieldColumns = Object.keys(
+            this.collectionSchema.constrainedFields
+        )
+            .map((f) => fieldPathToColumnName(f))
+            .join(', ');
         const sql = `SELECT doc, ${constrainedFieldColumns} FROM ${this.collectionSchema.name} WHERE _id = ?`;
         const params = [id];
         const rows = this.driver.querySync(sql, params);
         if (rows.length === 0) return null;
-        return mergeConstrainedFields(rows[0], this.collectionSchema.constrainedFields);
+        return mergeConstrainedFields(
+            rows[0],
+            this.collectionSchema.constrainedFields
+        );
     }
 
     toArraySync(): InferSchema<T>[] {
@@ -1217,7 +1336,8 @@ export class Collection<T extends z.ZodSchema> {
 
                 if (
                     !this.collectionSchema.constrainedFields ||
-                    Object.keys(this.collectionSchema.constrainedFields).length === 0
+                    Object.keys(this.collectionSchema.constrainedFields)
+                        .length === 0
                 ) {
                     const valuePart = `(?, ?)`;
                     sqlParts.push(valuePart);
@@ -1240,9 +1360,12 @@ export class Collection<T extends z.ZodSchema> {
             let batchSQL: string;
             if (
                 !this.collectionSchema.constrainedFields ||
-                Object.keys(this.collectionSchema.constrainedFields).length === 0
+                Object.keys(this.collectionSchema.constrainedFields).length ===
+                    0
             ) {
-                batchSQL = `INSERT OR REPLACE INTO ${this.collectionSchema.name} (_id, doc) VALUES ${sqlParts.join(', ')}`;
+                batchSQL = `INSERT OR REPLACE INTO ${
+                    this.collectionSchema.name
+                } (_id, doc) VALUES ${sqlParts.join(', ')}`;
             } else {
                 const firstQuery = SQLTranslator.buildInsertQuery(
                     this.collectionSchema.name,
@@ -1251,8 +1374,13 @@ export class Collection<T extends z.ZodSchema> {
                     this.collectionSchema.constrainedFields,
                     this.collectionSchema.schema
                 );
-                const baseSQL = firstQuery.sql.substring(0, firstQuery.sql.indexOf('VALUES ') + 7);
-                batchSQL = baseSQL.replace('INSERT INTO', 'INSERT OR REPLACE INTO') + sqlParts.join(', ');
+                const baseSQL = firstQuery.sql.substring(
+                    0,
+                    firstQuery.sql.indexOf('VALUES ') + 7
+                );
+                batchSQL =
+                    baseSQL.replace('INSERT INTO', 'INSERT OR REPLACE INTO') +
+                    sqlParts.join(', ');
             }
 
             this.driver.execSync(batchSQL, allParams);
@@ -1294,7 +1422,11 @@ export class Collection<T extends z.ZodSchema> {
                     throw new NotFoundError('Document not found', update.id);
                 }
 
-                const updatedDoc = { ...existing, ...update.doc, id: update.id };
+                const updatedDoc = {
+                    ...existing,
+                    ...update.doc,
+                    id: update.id,
+                };
                 const validatedDoc = this.validateDocument(updatedDoc);
                 validatedDocs.push(validatedDoc);
 
@@ -1362,21 +1494,36 @@ export class Collection<T extends z.ZodSchema> {
     /**
      * Perform vector similarity search
      */
-    async vectorSearch(options: VectorSearchOptions): Promise<VectorSearchResult<InferSchema<T>>[]> {
+    async vectorSearch(
+        options: VectorSearchOptions
+    ): Promise<VectorSearchResult<InferSchema<T>>[]> {
         await this.ensureInitialized();
 
         // Validate that the field is a vector field
-        if (!this.collectionSchema.constrainedFields || !this.collectionSchema.constrainedFields[options.field]) {
-            throw new ValidationError(`Field '${options.field}' is not defined as a constrained field`);
+        if (
+            !this.collectionSchema.constrainedFields ||
+            !this.collectionSchema.constrainedFields[options.field]
+        ) {
+            throw new ValidationError(
+                `Field '${options.field}' is not defined as a constrained field`
+            );
         }
 
         const fieldDef = this.collectionSchema.constrainedFields[options.field];
         if (fieldDef.type !== 'VECTOR') {
-            throw new ValidationError(`Field '${options.field}' is not a vector field`);
+            throw new ValidationError(
+                `Field '${options.field}' is not a vector field`
+            );
         }
 
-        if (!fieldDef.vectorDimensions || !Array.isArray(options.vector) || options.vector.length !== fieldDef.vectorDimensions) {
-            throw new ValidationError(`Query vector must have ${fieldDef.vectorDimensions} dimensions`);
+        if (
+            !fieldDef.vectorDimensions ||
+            !Array.isArray(options.vector) ||
+            options.vector.length !== fieldDef.vectorDimensions
+        ) {
+            throw new ValidationError(
+                `Query vector must have ${fieldDef.vectorDimensions} dimensions`
+            );
         }
 
         // Plugin hook: before vector search
@@ -1388,7 +1535,10 @@ export class Collection<T extends z.ZodSchema> {
         };
         await this.pluginManager?.executeHookSafe('onBeforeQuery', context);
 
-        const vectorTableName = SchemaSQLGenerator.getVectorTableName(this.collectionSchema.name, options.field);
+        const vectorTableName = SchemaSQLGenerator.getVectorTableName(
+            this.collectionSchema.name,
+            options.field
+        );
         const columnName = fieldPathToColumnName(options.field);
         const limit = options.limit || 10;
         const distance = options.distance || 'cosine';
@@ -1405,7 +1555,7 @@ export class Collection<T extends z.ZodSchema> {
                 AND k = ?
         `;
 
-        // Convert query vector to Float32Array for sqlite-vec, compatible with better-sqlite3  
+        // Convert query vector to Float32Array for sqlite-vec, compatible with better-sqlite3
         const queryVectorArray = new Float32Array(options.vector);
         const params: any[] = [Buffer.from(queryVectorArray.buffer), limit];
 
@@ -1425,36 +1575,42 @@ export class Collection<T extends z.ZodSchema> {
 
         try {
             const rows = await this.driver.query(sql, params);
-            const results: VectorSearchResult<InferSchema<T>>[] = rows.map(row => ({
-                document: parseDoc(row.doc),
-                distance: row.distance as number,
-                id: row._id as string
-            }));
+            const results: VectorSearchResult<InferSchema<T>>[] = rows.map(
+                (row) => ({
+                    document: parseDoc(row.doc),
+                    distance: row.distance as number,
+                    id: row._id as string,
+                })
+            );
 
             // Plugin hook: after vector search
             const resultContext = {
                 ...context,
                 result: results,
             };
-            await this.pluginManager?.executeHookSafe('onAfterQuery', resultContext);
+            await this.pluginManager?.executeHookSafe(
+                'onAfterQuery',
+                resultContext
+            );
 
             return results;
         } catch (error) {
             const errorContext = { ...context, error: error as Error };
             await this.pluginManager?.executeHookSafe('onError', errorContext);
-            
+
             // If vector search fails due to missing extension, throw a helpful error
-            if (error instanceof Error && (
-                error.message.includes('vec0') || 
-                error.message.includes('no such module') ||
-                error.message.includes('no such table')
-            )) {
+            if (
+                error instanceof Error &&
+                (error.message.includes('vec0') ||
+                    error.message.includes('no such module') ||
+                    error.message.includes('no such table'))
+            ) {
                 throw new ValidationError(
                     `Vector search functionality is not available. The sqlite-vec extension is not loaded. ` +
-                    `Install SQLite with extension support for vector operations.`
+                        `Install SQLite with extension support for vector operations.`
                 );
             }
-            
+
             throw error;
         }
     }
@@ -1499,40 +1655,46 @@ QueryBuilder.prototype.toArray = async function <T>(
         this.collection['collectionSchema'].constrainedFields
     );
     const rows = await this.collection['driver'].query(sql, params);
-    
+
     // Check if this is an aggregate query
     const options = this.getOptions();
     if (options.aggregates && options.aggregates.length > 0) {
         // For aggregate queries, return the raw results without parsing doc
         return rows as T[];
     }
-    
+
     // Check if this is a JOIN query
     if (options.joins && options.joins.length > 0) {
         // For JOIN queries, merge data from multiple tables into JSON objects
-        return rows.map(row => {
+        return rows.map((row) => {
             const mergedObject: any = {};
-            
+
             // Parse the main table's doc if it exists
             if (row.doc) {
                 Object.assign(mergedObject, parseDoc(row.doc));
             }
-            
+
             // Add any direct column values (non-JSON fields) from SELECT
-            Object.keys(row).forEach(key => {
-                if (key !== 'doc' && row[key] !== null && row[key] !== undefined) {
+            Object.keys(row).forEach((key) => {
+                if (
+                    key !== 'doc' &&
+                    row[key] !== null &&
+                    row[key] !== undefined
+                ) {
                     // Handle table-prefixed field names like "users.name" -> "name"
-                    const fieldName = key.includes('.') ? key.split('.').pop() : key;
+                    const fieldName = key.includes('.')
+                        ? key.split('.').pop()
+                        : key;
                     if (fieldName) {
                         mergedObject[fieldName] = row[key];
                     }
                 }
             });
-            
+
             return mergedObject;
         }) as T[];
     }
-    
+
     return rows.map((row) => parseDoc(row.doc));
 };
 
@@ -1583,40 +1745,46 @@ QueryBuilder.prototype.toArraySync = function <T>(
         this.collection['collectionSchema'].constrainedFields
     );
     const rows = this.collection['driver'].querySync(sql, params);
-    
+
     // Check if this is an aggregate query
     const options = this.getOptions();
     if (options.aggregates && options.aggregates.length > 0) {
         // For aggregate queries, return the raw results without parsing doc
         return rows as T[];
     }
-    
+
     // Check if this is a JOIN query
     if (options.joins && options.joins.length > 0) {
         // For JOIN queries, merge data from multiple tables into JSON objects
-        return rows.map(row => {
+        return rows.map((row) => {
             const mergedObject: any = {};
-            
+
             // Parse the main table's doc if it exists
             if (row.doc) {
                 Object.assign(mergedObject, parseDoc(row.doc));
             }
-            
+
             // Add any direct column values (non-JSON fields) from SELECT
-            Object.keys(row).forEach(key => {
-                if (key !== 'doc' && row[key] !== null && row[key] !== undefined) {
+            Object.keys(row).forEach((key) => {
+                if (
+                    key !== 'doc' &&
+                    row[key] !== null &&
+                    row[key] !== undefined
+                ) {
                     // Handle table-prefixed field names like "users.name" -> "name"
-                    const fieldName = key.includes('.') ? key.split('.').pop() : key;
+                    const fieldName = key.includes('.')
+                        ? key.split('.').pop()
+                        : key;
                     if (fieldName) {
                         mergedObject[fieldName] = row[key];
                     }
                 }
             });
-            
+
             return mergedObject;
         }) as T[];
     }
-    
+
     return rows.map((row) => parseDoc(row.doc));
 };
 
