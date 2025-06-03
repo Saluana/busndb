@@ -28,6 +28,7 @@ export class Collection<T extends z.ZodSchema> {
 
     private isInitialized = false;
     private initializationPromise?: Promise<void>;
+    private initializationError?: Error; // Store initialization errors for explicit propagation
 
     constructor(
         driver: Driver,
@@ -188,14 +189,20 @@ export class Collection<T extends z.ZodSchema> {
                 this.database
             );
         } catch (error) {
-            // Check if this is an upgrade function error that should be propagated
+            // Check if this is an upgrade function error that should be handled gracefully
             if (
                 error instanceof Error &&
                 (error.message.includes('Custom upgrade') ||
                     error.message.includes('UPGRADE_FUNCTION_FAILED'))
             ) {
-                // Propagate upgrade function errors
-                throw error;
+                // Store upgrade function error for explicit propagation via waitForInitialization()
+                // but don't throw to avoid unhandled rejections during background initialization
+                this.initializationError = error;
+                console.error(
+                    `Upgrade function failed for collection '${this.collectionSchema.name}':`,
+                    error.message
+                );
+                return;
             }
 
             // Migration errors are non-fatal for backwards compatibility
@@ -216,6 +223,11 @@ export class Collection<T extends z.ZodSchema> {
     async waitForInitialization(): Promise<void> {
         if (this.initializationPromise) {
             await this.initializationPromise;
+        }
+        // If there was an initialization error (e.g., upgrade function failure),
+        // throw it now for explicit error handling in tests
+        if (this.initializationError) {
+            throw this.initializationError;
         }
     }
 

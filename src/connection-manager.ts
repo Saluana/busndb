@@ -210,7 +210,7 @@ export class ConnectionManager {
             console.warn('Driver detection warnings:', detection.warnings);
         }
 
-        let driver: Driver;
+        let driver: Driver | undefined;
         const driverType = detection.recommendedDriver;
 
         try {
@@ -241,7 +241,7 @@ export class ConnectionManager {
                     }
                 }
 
-                if (!driver!) {
+                if (!driver) {
                     throw new DatabaseError(
                         `All drivers failed. Primary: ${driverType} - ${
                             (error as Error).message
@@ -261,7 +261,7 @@ export class ConnectionManager {
 
         const connection: ManagedConnection = {
             id: shared ? connectionKey : this.generateConnectionId(),
-            driver,
+            driver: driver!,
             isActive: true,
             lastUsed: Date.now(),
             useCount: 1,
