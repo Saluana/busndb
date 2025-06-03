@@ -189,13 +189,15 @@ export class Collection<T extends z.ZodSchema> {
             );
         } catch (error) {
             // Check if this is an upgrade function error that should be propagated
-            if (error instanceof Error && 
-                (error.message.includes('Custom upgrade') || 
-                 error.message.includes('UPGRADE_FUNCTION_FAILED'))) {
+            if (
+                error instanceof Error &&
+                (error.message.includes('Custom upgrade') ||
+                    error.message.includes('UPGRADE_FUNCTION_FAILED'))
+            ) {
                 // Propagate upgrade function errors
                 throw error;
             }
-            
+
             // Migration errors are non-fatal for backwards compatibility
             console.warn(
                 `Migration check failed for collection '${this.collectionSchema.name}':`,

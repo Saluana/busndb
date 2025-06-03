@@ -19,7 +19,7 @@ describe('Upgrade Functions', () => {
 
         // Upgrade function will be called on v2 initialization
         let upgradeRan = false;
-        
+
         const users = db.collection('users_simple', UserSchema, {
             version: 2,
             upgrade: {
@@ -28,16 +28,22 @@ describe('Upgrade Functions', () => {
                     expect(ctx.fromVersion).toBe(0); // New collection starts from 0
                     expect(ctx.toVersion).toBe(2);
                     expect(ctx.database).toBeDefined();
-                    
+
                     // Add some initial users during upgrade
-                    await collection.insert({ name: 'John Doe', email: 'john.doe@example.com' });
-                    await collection.insert({ name: 'Jane Smith', email: 'jane.smith@example.com' });
-                }
-            }
+                    await collection.insert({
+                        name: 'John Doe',
+                        email: 'john.doe@example.com',
+                    });
+                    await collection.insert({
+                        name: 'Jane Smith',
+                        email: 'jane.smith@example.com',
+                    });
+                },
+            },
         });
 
         // Wait for async initialization
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise((resolve) => setTimeout(resolve, 100));
 
         // Verify upgrade ran
         expect(upgradeRan).toBe(true);
@@ -73,18 +79,21 @@ describe('Upgrade Functions', () => {
                         upgradeRan = true;
                         const users = await collection.toArray();
                         for (const user of users) {
-                            await collection.put(user.id, { ...user, isActive: true });
+                            await collection.put(user.id, {
+                                ...user,
+                                isActive: true,
+                            });
                         }
-                    }
-                }
-            }
+                    },
+                },
+            },
         });
 
         // Add some data first
         await users.insert({ name: 'John' });
 
         // Wait for async initialization
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise((resolve) => setTimeout(resolve, 100));
 
         expect(conditionChecked).toBe(true);
         expect(upgradeRan).toBe(true);
@@ -109,13 +118,13 @@ describe('Upgrade Functions', () => {
                     condition: async () => false, // Never run
                     migrate: async () => {
                         upgradeRan = true;
-                    }
-                }
-            }
+                    },
+                },
+            },
         });
 
         // Wait for async initialization
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise((resolve) => setTimeout(resolve, 100));
 
         expect(upgradeRan).toBe(false);
     });
@@ -145,17 +154,20 @@ describe('Upgrade Functions', () => {
                     executionOrder.push(3);
                     const users = await collection.toArray();
                     for (const user of users) {
-                        await collection.put(user.id, { ...user, fullName: user.name });
+                        await collection.put(user.id, {
+                            ...user,
+                            fullName: user.name,
+                        });
                     }
-                }
-            }
+                },
+            },
         });
 
         // Add initial data
         await users.insert({ name: 'John' });
 
         // Wait for async initialization
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise((resolve) => setTimeout(resolve, 100));
 
         expect(executionOrder).toEqual([2, 3]);
 
@@ -183,27 +195,31 @@ describe('Upgrade Functions', () => {
             upgrade: {
                 2: async (collection: any, ctx: UpgradeContext) => {
                     contextReceived = ctx;
-                    
+
                     // Create profiles collection through database
-                    const profiles = ctx.database.collection('profiles', ProfileSchema, { version: 1 });
-                    
+                    const profiles = ctx.database.collection(
+                        'profiles',
+                        ProfileSchema,
+                        { version: 1 }
+                    );
+
                     // Create profile for each user
                     const users = await collection.toArray();
                     for (const user of users) {
                         await profiles.insert({
                             userId: user.id,
-                            bio: `Profile for ${user.name}`
+                            bio: `Profile for ${user.name}`,
                         });
                     }
-                }
-            }
+                },
+            },
         });
 
         // Add initial user
         const insertedUser = await users.insert({ name: 'John' });
 
         // Wait for async initialization
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise((resolve) => setTimeout(resolve, 100));
 
         expect(contextReceived).toBeDefined();
         expect(contextReceived!.fromVersion).toBe(0);
@@ -234,19 +250,19 @@ describe('Upgrade Functions', () => {
                     // Insert test data first
                     await collection.insert({ name: 'John' });
                     await collection.insert({ name: 'Jane Smith' });
-                    
+
                     // Use raw SQL to update all users
                     await ctx.exec(`
                         UPDATE users 
                         SET doc = JSON_SET(doc, '$.nameLength', LENGTH(JSON_EXTRACT(doc, '$.name')))
                         WHERE JSON_EXTRACT(doc, '$.nameLength') IS NULL
                     `);
-                }
-            }
+                },
+            },
         });
 
         // Wait for async initialization
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise((resolve) => setTimeout(resolve, 100));
 
         const updatedUsers = await users.toArray();
         expect(updatedUsers[0].nameLength).toBe(4); // 'John'.length
@@ -266,29 +282,29 @@ describe('Upgrade Functions', () => {
             version: 1,
             seed: async (collection: any) => {
                 seedRan = true;
-                
+
                 // Create default admin user
                 await collection.insert({
                     name: 'Admin',
-                    role: 'admin'
+                    role: 'admin',
                 });
-                
+
                 await collection.insert({
                     name: 'Guest',
-                    role: 'guest'
+                    role: 'guest',
                 });
-            }
+            },
         });
 
         // Wait for async initialization
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise((resolve) => setTimeout(resolve, 100));
 
         expect(seedRan).toBe(true);
 
         const seededUsers = await users.toArray();
         expect(seededUsers.length).toBe(2);
-        expect(seededUsers.find(u => u.name === 'Admin')).toBeDefined();
-        expect(seededUsers.find(u => u.name === 'Guest')).toBeDefined();
+        expect(seededUsers.find((u) => u.name === 'Admin')).toBeDefined();
+        expect(seededUsers.find((u) => u.name === 'Guest')).toBeDefined();
     });
 
     it('should handle upgrade function errors gracefully', async () => {
@@ -303,8 +319,8 @@ describe('Upgrade Functions', () => {
             upgrade: {
                 2: async () => {
                     throw new Error('Upgrade failed');
-                }
-            }
+                },
+            },
         });
 
         // Wait for initialization and expect it to fail
@@ -338,15 +354,15 @@ describe('Upgrade Functions', () => {
                 upgrade: {
                     2: async () => {
                         upgradeRan = true;
-                    }
+                    },
                 },
                 seed: async () => {
                     // Seed function for testing
-                }
+                },
             });
 
             // Wait for async initialization
-            await new Promise(resolve => setTimeout(resolve, 100));
+            await new Promise((resolve) => setTimeout(resolve, 100));
 
             expect(upgradeRan).toBe(false); // Should not run in dry-run mode
         } finally {
@@ -368,23 +384,23 @@ describe('Upgrade Functions', () => {
         // Create collection first
         const users = db.collection('users', UserSchema, { version: 1 });
         await users.insert({ name: 'John' });
-        
+
         // Now try to upgrade with a failing function
         let errorCaught = false;
         let caughtError: any = null;
-        
+
         // The upgrade function will fail during async initialization
         const usersV2 = db.collection('users_v2', UserSchema, {
             version: 2,
             upgrade: {
                 2: async (collection: any, ctx: UpgradeContext) => {
                     // Start some work
-                    await ctx.exec("SELECT 1"); // This should work
-                    
+                    await ctx.exec('SELECT 1'); // This should work
+
                     // Then fail
                     throw new Error('Something went wrong');
-                }
-            }
+                },
+            },
         });
 
         // Wait for the initialization to complete and catch any errors
