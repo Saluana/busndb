@@ -297,7 +297,7 @@ describe('Upgrade Functions', () => {
             name: z.string(),
         });
 
-        // This should fail during upgrade but not crash the collection creation
+        // This should fail during upgrade
         const users = db.collection('users', UserSchema, {
             version: 2,
             upgrade: {
@@ -307,15 +307,16 @@ describe('Upgrade Functions', () => {
             }
         });
 
-        // Add some data
-        await users.insert({ name: 'John' });
+        // Wait for initialization and expect it to fail
+        let errorCaught = false;
+        try {
+            await users.waitForInitialization();
+        } catch (error) {
+            errorCaught = true;
+            expect(error.message).toContain('Upgrade failed');
+        }
 
-        // Wait for async initialization - should not throw
-        await new Promise(resolve => setTimeout(resolve, 100));
-
-        // Collection should still work despite upgrade failure
-        const userData = await users.toArray();
-        expect(userData.length).toBe(1);
+        expect(errorCaught).toBe(true);
     });
 
     it('should work with dry-run mode', async () => {
@@ -370,26 +371,34 @@ describe('Upgrade Functions', () => {
         
         // Now try to upgrade with a failing function
         let errorCaught = false;
+        let caughtError: any = null;
         
-        try {
-            const usersV2 = db.collection('users_v2', UserSchema, {
-                version: 2,
-                upgrade: {
-                    2: async (collection: any, ctx: UpgradeContext) => {
-                        // Start some work
-                        await ctx.exec("SELECT 1"); // This should work
-                        
-                        // Then fail
-                        throw new Error('Something went wrong');
-                    }
+        // The upgrade function will fail during async initialization
+        const usersV2 = db.collection('users_v2', UserSchema, {
+            version: 2,
+            upgrade: {
+                2: async (collection: any, ctx: UpgradeContext) => {
+                    // Start some work
+                    await ctx.exec("SELECT 1"); // This should work
+                    
+                    // Then fail
+                    throw new Error('Something went wrong');
                 }
-            });
+            }
+        });
 
-            // Wait for async initialization
-            await new Promise(resolve => setTimeout(resolve, 100));
+        // Wait for the initialization to complete and catch any errors
+        try {
+            await usersV2.waitForInitialization();
         } catch (error) {
             errorCaught = true;
+            caughtError = error;
         }
+
+        // Verify that the error was caught and has the expected properties
+        expect(errorCaught).toBe(true);
+        expect(caughtError).toBeDefined();
+        expect(caughtError.message).toContain('Something went wrong');
 
         // The original data should still be intact
         const originalUsers = await users.toArray();

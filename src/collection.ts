@@ -188,6 +188,14 @@ export class Collection<T extends z.ZodSchema> {
                 this.database
             );
         } catch (error) {
+            // Check if this is an upgrade function error that should be propagated
+            if (error instanceof Error && 
+                (error.message.includes('Custom upgrade') || 
+                 error.message.includes('UPGRADE_FUNCTION_FAILED'))) {
+                // Propagate upgrade function errors
+                throw error;
+            }
+            
             // Migration errors are non-fatal for backwards compatibility
             console.warn(
                 `Migration check failed for collection '${this.collectionSchema.name}':`,
@@ -198,6 +206,13 @@ export class Collection<T extends z.ZodSchema> {
 
     private async ensureInitialized(): Promise<void> {
         if (!this.isInitialized && this.initializationPromise) {
+            await this.initializationPromise;
+        }
+    }
+
+    // Method for tests to wait for full initialization including migrations
+    async waitForInitialization(): Promise<void> {
+        if (this.initializationPromise) {
             await this.initializationPromise;
         }
     }
