@@ -34,11 +34,6 @@ export class UpgradeRunner {
                         fromVersion, // Pass the original fromVersion (storedVersion)
                         version
                     );
-                    console.log(
-                        `Custom upgrade v${version} completed for collection '${
-                            (collection as any).collectionSchema.name
-                        }'`
-                    );
                 } catch (error) {
                     const errorMessage =
                         error instanceof Error ? error.message : String(error);
@@ -60,11 +55,6 @@ export class UpgradeRunner {
         try {
             // Don't start new transaction, we're already in one from the migrator
             await seedFunction(collection);
-            console.log(
-                `Seed function completed for collection '${
-                    (collection as any).collectionSchema.name
-                }'`
-            );
         } catch (error) {
             const errorMessage =
                 error instanceof Error ? error.message : String(error);
@@ -110,12 +100,6 @@ export class UpgradeRunner {
             if (shouldRun) {
                 // Don't start new transaction, we're already in one
                 await upgrade.migrate(collection, context);
-            } else {
-                console.log(
-                    `Skipped upgrade v${toVersion} for collection '${
-                        (collection as any).collectionSchema.name
-                    }' (condition not met)`
-                );
             }
         }
     }
@@ -134,29 +118,12 @@ export class UpgradeRunner {
         });
 
         if (hasUpgrades) {
-            console.log(`  Custom upgrade functions for ${collectionName}:`);
-
             for (
                 let version = fromVersion + 1;
                 version <= toVersion;
                 version++
             ) {
                 const upgradeDefinition = upgrades[version];
-
-                if (upgradeDefinition) {
-                    if (typeof upgradeDefinition === 'function') {
-                        console.log(
-                            `    v${version}: Custom migration function`
-                        );
-                    } else {
-                        const hasCondition = upgradeDefinition.condition
-                            ? ' (conditional)'
-                            : '';
-                        console.log(
-                            `    v${version}: Custom migration function${hasCondition}`
-                        );
-                    }
-                }
             }
         }
     }

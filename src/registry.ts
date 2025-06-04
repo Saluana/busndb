@@ -1,5 +1,9 @@
 import { z } from 'zod';
-import type { CollectionSchema, InferSchema, ConstrainedFieldDefinition } from './types';
+import type {
+    CollectionSchema,
+    InferSchema,
+    ConstrainedFieldDefinition,
+} from './types';
 import type { SchemaConstraints, Constraint } from './schema-constraints';
 import type { UpgradeMap, SeedFunction } from './upgrade-types';
 
@@ -10,23 +14,28 @@ export class Registry {
         constraints: SchemaConstraints
     ): { [fieldPath: string]: ConstrainedFieldDefinition } {
         const result: { [fieldPath: string]: ConstrainedFieldDefinition } = {};
-        
+
         if (constraints?.constraints) {
-            for (const [fieldPath, constraint] of Object.entries(constraints.constraints)) {
-                const constraintArray = Array.isArray(constraint) ? constraint : [constraint];
-                
+            for (const [fieldPath, constraint] of Object.entries(
+                constraints.constraints
+            )) {
+                const constraintArray = Array.isArray(constraint)
+                    ? constraint
+                    : [constraint];
+
                 for (const c of constraintArray) {
                     switch (c.type) {
                         case 'unique':
                             // Handle composite unique constraints
                             if (c.fields && c.fields.length > 1) {
                                 // For composite constraints, skip for now (needs table-level constraint)
-                                console.warn(`Composite unique constraint on ${c.fields.join(', ')} not yet supported`);
+                                // Skip composite unique constraints as they're not yet supported
                                 continue;
                             } else if (c.fields && c.fields.length === 1) {
                                 // Single field from composite constraint definition
                                 const actualField = c.fields[0];
-                                if (!result[actualField]) result[actualField] = {};
+                                if (!result[actualField])
+                                    result[actualField] = {};
                                 result[actualField].unique = true;
                             } else {
                                 // Regular single field constraint
@@ -36,9 +45,15 @@ export class Registry {
                             break;
                         case 'foreign_key':
                             if (!result[fieldPath]) result[fieldPath] = {};
-                            result[fieldPath].foreignKey = `${c.referencedTable}.${c.referencedFields[0]}`;
-                            if (c.onDelete) result[fieldPath].onDelete = c.onDelete.toUpperCase() as any;
-                            if (c.onUpdate) result[fieldPath].onUpdate = c.onUpdate.toUpperCase() as any;
+                            result[
+                                fieldPath
+                            ].foreignKey = `${c.referencedTable}.${c.referencedFields[0]}`;
+                            if (c.onDelete)
+                                result[fieldPath].onDelete =
+                                    c.onDelete.toUpperCase() as any;
+                            if (c.onUpdate)
+                                result[fieldPath].onUpdate =
+                                    c.onUpdate.toUpperCase() as any;
                             break;
                         case 'check':
                             if (!result[fieldPath]) result[fieldPath] = {};
@@ -48,7 +63,7 @@ export class Registry {
                 }
             }
         }
-        
+
         return result;
     }
 
@@ -60,7 +75,9 @@ export class Registry {
             version?: number;
             indexes?: string[];
             constraints?: SchemaConstraints;
-            constrainedFields?: { [fieldPath: string]: ConstrainedFieldDefinition };
+            constrainedFields?: {
+                [fieldPath: string]: ConstrainedFieldDefinition;
+            };
             upgrade?: UpgradeMap<InferSchema<T>>;
             seed?: SeedFunction<InferSchema<T>>;
         } = {}
@@ -72,8 +89,13 @@ export class Registry {
         // Convert old constraints API to constrainedFields if needed
         let finalConstrainedFields = options.constrainedFields || {};
         if (options.constraints) {
-            const convertedFields = this.convertConstraintsToConstrainedFields(options.constraints);
-            finalConstrainedFields = { ...convertedFields, ...finalConstrainedFields };
+            const convertedFields = this.convertConstraintsToConstrainedFields(
+                options.constraints
+            );
+            finalConstrainedFields = {
+                ...convertedFields,
+                ...finalConstrainedFields,
+            };
         }
 
         const collectionSchema: CollectionSchema<InferSchema<T>> = {
@@ -92,7 +114,9 @@ export class Registry {
         return collectionSchema;
     }
 
-    get<T extends z.ZodTypeAny = any>(name: string): CollectionSchema<T> | undefined {
+    get<T extends z.ZodTypeAny = any>(
+        name: string
+    ): CollectionSchema<T> | undefined {
         return this.collections.get(name) as CollectionSchema<T>;
     }
 
