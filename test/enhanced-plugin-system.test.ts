@@ -6,7 +6,7 @@ import type { Database } from '../src/database';
 // Import our hello world plugin examples will be done dynamically in tests
 
 const userSchema = z.object({
-    id: z.string().uuid(),
+    _id: z.string().uuid(),
     name: z.string(),
     email: z.string().email(),
 });
@@ -168,10 +168,10 @@ describe('Enhanced Plugin System', () => {
         await users.toArray();
 
         // Test update
-        await users.put(user.id, { name: 'Updated User' });
+        await users.put(user._id, { name: 'Updated User' });
 
         // Test delete
-        await users.delete(user.id);
+        await users.delete(user._id);
 
         // Verify all hooks were called
         expect(

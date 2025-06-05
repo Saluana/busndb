@@ -395,12 +395,12 @@ export class SQLTranslator {
                 const joinType = join.type === 'FULL' ? 'FULL OUTER' : join.type;
                 
                 // For joins, we need to handle field access properly for document-based storage
-                const leftFieldAccess = join.condition.left === 'id' 
-                    ? `${tableName}._id` 
+                const leftFieldAccess = join.condition.left === '_id'
+                    ? `${tableName}._id`
                     : `json_extract(${tableName}.doc, '$.${join.condition.left}')`;
-                    
-                const rightFieldAccess = join.condition.right === 'id' 
-                    ? `${join.collection}._id` 
+
+                const rightFieldAccess = join.condition.right === '_id'
+                    ? `${join.collection}._id`
                     : `json_extract(${join.collection}.doc, '$.${join.condition.right}')`;
                     
                 const operator = join.condition.operator || '=';
@@ -446,7 +446,7 @@ export class SQLTranslator {
             }
             
             // For id field, use _id column directly
-            if (fieldName === 'id') {
+            if (fieldName === '_id') {
                 return `${tablePrefix}._id`;
             }
             
@@ -471,7 +471,7 @@ export class SQLTranslator {
         }
         
         // For id field, use _id column directly
-        if (field === 'id') {
+        if (field === '_id') {
             return `${tableName}._id`;
         }
         
@@ -724,7 +724,7 @@ export class SQLTranslator {
                 // Use the specified table prefix
                 if (constrainedFields && constrainedFields[fieldName]) {
                     col = `${tablePrefix}.${fieldPathToColumnName(fieldName)}`;
-                } else if (fieldName === 'id') {
+                } else if (fieldName === '_id') {
                     col = `${tablePrefix}._id`;
                 } else {
                     col = `json_extract(${tablePrefix}.doc, '$.${fieldName}')`;

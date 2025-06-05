@@ -10,7 +10,7 @@ import type { Database } from '../src/database.js';
 
 // Schemas for relationship testing
 const userSchema = z.object({
-    id: z.string().uuid(),
+    _id: z.string().uuid(),
     name: z.string(),
     email: z.string().email(),
     age: z.number().int().optional(),
@@ -18,7 +18,7 @@ const userSchema = z.object({
 });
 
 const postSchema = z.object({
-    id: z.string().uuid(),
+    _id: z.string().uuid(),
     title: z.string(),
     content: z.string(),
     authorId: z.string().uuid(),
@@ -27,7 +27,7 @@ const postSchema = z.object({
 });
 
 const commentSchema = z.object({
-    id: z.string().uuid(),
+    _id: z.string().uuid(),
     content: z.string(),
     postId: z.string().uuid(),
     authorId: z.string().uuid(),
@@ -35,31 +35,31 @@ const commentSchema = z.object({
 });
 
 const categorySchema = z.object({
-    id: z.string().uuid(),
+    _id: z.string().uuid(),
     name: z.string(),
     description: z.string().optional(),
 });
 
 const postCategorySchema = z.object({
-    id: z.string().uuid(),
+    _id: z.string().uuid(),
     postId: z.string().uuid(),
     categoryId: z.string().uuid(),
 });
 
 const tagSchema = z.object({
-    id: z.string().uuid(),
+    _id: z.string().uuid(),
     name: z.string(),
     color: z.string().optional(),
 });
 
 const postTagSchema = z.object({
-    id: z.string().uuid(),
+    _id: z.string().uuid(),
     postId: z.string().uuid(),
     tagId: z.string().uuid(),
 });
 
 const profileSchema = z.object({
-    id: z.string().uuid(),
+    _id: z.string().uuid(),
     userId: z.string().uuid(),
     bio: z.string().optional(),
     website: z.string().optional(),
@@ -118,40 +118,40 @@ describe('Relationship Testing', () => {
             const post1 = posts.insertSync({
                 title: 'Alice First Post',
                 content: 'This is Alice first post',
-                authorId: user1.id,
+                authorId: user1._id,
                 published: true,
             });
 
             const post2 = posts.insertSync({
                 title: 'Alice Second Post',
                 content: 'This is Alice second post',
-                authorId: user1.id,
+                authorId: user1._id,
                 published: false,
             });
 
             const post3 = posts.insertSync({
                 title: 'Bob First Post',
                 content: 'This is Bob first post',
-                authorId: user2.id,
+                authorId: user2._id,
                 published: true,
             });
 
             // Test finding posts by author using direct filtering
             const alicePosts = posts
                 .where('authorId')
-                .eq(user1.id)
+                .eq(user1._id)
                 .toArraySync();
             expect(alicePosts).toHaveLength(2);
-            expect(alicePosts.every((p) => p.authorId === user1.id)).toBe(true);
+            expect(alicePosts.every((p) => p.authorId === user1._id)).toBe(true);
 
-            const bobPosts = posts.where('authorId').eq(user2.id).toArraySync();
+            const bobPosts = posts.where('authorId').eq(user2._id).toArraySync();
             expect(bobPosts).toHaveLength(1);
-            expect(bobPosts[0].authorId).toBe(user2.id);
+            expect(bobPosts[0].authorId).toBe(user2._id);
 
             // Test filtering published posts by author
             const alicePublishedPosts = posts
                 .where('authorId')
-                .eq(user1.id)
+                .eq(user1._id)
                 .and()
                 .where('published')
                 .eq(true)
@@ -170,46 +170,46 @@ describe('Relationship Testing', () => {
             const post = posts.insertSync({
                 title: 'Test Post',
                 content: 'Test content',
-                authorId: user.id,
+                authorId: user._id,
             });
 
             // Create comments for the post
             const comment1 = comments.insertSync({
                 content: 'Great post!',
-                postId: post.id,
-                authorId: user.id,
+                postId: post._id,
+                authorId: user._id,
             });
 
             const comment2 = comments.insertSync({
                 content: 'Very informative',
-                postId: post.id,
-                authorId: user.id,
+                postId: post._id,
+                authorId: user._id,
             });
 
             // Another post and comment
             const anotherPost = posts.insertSync({
                 title: 'Another Post',
                 content: 'Another content',
-                authorId: user.id,
+                authorId: user._id,
             });
 
             const comment3 = comments.insertSync({
                 content: 'Comment on another post',
-                postId: anotherPost.id,
-                authorId: user.id,
+                postId: anotherPost._id,
+                authorId: user._id,
             });
 
             // Test finding comments by post
             const postComments = comments
                 .where('postId')
-                .eq(post.id)
+                .eq(post._id)
                 .toArraySync();
             expect(postComments).toHaveLength(2);
-            expect(postComments.every((c) => c.postId === post.id)).toBe(true);
+            expect(postComments.every((c) => c.postId === post._id)).toBe(true);
 
             const anotherPostComments = comments
                 .where('postId')
-                .eq(anotherPost.id)
+                .eq(anotherPost._id)
                 .toArraySync();
             expect(anotherPostComments).toHaveLength(1);
             expect(anotherPostComments[0].content).toBe(
@@ -227,48 +227,48 @@ describe('Relationship Testing', () => {
             const post1 = posts.insertSync({
                 title: 'Post 1',
                 content: 'Content 1',
-                authorId: user.id,
+                authorId: user._id,
             });
 
             const post2 = posts.insertSync({
                 title: 'Post 2',
                 content: 'Content 2',
-                authorId: user.id,
+                authorId: user._id,
             });
 
             // Create comments
             comments.insertSync({
                 content: 'Comment 1',
-                postId: post1.id,
-                authorId: user.id,
+                postId: post1._id,
+                authorId: user._id,
             });
 
             comments.insertSync({
                 content: 'Comment 2',
-                postId: post2.id,
-                authorId: user.id,
+                postId: post2._id,
+                authorId: user._id,
             });
 
             // Verify initial state
-            expect(posts.where('authorId').eq(user.id).countSync()).toBe(2);
-            expect(comments.where('authorId').eq(user.id).countSync()).toBe(2);
+            expect(posts.where('authorId').eq(user._id).countSync()).toBe(2);
+            expect(comments.where('authorId').eq(user._id).countSync()).toBe(2);
 
             // Simulate cascading delete: delete comments first, then posts, then user
             const userComments = comments
                 .where('authorId')
-                .eq(user.id)
+                .eq(user._id)
                 .toArraySync();
-            userComments.forEach((comment) => comments.deleteSync(comment.id));
+            userComments.forEach((comment) => comments.deleteSync(comment._id));
 
-            const userPosts = posts.where('authorId').eq(user.id).toArraySync();
-            userPosts.forEach((post) => posts.deleteSync(post.id));
+            const userPosts = posts.where('authorId').eq(user._id).toArraySync();
+            userPosts.forEach((post) => posts.deleteSync(post._id));
 
-            users.deleteSync(user.id);
+            users.deleteSync(user._id);
 
             // Verify deletion
-            expect(users.findByIdSync(user.id)).toBeNull();
-            expect(posts.where('authorId').eq(user.id).countSync()).toBe(0);
-            expect(comments.where('authorId').eq(user.id).countSync()).toBe(0);
+            expect(users.findByIdSync(user._id)).toBeNull();
+            expect(posts.where('authorId').eq(user._id).countSync()).toBe(0);
+            expect(comments.where('authorId').eq(user._id).countSync()).toBe(0);
         });
     });
 
@@ -283,7 +283,7 @@ describe('Relationship Testing', () => {
 
             // Create profile for user
             const profile = profiles.insertSync({
-                userId: user.id,
+                userId: user._id,
                 bio: 'Software developer',
                 website: 'https://example.com',
                 avatar: 'avatar.jpg',
@@ -292,24 +292,24 @@ describe('Relationship Testing', () => {
             // Test finding profile by user
             const userProfile = profiles
                 .where('userId')
-                .eq(user.id)
+                .eq(user._id)
                 .firstSync();
             expect(userProfile).not.toBeNull();
-            expect(userProfile?.userId).toBe(user.id);
+            expect(userProfile?.userId).toBe(user._id);
             expect(userProfile?.bio).toBe('Software developer');
 
             // Test uniqueness constraint simulation
             // In a real application, you would enforce this at the schema level
             const existingProfile = profiles
                 .where('userId')
-                .eq(user.id)
+                .eq(user._id)
                 .firstSync();
             expect(existingProfile).not.toBeNull();
 
             // Attempting to create another profile should be prevented by application logic
             const duplicateProfileCheck = profiles
                 .where('userId')
-                .eq(user.id)
+                .eq(user._id)
                 .countSync();
             expect(duplicateProfileCheck).toBe(1);
         });
@@ -321,12 +321,12 @@ describe('Relationship Testing', () => {
             });
 
             const profile = profiles.insertSync({
-                userId: user.id,
+                userId: user._id,
                 bio: 'Original bio',
             });
 
             // Update profile
-            const updatedProfile = profiles.putSync(profile.id, {
+            const updatedProfile = profiles.putSync(profile._id, {
                 bio: 'Updated bio',
                 website: 'https://updated.com',
             });
@@ -335,15 +335,15 @@ describe('Relationship Testing', () => {
             expect(updatedProfile.website).toBe('https://updated.com');
 
             // Delete profile
-            profiles.deleteSync(profile.id);
+            profiles.deleteSync(profile._id);
             const deletedProfile = profiles
                 .where('userId')
-                .eq(user.id)
+                .eq(user._id)
                 .firstSync();
             expect(deletedProfile).toBeNull();
 
             // User should still exist
-            const existingUser = users.findByIdSync(user.id);
+            const existingUser = users.findByIdSync(user._id);
             expect(existingUser).not.toBeNull();
         });
     });
@@ -375,72 +375,72 @@ describe('Relationship Testing', () => {
             const post1 = posts.insertSync({
                 title: 'JavaScript Basics',
                 content: 'Learn JavaScript fundamentals',
-                authorId: user.id,
+                authorId: user._id,
             });
 
             const post2 = posts.insertSync({
                 title: 'React Tutorial',
                 content: 'Build apps with React',
-                authorId: user.id,
+                authorId: user._id,
             });
 
             // Create many-to-many relationships
             // Post 1 belongs to Tech and Programming
             postCategories.insertSync({
-                postId: post1.id,
-                categoryId: techCategory.id,
+                postId: post1._id,
+                categoryId: techCategory._id,
             });
 
             postCategories.insertSync({
-                postId: post1.id,
-                categoryId: programmingCategory.id,
+                postId: post1._id,
+                categoryId: programmingCategory._id,
             });
 
             // Post 2 belongs to all three categories
             postCategories.insertSync({
-                postId: post2.id,
-                categoryId: techCategory.id,
+                postId: post2._id,
+                categoryId: techCategory._id,
             });
 
             postCategories.insertSync({
-                postId: post2.id,
-                categoryId: programmingCategory.id,
+                postId: post2._id,
+                categoryId: programmingCategory._id,
             });
 
             postCategories.insertSync({
-                postId: post2.id,
-                categoryId: tutorialCategory.id,
+                postId: post2._id,
+                categoryId: tutorialCategory._id,
             });
 
             // Test finding categories for a post
             const post1CategoryIds = postCategories
                 .where('postId')
-                .eq(post1.id)
+                .eq(post1._id)
                 .toArraySync()
                 .map((pc) => pc.categoryId);
 
             expect(post1CategoryIds).toHaveLength(2);
-            expect(post1CategoryIds).toContain(techCategory.id);
-            expect(post1CategoryIds).toContain(programmingCategory.id);
+            expect(post1CategoryIds).toContain(techCategory._id);
+            expect(post1CategoryIds).toContain(programmingCategory._id);
 
             // Test finding posts for a category
             const techPostIds = postCategories
                 .where('categoryId')
-                .eq(techCategory.id)
+                .eq(techCategory._id)
                 .toArraySync()
                 .map((pc) => pc.postId);
 
             expect(techPostIds).toHaveLength(2);
-            expect(techPostIds).toContain(post1.id);
-            expect(techPostIds).toContain(post2.id);
+            expect(techPostIds).toContain(post1._id);
+            expect(techPostIds).toContain(post2._id);
 
             // Test finding posts with specific category using subquery
             const programmingPosts = posts
-                .where('id')
+                .where('_id')
                 .inSubquery(
                     postCategories
                         .where('categoryId')
-                        .eq(programmingCategory.id)
+                        .eq(programmingCategory._id)
                         .select('postId'),
                     'post_categories'
                 )
@@ -475,42 +475,42 @@ describe('Relationship Testing', () => {
             const post = posts.insertSync({
                 title: 'React with JavaScript',
                 content: 'Advanced React patterns',
-                authorId: user.id,
+                authorId: user._id,
             });
 
             // Tag the post
-            postTags.insertSync({ postId: post.id, tagId: jsTag.id });
-            postTags.insertSync({ postId: post.id, tagId: reactTag.id });
-            postTags.insertSync({ postId: post.id, tagId: webdevTag.id });
+            postTags.insertSync({ postId: post._id, tagId: jsTag._id });
+            postTags.insertSync({ postId: post._id, tagId: reactTag._id });
+            postTags.insertSync({ postId: post._id, tagId: webdevTag._id });
 
             // Test finding tags for post
             const postTagIds = postTags
                 .where('postId')
-                .eq(post.id)
+                .eq(post._id)
                 .toArraySync()
                 .map((pt) => pt.tagId);
 
             expect(postTagIds).toHaveLength(3);
-            expect(postTagIds).toContain(jsTag.id);
-            expect(postTagIds).toContain(reactTag.id);
-            expect(postTagIds).toContain(webdevTag.id);
+            expect(postTagIds).toContain(jsTag._id);
+            expect(postTagIds).toContain(reactTag._id);
+            expect(postTagIds).toContain(webdevTag._id);
 
             // Test removing a tag from post
             const jsPostTag = postTags
                 .where('postId')
-                .eq(post.id)
+                .eq(post._id)
                 .and()
                 .where('tagId')
-                .eq(jsTag.id)
+                .eq(jsTag._id)
                 .firstSync();
 
             if (jsPostTag) {
-                postTags.deleteSync(jsPostTag.id);
+                postTags.deleteSync(jsPostTag._id);
             }
 
             const remainingTags = postTags
                 .where('postId')
-                .eq(post.id)
+                .eq(post._id)
                 .countSync();
             expect(remainingTags).toBe(2);
         });
@@ -529,49 +529,49 @@ describe('Relationship Testing', () => {
             const post1 = posts.insertSync({
                 title: 'Frontend Development',
                 content: 'Frontend guide',
-                authorId: user.id,
+                authorId: user._id,
             });
 
             const post2 = posts.insertSync({
                 title: 'Backend APIs',
                 content: 'API development',
-                authorId: user.id,
+                authorId: user._id,
             });
 
             const post3 = posts.insertSync({
                 title: 'Full Stack App',
                 content: 'End-to-end development',
-                authorId: user.id,
+                authorId: user._id,
             });
 
             // Tag posts
-            postTags.insertSync({ postId: post1.id, tagId: frontendTag.id });
-            postTags.insertSync({ postId: post2.id, tagId: backendTag.id });
-            postTags.insertSync({ postId: post3.id, tagId: frontendTag.id });
-            postTags.insertSync({ postId: post3.id, tagId: backendTag.id });
-            postTags.insertSync({ postId: post3.id, tagId: fullstackTag.id });
+            postTags.insertSync({ postId: post1._id, tagId: frontendTag._id });
+            postTags.insertSync({ postId: post2._id, tagId: backendTag._id });
+            postTags.insertSync({ postId: post3._id, tagId: frontendTag._id });
+            postTags.insertSync({ postId: post3._id, tagId: backendTag._id });
+            postTags.insertSync({ postId: post3._id, tagId: fullstackTag._id });
 
             // Find posts tagged with 'Frontend'
             const frontendPostIds = postTags
                 .where('tagId')
-                .eq(frontendTag.id)
+                .eq(frontendTag._id)
                 .toArraySync()
                 .map((pt) => pt.postId);
 
             expect(frontendPostIds).toHaveLength(2);
-            expect(frontendPostIds).toContain(post1.id);
-            expect(frontendPostIds).toContain(post3.id);
+            expect(frontendPostIds).toContain(post1._id);
+            expect(frontendPostIds).toContain(post3._id);
 
             // Find posts tagged with both 'Frontend' and 'Backend'
             const frontendPosts = postTags
                 .where('tagId')
-                .eq(frontendTag.id)
+                .eq(frontendTag._id)
                 .toArraySync()
                 .map((pt) => pt.postId);
 
             const backendPosts = postTags
                 .where('tagId')
-                .eq(backendTag.id)
+                .eq(backendTag._id)
                 .toArraySync()
                 .map((pt) => pt.postId);
 
@@ -579,7 +579,7 @@ describe('Relationship Testing', () => {
                 backendPosts.includes(id)
             );
             expect(bothTagsPosts).toHaveLength(1);
-            expect(bothTagsPosts[0]).toBe(post3.id);
+            expect(bothTagsPosts[0]).toBe(post3._id);
         });
     });
 
@@ -594,23 +594,23 @@ describe('Relationship Testing', () => {
             const post = posts.insertSync({
                 title: 'Post',
                 content: 'Content',
-                authorId: user.id,
+                authorId: user._id,
             });
 
             // Delete user but leave post (creating orphan)
-            users.deleteSync(user.id);
+            users.deleteSync(user._id);
 
             // Post still exists but references non-existent user
-            const orphanPost = posts.findByIdSync(post.id);
+            const orphanPost = posts.findByIdSync(post._id);
             expect(orphanPost).not.toBeNull();
-            expect(orphanPost?.authorId).toBe(user.id);
+            expect(orphanPost?.authorId).toBe(user._id);
 
             // Verify user doesn't exist
-            const deletedUser = users.findByIdSync(user.id);
+            const deletedUser = users.findByIdSync(user._id);
             expect(deletedUser).toBeNull();
 
             // Clean up orphaned post
-            posts.deleteSync(post.id);
+            posts.deleteSync(post._id);
         });
 
         test('should handle circular references in relationships', () => {
@@ -629,35 +629,35 @@ describe('Relationship Testing', () => {
             const post = posts.insertSync({
                 title: 'Original Post',
                 content: 'Post content',
-                authorId: user1.id,
+                authorId: user1._id,
             });
 
             const comment = comments.insertSync({
                 content: 'Comment by User 2',
-                postId: post.id,
-                authorId: user2.id,
+                postId: post._id,
+                authorId: user2._id,
             });
 
             const reply = comments.insertSync({
                 content: 'Reply by User 1',
-                postId: post.id,
-                authorId: user1.id,
+                postId: post._id,
+                authorId: user1._id,
             });
 
             // Test finding all interactions
             const postComments = comments
                 .where('postId')
-                .eq(post.id)
+                .eq(post._id)
                 .toArraySync();
             expect(postComments).toHaveLength(2);
 
             const user1Comments = comments
                 .where('authorId')
-                .eq(user1.id)
+                .eq(user1._id)
                 .toArraySync();
             const user2Comments = comments
                 .where('authorId')
-                .eq(user2.id)
+                .eq(user2._id)
                 .toArraySync();
 
             expect(user1Comments).toHaveLength(1);
@@ -679,7 +679,7 @@ describe('Relationship Testing', () => {
             const postsData = createdUsers.map((user, index) => ({
                 title: `Post by ${user.name}`,
                 content: `Content ${index + 1}`,
-                authorId: user.id,
+                authorId: user._id,
             }));
 
             const createdPosts = posts.insertBulkSync(postsData);
@@ -689,14 +689,14 @@ describe('Relationship Testing', () => {
             createdUsers.forEach((user, index) => {
                 const userPosts = posts
                     .where('authorId')
-                    .eq(user.id)
+                    .eq(user._id)
                     .toArraySync();
                 expect(userPosts).toHaveLength(1);
                 expect(userPosts[0].title).toBe(`Post by ${user.name}`);
             });
 
             // Bulk delete posts
-            const postIds = createdPosts.map((p) => p.id);
+            const postIds = createdPosts.map((p) => p._id);
             const deletedCount = posts.deleteBulkSync(postIds);
             expect(deletedCount).toBe(3);
 
@@ -723,14 +723,14 @@ describe('Relationship Testing', () => {
 
             // Find all posts with invalid authors
             const allUsers = users.toArraySync();
-            const validUserIds = allUsers.map((u) => u.id);
+            const validUserIds = allUsers.map((u) => u._id);
             const allPosts = posts.toArraySync();
             const orphanPosts = allPosts.filter(
                 (p) => !validUserIds.includes(p.authorId)
             );
 
             expect(orphanPosts).toHaveLength(1);
-            expect(orphanPosts[0].id).toBe(orphanPost.id);
+            expect(orphanPosts[0]._id).toBe(orphanPost._id);
         });
 
         test('should handle duplicate relationship entries', () => {
@@ -743,7 +743,7 @@ describe('Relationship Testing', () => {
             const post = posts.insertSync({
                 title: 'Post',
                 content: 'Content',
-                authorId: user.id,
+                authorId: user._id,
             });
 
             const category = categories.insertSync({
@@ -752,37 +752,37 @@ describe('Relationship Testing', () => {
 
             // Add post to category
             const relation1 = postCategories.insertSync({
-                postId: post.id,
-                categoryId: category.id,
+                postId: post._id,
+                categoryId: category._id,
             });
 
             // Attempt to add same relationship (should be allowed but detectable)
             const relation2 = postCategories.insertSync({
-                postId: post.id,
-                categoryId: category.id,
+                postId: post._id,
+                categoryId: category._id,
             });
 
-            expect(relation1.id).not.toBe(relation2.id);
+            expect(relation1._id).not.toBe(relation2._id);
 
             // Count duplicates
             const duplicates = postCategories
                 .where('postId')
-                .eq(post.id)
+                .eq(post._id)
                 .and()
                 .where('categoryId')
-                .eq(category.id)
+                .eq(category._id)
                 .countSync();
 
             expect(duplicates).toBe(2);
 
             // Clean up one duplicate
-            postCategories.deleteSync(relation2.id);
+            postCategories.deleteSync(relation2._id);
             const remaining = postCategories
                 .where('postId')
-                .eq(post.id)
+                .eq(post._id)
                 .and()
                 .where('categoryId')
-                .eq(category.id)
+                .eq(category._id)
                 .countSync();
 
             expect(remaining).toBe(1);
@@ -808,36 +808,36 @@ describe('Relationship Testing', () => {
             const post1 = posts.insertSync({
                 title: 'Tech Post 1',
                 content: 'Content 1',
-                authorId: author1.id,
+                authorId: author1._id,
                 published: true,
             });
 
             const post2 = posts.insertSync({
                 title: 'Tech Post 2',
                 content: 'Content 2',
-                authorId: author2.id,
+                authorId: author2._id,
                 published: false,
             });
 
             const post3 = posts.insertSync({
                 title: 'Science Post',
                 content: 'Science content',
-                authorId: author1.id,
+                authorId: author1._id,
                 published: true,
             });
 
             // Categorize posts
             postCategories.insertSync({
-                postId: post1.id,
-                categoryId: techCategory.id,
+                postId: post1._id,
+                categoryId: techCategory._id,
             });
             postCategories.insertSync({
-                postId: post2.id,
-                categoryId: techCategory.id,
+                postId: post2._id,
+                categoryId: techCategory._id,
             });
             postCategories.insertSync({
-                postId: post3.id,
-                categoryId: scienceCategory.id,
+                postId: post3._id,
+                categoryId: scienceCategory._id,
             });
 
             // Find published posts by authors over 25 in Tech category
@@ -845,7 +845,7 @@ describe('Relationship Testing', () => {
                 .where('age')
                 .gt(25)
                 .toArraySync()
-                .map((u) => u.id);
+                .map((u) => u._id);
             const publishedPosts = posts
                 .where('published')
                 .eq(true)
@@ -856,12 +856,12 @@ describe('Relationship Testing', () => {
 
             const techPostIds = postCategories
                 .where('categoryId')
-                .eq(techCategory.id)
+                .eq(techCategory._id)
                 .toArraySync()
                 .map((pc) => pc.postId);
 
             const result = publishedPosts.filter((p) =>
-                techPostIds.includes(p.id)
+                techPostIds.includes(p._id)
             );
             expect(result).toHaveLength(1);
             expect(result[0].title).toBe('Tech Post 1');
@@ -887,22 +887,22 @@ describe('Relationship Testing', () => {
             const post1 = posts.insertSync({
                 title: 'Alice Post 1',
                 content: 'Content by Alice',
-                authorId: user1.id,
+                authorId: user1._id,
                 published: true,
             });
 
             const post2 = posts.insertSync({
                 title: 'Bob Post 1',
                 content: 'Content by Bob',
-                authorId: user2.id,
+                authorId: user2._id,
                 published: true,
             });
 
             // INNER JOIN users and posts using where() to get QueryBuilder first
             const joinResults = users
-                .where('id')
+                .where('_id')
                 .exists() // Start with a simple condition to get QueryBuilder
-                .join('posts', 'id', 'authorId')
+                .join('posts', '_id', 'authorId')
                 .select(
                     'users.name',
                     'users.email',
@@ -937,14 +937,14 @@ describe('Relationship Testing', () => {
             posts.insertSync({
                 title: 'Alice Only Post',
                 content: 'Content',
-                authorId: user1.id,
+                authorId: user1._id,
             });
 
             // LEFT JOIN should include all users, even those without posts
             const leftJoinResults = users
-                .where('id')
+                .where('_id')
                 .exists() // Start with a simple condition to get QueryBuilder
-                .leftJoin('posts', 'id', 'authorId')
+                .leftJoin('posts', '_id', 'authorId')
                 .select('users.name', 'users.email', 'posts.title')
                 .toArraySync();
 
@@ -973,14 +973,14 @@ describe('Relationship Testing', () => {
             posts.insertSync({
                 title: 'Published Post',
                 content: 'Content',
-                authorId: user1.id,
+                authorId: user1._id,
                 published: true,
             });
 
             posts.insertSync({
                 title: 'Draft Post',
                 content: 'Draft Content',
-                authorId: user2.id,
+                authorId: user2._id,
                 published: false,
             });
 
@@ -988,7 +988,7 @@ describe('Relationship Testing', () => {
             const filteredJoinResults = users
                 .where('age')
                 .gte(25) // Start with filtering condition
-                .join('posts', 'id', 'authorId')
+                .join('posts', '_id', 'authorId')
                 .where('posts.published')
                 .eq(true) // Use table-prefixed field name
                 .select(
@@ -1014,21 +1014,21 @@ describe('Relationship Testing', () => {
             const post = posts.insertSync({
                 title: 'Multi Join Post',
                 content: 'Content',
-                authorId: user.id,
+                authorId: user._id,
             });
 
             const comment = comments.insertSync({
                 content: 'Test comment',
-                postId: post.id,
-                authorId: user.id, // Comments also reference the user
+                postId: post._id,
+                authorId: user._id, // Comments also reference the user
             });
 
             // JOIN users to both posts and comments (both reference user ID)
             const multiJoinResults = users
                 .where('name')
                 .eq('Multi Join User') // Start with filtering condition
-                .join('posts', 'id', 'authorId') // Join users to posts via authorId
-                .join('comments', 'id', 'authorId') // Join users to comments via authorId
+                .join('posts', '_id', 'authorId') // Join users to posts via authorId
+                .join('comments', '_id', 'authorId') // Join users to comments via authorId
                 .select('users.name', 'posts.title', 'comments.content')
                 .toArraySync();
 
@@ -1050,13 +1050,13 @@ describe('Relationship Testing', () => {
 
             // Create collections with cascade constraints
             const userSchemaWithConstraints = z.object({
-                id: z.string().uuid(),
+                _id: z.string().uuid(),
                 name: z.string(),
                 email: z.string().email(),
             });
 
             const postSchemaWithConstraints = z.object({
-                id: z.string().uuid(),
+                _id: z.string().uuid(),
                 title: z.string(),
                 content: z.string(),
                 authorId: z.string().uuid(),
@@ -1074,7 +1074,7 @@ describe('Relationship Testing', () => {
                     constrainedFields: {
                         authorId: {
                             type: 'TEXT',
-                            foreignKey: 'users_cascade.id',
+                            foreignKey: 'users_cascade._id',
                             onDelete: 'CASCADE',
                             onUpdate: 'CASCADE',
                         },
@@ -1093,32 +1093,32 @@ describe('Relationship Testing', () => {
             const post1 = postsWithCascade.insertSync({
                 title: 'Post 1',
                 content: 'Content 1',
-                authorId: user.id,
+                authorId: user._id,
             });
 
             const post2 = postsWithCascade.insertSync({
                 title: 'Post 2',
                 content: 'Content 2',
-                authorId: user.id,
+                authorId: user._id,
             });
 
             // Verify posts exist
             expect(
-                postsWithCascade.where('authorId').eq(user.id).countSync()
+                postsWithCascade.where('authorId').eq(user._id).countSync()
             ).toBe(2);
 
             // Delete user - should cascade delete posts due to foreign key constraint
-            usersWithCascade.deleteSync(user.id);
+            usersWithCascade.deleteSync(user._id);
 
             // Verify user is deleted
-            expect(usersWithCascade.findByIdSync(user.id)).toBeNull();
+            expect(usersWithCascade.findByIdSync(user._id)).toBeNull();
 
             // Posts should be automatically deleted due to CASCADE
             expect(
-                postsWithCascade.where('authorId').eq(user.id).countSync()
+                postsWithCascade.where('authorId').eq(user._id).countSync()
             ).toBe(0);
-            expect(postsWithCascade.findByIdSync(post1.id)).toBeNull();
-            expect(postsWithCascade.findByIdSync(post2.id)).toBeNull();
+            expect(postsWithCascade.findByIdSync(post1._id)).toBeNull();
+            expect(postsWithCascade.findByIdSync(post2._id)).toBeNull();
         });
 
         test('should handle CASCADE UPDATE foreign key constraints', () => {
@@ -1131,22 +1131,22 @@ describe('Relationship Testing', () => {
             const post = postsWithCascade.insertSync({
                 title: 'Update Post',
                 content: 'Content',
-                authorId: user.id,
+                authorId: user._id,
             });
 
             // Verify constraint is set up correctly
-            expect(post.authorId).toBe(user.id);
+            expect(post.authorId).toBe(user._id);
 
             // The CASCADE UPDATE constraint is in place, but with UUIDs we typically don't update IDs
             // This test verifies the constraint was created properly
-            const foundPost = postsWithCascade.findByIdSync(post.id);
-            expect(foundPost?.authorId).toBe(user.id);
+            const foundPost = postsWithCascade.findByIdSync(post._id);
+            expect(foundPost?.authorId).toBe(user._id);
         });
 
         test('should handle SET NULL on delete when configured', () => {
             // Create collection with SET NULL constraint
             const commentsSchemaWithSetNull = z.object({
-                id: z.string().uuid(),
+                _id: z.string().uuid(),
                 content: z.string(),
                 authorId: z.string().uuid().optional(),
             });
@@ -1158,7 +1158,7 @@ describe('Relationship Testing', () => {
                     constrainedFields: {
                         authorId: {
                             type: 'TEXT',
-                            foreignKey: 'users_cascade.id',
+                            foreignKey: 'users_cascade._id',
                             onDelete: 'SET NULL',
                             nullable: true,
                         },
@@ -1173,17 +1173,17 @@ describe('Relationship Testing', () => {
 
             const comment = commentsWithSetNull.insertSync({
                 content: 'Comment content',
-                authorId: user.id,
+                authorId: user._id,
             });
 
             // Verify comment has authorId
-            expect(comment.authorId).toBe(user.id);
+            expect(comment.authorId).toBe(user._id);
 
             // Delete user - should set authorId to NULL in comments
-            usersWithCascade.deleteSync(user.id);
+            usersWithCascade.deleteSync(user._id);
 
             // Comment should still exist but authorId should be null
-            const updatedComment = commentsWithSetNull.findByIdSync(comment.id);
+            const updatedComment = commentsWithSetNull.findByIdSync(comment._id);
             expect(updatedComment).not.toBeNull();
             expect(updatedComment?.authorId).toBeNull();
         });
@@ -1191,7 +1191,7 @@ describe('Relationship Testing', () => {
         test('should handle RESTRICT constraint (prevent deletion)', () => {
             // Create collection with RESTRICT constraint
             const restrictPostsSchema = z.object({
-                id: z.string().uuid(),
+                _id: z.string().uuid(),
                 title: z.string(),
                 authorId: z.string().uuid(),
             });
@@ -1203,7 +1203,7 @@ describe('Relationship Testing', () => {
                     constrainedFields: {
                         authorId: {
                             type: 'TEXT',
-                            foreignKey: 'users_cascade.id',
+                            foreignKey: 'users_cascade._id',
                             onDelete: 'RESTRICT',
                         },
                     },
@@ -1217,13 +1217,13 @@ describe('Relationship Testing', () => {
 
             postsWithRestrict.insertSync({
                 title: 'Restricted Post',
-                authorId: user.id,
+                authorId: user._id,
             });
 
             // Attempting to delete user should be prevented by RESTRICT constraint
             // Note: SQLite will throw an error when RESTRICT constraint is violated
             expect(() => {
-                usersWithCascade.deleteSync(user.id);
+                usersWithCascade.deleteSync(user._id);
             }).toThrow(); // Should throw due to foreign key constraint violation
         });
     });
@@ -1255,7 +1255,7 @@ describe('Relationship Testing', () => {
                         posts.insertSync({
                             title: `Post ${j + 1} by ${user.name}`,
                             content: `Content for post ${j + 1}`,
-                            authorId: user.id,
+                            authorId: user._id,
                             published: Math.random() > 0.5,
                         })
                     );
@@ -1296,7 +1296,7 @@ describe('Relationship Testing', () => {
                 posts.insertSync({
                     title: `Post ${i}`,
                     content: `Content ${i}`,
-                    authorId: author.id,
+                    authorId: author._id,
                     published: i % 2 === 0,
                 });
             }
@@ -1306,14 +1306,14 @@ describe('Relationship Testing', () => {
             // Test indexed lookup by authorId
             const authorPosts = posts
                 .where('authorId')
-                .eq(author.id)
+                .eq(author._id)
                 .toArraySync();
             expect(authorPosts).toHaveLength(postCount);
 
             // Test compound filtering
             const publishedAuthorPosts = posts
                 .where('authorId')
-                .eq(author.id)
+                .eq(author._id)
                 .and()
                 .where('published')
                 .eq(true)

@@ -126,7 +126,7 @@ describe.skipIf(isRunningInNode())(
                 try {
                     // Test basic driver operations
                     const testSchema = z.object({
-                        id: z.string(),
+                        _id: z.string(),
                         name: z.string(),
                     });
                     const collection = db.collection('test', testSchema);
@@ -146,7 +146,7 @@ describe.skipIf(isRunningInNode())(
 
                 try {
                     const performanceSchema = z.object({
-                        id: z.string(),
+                        _id: z.string(),
                         data: z.string(),
                     });
                     const collection = db.collection(
@@ -220,7 +220,7 @@ describe.skipIf(isRunningInNode())(
                     );
 
                     // Should reuse the same connection for shared configs
-                    expect(connection1.id).toBe(connection2.id);
+                    expect(connection1._id).toBe(connection2._id);
                 } finally {
                     await connectionManager.closeAll();
                 }
@@ -250,13 +250,13 @@ describe.skipIf(isRunningInNode())(
 
                 try {
                     const testSchema = z.object({
-                        id: z.string(),
+                        _id: z.string(),
                     });
                     const collection = db.collection(
                         'cleanup_test',
                         testSchema
                     );
-                    await collection.insert({ id: 'test' });
+                    await collection.insert({ _id: 'test' });
                 } finally {
                     db.close();
                 }
@@ -265,12 +265,12 @@ describe.skipIf(isRunningInNode())(
                 // Create a new database instance to test post-close behavior
                 const db2 = new Database({ path: ':memory:' });
                 const testSchema2 = z.object({
-                    id: z.string(),
+                    _id: z.string(),
                 });
                 const collection = db2.collection('cleanup_test', testSchema2);
 
                 try {
-                    await collection.insert({ id: 'test2' });
+                    await collection.insert({ _id: 'test2' });
                     // This should work since it's a new database instance
                     const results = await collection.toArray();
                     expect(results).toHaveLength(1);
@@ -308,7 +308,7 @@ describe.skipIf(isRunningInNode())(
 
                 try {
                     const concurrentSchema = z.object({
-                        id: z.string(),
+                        _id: z.string(),
                         value: z.number(),
                     });
                     const collection = db.collection(
@@ -345,7 +345,7 @@ describe.skipIf(isRunningInNode())(
                 try {
                     // Test that we can use Bun's fast SQLite implementation
                     const bunSqliteSchema = z.object({
-                        id: z.string(),
+                        _id: z.string(),
                         timestamp: z.number(),
                     });
                     const collection = db.collection(

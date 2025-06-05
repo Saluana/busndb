@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { createDB } from '../src/index.js';
 
 const userSchema = z.object({
-    id: z.string().uuid(),
+    _id: z.string().uuid(),
     name: z.string(),
     email: z.string().email(),
     age: z.number().int(),
@@ -84,7 +84,7 @@ async function runBenchmarks() {
     
     const randomIds = Array.from(
         { length: Math.min(1000, allDocs.length) },
-        () => allDocs[Math.floor(Math.random() * allDocs.length)].id
+        () => allDocs[Math.floor(Math.random() * allDocs.length)]._id
     );
 
     const pointQueryResult = benchmark('Point Queries', 1000, () => {
@@ -129,7 +129,7 @@ async function runBenchmarks() {
 
     // Benchmark: Updates
     console.log('6. Benchmarking updates...');
-    const updateIds = allDocs.slice(0, 1000).map((doc) => doc.id);
+    const updateIds = allDocs.slice(0, 1000).map((doc) => doc._id);
     const updateResult = benchmark('Updates', 1000, () => {
         updateIds.forEach((id, i) => {
             users.put(id, { score: i * 10 });
@@ -139,7 +139,7 @@ async function runBenchmarks() {
 
     // Benchmark: Deletes
     console.log('7. Benchmarking deletes...');
-    const deleteIds = allDocs.slice(1000, 2000).map((doc) => doc.id);
+    const deleteIds = allDocs.slice(1000, 2000).map((doc) => doc._id);
     const deleteResult = benchmark('Deletes', 1000, () => {
         deleteIds.forEach((id) => users.delete(id));
     });

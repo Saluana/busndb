@@ -4,7 +4,7 @@ import { createDB } from '../src/index.js';
 import type { Database } from '../src/database.js';
 
 const testSchema = z.object({
-    id: z.string().uuid(),
+    _id: z.string().uuid(),
     name: z.string(),
     email: z.string().email(),
     age: z.number().int(),
@@ -386,7 +386,7 @@ describe('Query Builder - Feature Complete Tests', () => {
             expect(page3).toHaveLength(1);
 
             // Ensure no overlap
-            const allIds = [...page1, ...page2, ...page3].map((r) => r.id);
+            const allIds = [...page1, ...page2, ...page3].map((r) => r._id);
             const uniqueIds = new Set(allIds);
             expect(uniqueIds.size).toBe(allIds.length);
         });
@@ -513,7 +513,7 @@ describe('Query Builder - Feature Complete Tests', () => {
             const clonedResults = cloned.toArraySync();
 
             expect(originalResults).toHaveLength(clonedResults.length);
-            expect(originalResults[0].id).toBe(clonedResults[0].id);
+            expect(originalResults[0]._id).toBe(clonedResults[0]._id);
 
             // Modifying clone shouldn't affect original
             cloned.where('isActive').eq(true);

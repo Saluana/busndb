@@ -20,7 +20,7 @@ describe('Schema Constraints', () => {
     describe('Unique Constraints', () => {
         it('should enforce unique constraints on single fields', () => {
             const userSchema = z.object({
-                id: z.string(),
+                _id: z.string(),
                 email: z.string().email(),
                 username: z.string(),
                 age: z.number().optional(),
@@ -74,7 +74,7 @@ describe('Schema Constraints', () => {
 
         it('should allow null values in unique fields', () => {
             const profileSchema = z.object({
-                id: z.string(),
+                _id: z.string(),
                 username: z.string(),
                 bio: z.string().nullable(),
             });
@@ -115,7 +115,7 @@ describe('Schema Constraints', () => {
 
         it('should enforce unique constraints on updates', () => {
             const userSchema = z.object({
-                id: z.string(),
+                _id: z.string(),
                 email: z.string().email(),
                 username: z.string(),
             });
@@ -138,17 +138,17 @@ describe('Schema Constraints', () => {
 
             // Updating user2's email to user1's email should fail
             expect(() => {
-                users.putSync(user2.id, { email: 'john@example.com' });
+                users.putSync(user2._id, { email: 'john@example.com' });
             }).toThrow(UniqueConstraintError);
 
             // Updating user2's email to a new unique value should succeed
-            const updatedUser2 = users.putSync(user2.id, {
+            const updatedUser2 = users.putSync(user2._id, {
                 email: 'jane.smith@example.com',
             });
             expect(updatedUser2.email).toBe('jane.smith@example.com');
 
             // Updating user1's email to the same value should succeed (no change)
-            const updatedUser1 = users.putSync(user1.id, {
+            const updatedUser1 = users.putSync(user1._id, {
                 email: 'john@example.com',
             });
             expect(updatedUser1.email).toBe('john@example.com');
@@ -158,7 +158,7 @@ describe('Schema Constraints', () => {
     describe('Composite Unique Constraints', () => {
         it('should enforce composite unique constraints', () => {
             const membershipSchema = z.object({
-                id: z.string(),
+                _id: z.string(),
                 userId: z.string(),
                 organizationId: z.string(),
                 role: z.string(),
@@ -210,12 +210,12 @@ describe('Schema Constraints', () => {
     describe('Foreign Key Constraints', () => {
         it.skip('should validate foreign key references on insert', () => {
             const organizationSchema = z.object({
-                id: z.string(),
+                _id: z.string(),
                 name: z.string(),
             });
 
             const userSchema = z.object({
-                id: z.string(),
+                _id: z.string(),
                 name: z.string(),
                 organizationId: z.string(),
             });
@@ -227,7 +227,7 @@ describe('Schema Constraints', () => {
             const users = db.collection('users', userSchema, {
                 constraints: {
                     constraints: {
-                        organizationId: foreignKey('organizations', 'id'),
+                        organizationId: foreignKey('organizations', '_id'),
                     },
                 },
             });
@@ -240,10 +240,10 @@ describe('Schema Constraints', () => {
             // User with valid foreign key should succeed
             const user = users.insertSync({
                 name: 'John Doe',
-                organizationId: org.id,
+                organizationId: org._id,
             });
 
-            expect(user.organizationId).toBe(org.id);
+            expect(user.organizationId).toBe(org._id);
 
             // User with invalid foreign key should fail
             expect(() => {
@@ -256,12 +256,12 @@ describe('Schema Constraints', () => {
 
         it.skip('should validate foreign key references on update', () => {
             const organizationSchema = z.object({
-                id: z.string(),
+                _id: z.string(),
                 name: z.string(),
             });
 
             const userSchema = z.object({
-                id: z.string(),
+                _id: z.string(),
                 name: z.string(),
                 organizationId: z.string(),
             });
@@ -273,7 +273,7 @@ describe('Schema Constraints', () => {
             const users = db.collection('users', userSchema, {
                 constraints: {
                     constraints: {
-                        organizationId: foreignKey('organizations', 'id'),
+                        organizationId: foreignKey('organizations', '_id'),
                     },
                 },
             });
@@ -285,18 +285,18 @@ describe('Schema Constraints', () => {
             // Create user
             const user = users.insertSync({
                 name: 'John Doe',
-                organizationId: org1.id,
+                organizationId: org1._id,
             });
 
             // Update to valid foreign key should succeed
-            const updatedUser = users.putSync(user.id, {
-                organizationId: org2.id,
+            const updatedUser = users.putSync(user._id, {
+                organizationId: org2._id,
             });
-            expect(updatedUser.organizationId).toBe(org2.id);
+            expect(updatedUser.organizationId).toBe(org2._id);
 
             // Update to invalid foreign key should fail
             expect(() => {
-                users.putSync(user.id, { organizationId: 'invalid-org-id' });
+                users.putSync(user._id, { organizationId: 'invalid-org-id' });
             }).toThrow(ValidationError);
         });
     });
@@ -305,7 +305,7 @@ describe('Schema Constraints', () => {
         it.skip('should enforce check constraints', async () => {
             // Skipping for now - CHECK constraints on JSON fields are complex in SQLite
             const productSchema = z.object({
-                id: z.string(),
+                _id: z.string(),
                 name: z.string(),
                 price: z.number(),
                 category: z.string(),
@@ -356,7 +356,7 @@ describe('Schema Constraints', () => {
     describe('Index Creation', () => {
         it('should create indexes for better query performance', () => {
             const eventSchema = z.object({
-                id: z.string(),
+                _id: z.string(),
                 name: z.string(),
                 createdAt: z.date(),
                 userId: z.string(),
@@ -401,7 +401,7 @@ describe('Schema Constraints', () => {
     describe('Multiple Constraints', () => {
         it('should handle multiple constraints on the same field', () => {
             const userSchema = z.object({
-                id: z.string(),
+                _id: z.string(),
                 email: z.string().email(),
                 age: z.number(),
             });
@@ -447,7 +447,7 @@ describe('Schema Constraints', () => {
     describe('Constraint Error Handling', () => {
         it('should provide meaningful error messages', () => {
             const userSchema = z.object({
-                id: z.string(),
+                _id: z.string(),
                 email: z.string().email(),
                 username: z.string(),
             });

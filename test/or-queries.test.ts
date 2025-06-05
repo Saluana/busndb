@@ -4,7 +4,7 @@ import { createDB } from '../src/index.js';
 import type { Database } from '../src/database.js';
 
 const testSchema = z.object({
-    id: z.string().uuid(),
+    _id: z.string().uuid(),
     name: z.string(),
     email: z.string().email(),
     age: z.number().int(),
@@ -343,8 +343,8 @@ describe('OR Query Operations', () => {
             expect(page2.length).toBeGreaterThan(0);
 
             // Ensure no duplicates between pages
-            const page1Ids = page1.map((r) => r.id);
-            const page2Ids = page2.map((r) => r.id);
+            const page1Ids = page1.map((r) => r._id);
+            const page2Ids = page2.map((r) => r._id);
             const overlap = page1Ids.filter((id) => page2Ids.includes(id));
             expect(overlap).toHaveLength(0);
         });

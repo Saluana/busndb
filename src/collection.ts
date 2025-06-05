@@ -267,7 +267,7 @@ export class Collection<T extends z.ZodSchema> {
         return crypto.randomUUID();
     }
 
-    async insert(doc: Omit<InferSchema<T>, 'id'>): Promise<InferSchema<T>> {
+    async insert(doc: Omit<InferSchema<T>, '_id'>): Promise<InferSchema<T>> {
         await this.ensureInitialized();
 
         const context = {
@@ -281,35 +281,35 @@ export class Collection<T extends z.ZodSchema> {
         await this.pluginManager?.executeHookSafe('onBeforeInsert', context);
 
         try {
-            // Check if id is provided in doc (via type assertion)
-            const docWithPossibleId = doc as any;
-            let id: string;
+        // Check if _id is provided in doc (via type assertion)
+        const docWithPossibleId = doc as any;
+        let _id: string;
 
-            if (docWithPossibleId.id) {
-                // If id is provided, validate it and check for duplicates
-                id = docWithPossibleId.id;
+        if (docWithPossibleId._id) {
+            // If _id is provided, validate it and check for duplicates
+            _id = docWithPossibleId._id;
 
-                // Check if this id already exists
-                const existing = await this.findById(id);
-                if (existing) {
-                    throw new UniqueConstraintError(
-                        `Document with id '${id}' already exists`,
-                        'id'
-                    );
-                }
-            } else {
-                id = this.generateId();
+            // Check if this _id already exists
+            const existing = await this.findById(_id);
+            if (existing) {
+                throw new UniqueConstraintError(
+                        `Document with _id '${_id}' already exists`,
+                        '_id'
+                );
             }
+        } else {
+            _id = this.generateId();
+        }
 
-            const fullDoc = { ...doc, id };
-            const validatedDoc = this.validateDocument(fullDoc);
+        const fullDoc = { ...doc, _id };
+        const validatedDoc = this.validateDocument(fullDoc);
 
             // Constraints are now enforced at the SQL level via constrainedFields
 
             const { sql, params } = SQLTranslator.buildInsertQuery(
                 this.collectionSchema.name,
                 validatedDoc,
-                id,
+                _id,
                 this.collectionSchema.constrainedFields,
                 this.collectionSchema.schema
             );
@@ -319,7 +319,7 @@ export class Collection<T extends z.ZodSchema> {
             const vectorQueries = SQLTranslator.buildVectorInsertQueries(
                 this.collectionSchema.name,
                 validatedDoc,
-                id,
+                _id,
                 this.collectionSchema.constrainedFields
             );
             await this.executeVectorQueries(vectorQueries);
@@ -346,7 +346,7 @@ export class Collection<T extends z.ZodSchema> {
                     const field = fieldMatch ? fieldMatch[1] : 'unknown';
                     throw new UniqueConstraintError(
                         `Document violates unique constraint on field: ${field}`,
-                        (doc as any).id || 'unknown'
+                        (doc as any)._id || 'unknown'
                     );
                 } else if (error.message.includes('FOREIGN KEY constraint')) {
                     throw new ValidationError(
@@ -360,7 +360,7 @@ export class Collection<T extends z.ZodSchema> {
     }
 
     async insertBulk(
-        docs: Omit<InferSchema<T>, 'id'>[]
+        docs: Omit<InferSchema<T>, '_id'>[]
     ): Promise<InferSchema<T>[]> {
         await this.ensureInitialized();
         if (docs.length === 0) return [];
@@ -381,29 +381,29 @@ export class Collection<T extends z.ZodSchema> {
 
             for (const doc of docs) {
                 const docWithPossibleId = doc as any;
-                let id: string;
+                let _id: string;
 
-                if (docWithPossibleId.id) {
-                    id = docWithPossibleId.id;
-                    const existing = await this.findById(id);
+                if (docWithPossibleId._id) {
+                    _id = docWithPossibleId._id;
+                    const existing = await this.findById(_id);
                     if (existing) {
                         throw new UniqueConstraintError(
-                            `Document with id '${id}' already exists`,
-                            'id'
+                            `Document with _id '${_id}' already exists`,
+                            '_id'
                         );
                     }
                 } else {
-                    id = this.generateId();
+                    _id = this.generateId();
                 }
 
-                const fullDoc = { ...doc, id };
+                const fullDoc = { ...doc, _id };
                 const validatedDoc = this.validateDocument(fullDoc);
                 validatedDocs.push(validatedDoc);
 
                 const { sql, params } = SQLTranslator.buildInsertQuery(
                     this.collectionSchema.name,
                     validatedDoc,
-                    id,
+                    _id,
                     this.collectionSchema.constrainedFields,
                     this.collectionSchema.schema
                 );
@@ -416,7 +416,7 @@ export class Collection<T extends z.ZodSchema> {
             const firstQuery = SQLTranslator.buildInsertQuery(
                 this.collectionSchema.name,
                 validatedDocs[0],
-                (validatedDocs[0] as any).id,
+                (validatedDocs[0] as any)._id,
                 this.collectionSchema.constrainedFields,
                 this.collectionSchema.schema
             );
@@ -433,7 +433,7 @@ export class Collection<T extends z.ZodSchema> {
                 const vectorQueries = SQLTranslator.buildVectorInsertQueries(
                     this.collectionSchema.name,
                     validatedDoc,
-                    (validatedDoc as any).id,
+                    (validatedDoc as any)._id,
                     this.collectionSchema.constrainedFields
                 );
                 await this.executeVectorQueries(vectorQueries);
@@ -472,16 +472,16 @@ export class Collection<T extends z.ZodSchema> {
     }
 
     async put(
-        id: string,
+        _id: string,
         doc: Partial<InferSchema<T>>
     ): Promise<InferSchema<T>> {
         await this.ensureInitialized();
-        const existing = await this.findById(id);
+        const existing = await this.findById(_id);
         if (!existing) {
-            throw new NotFoundError('Document not found', id);
+            throw new NotFoundError('Document not found', _id);
         }
 
-        const updatedDoc = { ...existing, ...doc, id };
+        const updatedDoc = { ...existing, ...doc, _id };
         const validatedDoc = this.validateDocument(updatedDoc);
 
         // Plugin hook: before update
@@ -497,7 +497,7 @@ export class Collection<T extends z.ZodSchema> {
         const { sql, params } = SQLTranslator.buildUpdateQuery(
             this.collectionSchema.name,
             validatedDoc,
-            id,
+            _id,
             this.collectionSchema.constrainedFields,
             this.collectionSchema.schema
         );
@@ -507,7 +507,7 @@ export class Collection<T extends z.ZodSchema> {
         const vectorQueries = SQLTranslator.buildVectorUpdateQueries(
             this.collectionSchema.name,
             validatedDoc,
-            id,
+            _id,
             this.collectionSchema.constrainedFields
         );
         await this.executeVectorQueries(vectorQueries);
@@ -526,7 +526,7 @@ export class Collection<T extends z.ZodSchema> {
     }
 
     async putBulk(
-        updates: { id: string; doc: Partial<InferSchema<T>> }[]
+        updates: { _id: string; doc: Partial<InferSchema<T>> }[]
     ): Promise<InferSchema<T>[]> {
         if (updates.length === 0) return [];
 
@@ -544,15 +544,15 @@ export class Collection<T extends z.ZodSchema> {
             const sqlStatements: { sql: string; params: any[] }[] = [];
 
             for (const update of updates) {
-                const existing = await this.findById(update.id);
+                const existing = await this.findById(update._id);
                 if (!existing) {
-                    throw new NotFoundError('Document not found', update.id);
+                    throw new NotFoundError('Document not found', update._id);
                 }
 
                 const updatedDoc = {
                     ...existing,
                     ...update.doc,
-                    id: update.id,
+                    _id: update._id,
                 };
                 const validatedDoc = this.validateDocument(updatedDoc);
                 validatedDocs.push(validatedDoc);
@@ -560,7 +560,7 @@ export class Collection<T extends z.ZodSchema> {
                 const { sql, params } = SQLTranslator.buildUpdateQuery(
                     this.collectionSchema.name,
                     validatedDoc,
-                    update.id,
+                    update._id,
                     this.collectionSchema.constrainedFields,
                     this.collectionSchema.schema
                 );
@@ -610,26 +610,26 @@ export class Collection<T extends z.ZodSchema> {
         }
     }
 
-    async delete(id: string): Promise<boolean> {
+    async delete(_id: string): Promise<boolean> {
         // Plugin hook: before delete
         const context = {
             collectionName: this.collectionSchema.name,
             schema: this.collectionSchema,
             operation: 'delete',
-            data: { id },
+            data: { _id },
         };
         await this.pluginManager?.executeHookSafe('onBeforeDelete', context);
 
         const { sql, params } = SQLTranslator.buildDeleteQuery(
             this.collectionSchema.name,
-            id
+            _id
         );
         await this.driver.exec(sql, params);
 
         // Handle vector deletions
         const vectorQueries = SQLTranslator.buildVectorDeleteQueries(
             this.collectionSchema.name,
-            id,
+            _id,
             this.collectionSchema.constrainedFields
         );
         await this.executeVectorQueries(vectorQueries);
@@ -637,7 +637,7 @@ export class Collection<T extends z.ZodSchema> {
         // Plugin hook: after delete
         const resultContext = {
             ...context,
-            result: { id, deleted: true },
+            result: { _id, deleted: true },
         };
         await this.pluginManager?.executeHookSafe(
             'onAfterDelete',
@@ -649,25 +649,25 @@ export class Collection<T extends z.ZodSchema> {
 
     async deleteBulk(ids: string[]): Promise<number> {
         let count = 0;
-        for (const id of ids) {
-            if (await this.delete(id)) count++;
+        for (const _id of ids) {
+            if (await this.delete(_id)) count++;
         }
         return count;
     }
     async upsert(
-        id: string,
-        doc: Omit<InferSchema<T>, 'id'>
+        _id: string,
+        doc: Omit<InferSchema<T>, '_id'>
     ): Promise<InferSchema<T>> {
         // Use the optimized SQL-level upsert for best performance
-        return this.upsertOptimized(id, doc);
+        return this.upsertOptimized(_id, doc);
     }
 
     // Add an even more optimized version using SQL UPSERT
     async upsertOptimized(
-        id: string,
-        doc: Omit<InferSchema<T>, 'id'>
+        _id: string,
+        doc: Omit<InferSchema<T>, '_id'>
     ): Promise<InferSchema<T>> {
-        const fullDoc = { ...doc, id };
+        const fullDoc = { ...doc, _id };
         const validatedDoc = this.validateDocument(fullDoc);
 
         // For maximum performance, use SQL-level UPSERT (INSERT OR REPLACE)
@@ -683,14 +683,14 @@ export class Collection<T extends z.ZodSchema> {
             ) {
                 // Original behavior for collections without constrained fields
                 const sql = `INSERT OR REPLACE INTO ${this.collectionSchema.name} (_id, doc) VALUES (?, ?)`;
-                const params = [id, JSON.stringify(validatedDoc)];
+                const params = [_id, JSON.stringify(validatedDoc)];
                 await this.driver.exec(sql, params);
             } else {
                 // Build upsert with constrained field columns
                 const { sql, params } = SQLTranslator.buildInsertQuery(
                     this.collectionSchema.name,
                     validatedDoc,
-                    id,
+                    _id,
                     this.collectionSchema.constrainedFields,
                     this.collectionSchema.schema
                 );
@@ -713,7 +713,7 @@ export class Collection<T extends z.ZodSchema> {
                     const field = fieldMatch ? fieldMatch[1] : 'unknown';
                     throw new UniqueConstraintError(
                         `Document violates unique constraint on field: ${field}`,
-                        id
+                        _id
                     );
                 } else if (error.message.includes('FOREIGN KEY constraint')) {
                     throw new ValidationError(
@@ -727,7 +727,7 @@ export class Collection<T extends z.ZodSchema> {
     }
 
     async upsertBulk(
-        updates: { id: string; doc: Omit<InferSchema<T>, 'id'> }[]
+        updates: { _id: string; doc: Omit<InferSchema<T>, '_id'> }[]
     ): Promise<InferSchema<T>[]> {
         if (updates.length === 0) return [];
 
@@ -746,7 +746,7 @@ export class Collection<T extends z.ZodSchema> {
             const allParams: any[] = [];
 
             for (const update of updates) {
-                const fullDoc = { ...update.doc, id: update.id };
+                const fullDoc = { ...update.doc, _id: update._id };
                 const validatedDoc = this.validateDocument(fullDoc);
                 validatedDocs.push(validatedDoc);
 
@@ -757,12 +757,12 @@ export class Collection<T extends z.ZodSchema> {
                 ) {
                     const valuePart = `(?, ?)`;
                     sqlParts.push(valuePart);
-                    allParams.push(update.id, JSON.stringify(validatedDoc));
+                    allParams.push(update._id, JSON.stringify(validatedDoc));
                 } else {
                     const { sql, params } = SQLTranslator.buildInsertQuery(
                         this.collectionSchema.name,
                         validatedDoc,
-                        update.id,
+                        update._id,
                         this.collectionSchema.constrainedFields,
                         this.collectionSchema.schema
                     );
@@ -786,7 +786,7 @@ export class Collection<T extends z.ZodSchema> {
                 const firstQuery = SQLTranslator.buildInsertQuery(
                     this.collectionSchema.name,
                     validatedDocs[0],
-                    updates[0].id,
+                    updates[0]._id,
                     this.collectionSchema.constrainedFields,
                     this.collectionSchema.schema
                 );
@@ -833,7 +833,7 @@ export class Collection<T extends z.ZodSchema> {
         }
     }
 
-    async findById(id: string): Promise<InferSchema<T> | null> {
+    async findById(_id: string): Promise<InferSchema<T> | null> {
         await this.ensureInitialized();
 
         if (
@@ -841,7 +841,7 @@ export class Collection<T extends z.ZodSchema> {
             Object.keys(this.collectionSchema.constrainedFields).length === 0
         ) {
             const sql = `SELECT doc FROM ${this.collectionSchema.name} WHERE _id = ?`;
-            const params = [id];
+            const params = [_id];
             const rows = await this.driver.query(sql, params);
             if (rows.length === 0) return null;
             return parseDoc(rows[0].doc);
@@ -853,7 +853,7 @@ export class Collection<T extends z.ZodSchema> {
             .map((f) => fieldPathToColumnName(f))
             .join(', ');
         const sql = `SELECT doc, ${constrainedFieldColumns} FROM ${this.collectionSchema.name} WHERE _id = ?`;
-        const params = [id];
+        const params = [_id];
         const rows = await this.driver.query(sql, params);
         if (rows.length === 0) return null;
         return mergeConstrainedFields(
@@ -1048,7 +1048,7 @@ export class Collection<T extends z.ZodSchema> {
     }
 
     // Add sync versions for backward compatibility
-    insertSync(doc: Omit<InferSchema<T>, 'id'>): InferSchema<T> {
+    insertSync(doc: Omit<InferSchema<T>, '_id'>): InferSchema<T> {
         const context = {
             collectionName: this.collectionSchema.name,
             schema: this.collectionSchema,
@@ -1063,28 +1063,28 @@ export class Collection<T extends z.ZodSchema> {
 
         try {
             const docWithPossibleId = doc as any;
-            let id: string;
+            let _id: string;
 
-            if (docWithPossibleId.id) {
-                id = docWithPossibleId.id;
-                const existing = this.findByIdSync(id);
+            if (docWithPossibleId._id) {
+                _id = docWithPossibleId._id;
+                const existing = this.findByIdSync(_id);
                 if (existing) {
                     throw new UniqueConstraintError(
-                        `Document with id '${id}' already exists`,
-                        'id'
+                        `Document with _id '${_id}' already exists`,
+                        '_id'
                     );
                 }
             } else {
-                id = this.generateId();
+                _id = this.generateId();
             }
 
-            const fullDoc = { ...doc, id };
+            const fullDoc = { ...doc, _id };
             const validatedDoc = this.validateDocument(fullDoc);
 
             const { sql, params } = SQLTranslator.buildInsertQuery(
                 this.collectionSchema.name,
                 validatedDoc,
-                id,
+                _id,
                 this.collectionSchema.constrainedFields,
                 this.collectionSchema.schema
             );
@@ -1111,7 +1111,7 @@ export class Collection<T extends z.ZodSchema> {
                     const field = fieldMatch ? fieldMatch[1] : 'unknown';
                     throw new UniqueConstraintError(
                         `Document violates unique constraint on field: ${field}`,
-                        (doc as any).id || 'unknown'
+                        (doc as any)._id || 'unknown'
                     );
                 } else if (error.message.includes('FOREIGN KEY constraint')) {
                     throw new ValidationError(
@@ -1124,7 +1124,7 @@ export class Collection<T extends z.ZodSchema> {
         }
     }
 
-    insertBulkSync(docs: Omit<InferSchema<T>, 'id'>[]): InferSchema<T>[] {
+    insertBulkSync(docs: Omit<InferSchema<T>, '_id'>[]): InferSchema<T>[] {
         if (docs.length === 0) return [];
 
         try {
@@ -1134,29 +1134,29 @@ export class Collection<T extends z.ZodSchema> {
 
             for (const doc of docs) {
                 const docWithPossibleId = doc as any;
-                let id: string;
+                let _id: string;
 
-                if (docWithPossibleId.id) {
-                    id = docWithPossibleId.id;
-                    const existing = this.findByIdSync(id);
+                if (docWithPossibleId._id) {
+                    _id = docWithPossibleId._id;
+                    const existing = this.findByIdSync(_id);
                     if (existing) {
                         throw new UniqueConstraintError(
-                            `Document with id '${id}' already exists`,
-                            'id'
+                            `Document with _id '${_id}' already exists`,
+                            '_id'
                         );
                     }
                 } else {
-                    id = this.generateId();
+                    _id = this.generateId();
                 }
 
-                const fullDoc = { ...doc, id };
+                const fullDoc = { ...doc, _id };
                 const validatedDoc = this.validateDocument(fullDoc);
                 validatedDocs.push(validatedDoc);
 
                 const { sql, params } = SQLTranslator.buildInsertQuery(
                     this.collectionSchema.name,
                     validatedDoc,
-                    id,
+                    _id,
                     this.collectionSchema.constrainedFields,
                     this.collectionSchema.schema
                 );
@@ -1169,7 +1169,7 @@ export class Collection<T extends z.ZodSchema> {
             const firstQuery = SQLTranslator.buildInsertQuery(
                 this.collectionSchema.name,
                 validatedDocs[0],
-                (validatedDocs[0] as any).id,
+                (validatedDocs[0] as any)._id,
                 this.collectionSchema.constrainedFields,
                 this.collectionSchema.schema
             );
@@ -1203,14 +1203,14 @@ export class Collection<T extends z.ZodSchema> {
         }
     }
 
-    findByIdSync(id: string): InferSchema<T> | null {
+    findByIdSync(_id: string): InferSchema<T> | null {
         if (
             !this.collectionSchema.constrainedFields ||
             Object.keys(this.collectionSchema.constrainedFields).length === 0
         ) {
             // Original behavior for collections without constrained fields
             const sql = `SELECT doc FROM ${this.collectionSchema.name} WHERE _id = ?`;
-            const params = [id];
+            const params = [_id];
             const rows = this.driver.querySync(sql, params);
             if (rows.length === 0) return null;
             return parseDoc(rows[0].doc);
@@ -1223,7 +1223,7 @@ export class Collection<T extends z.ZodSchema> {
             .map((f) => fieldPathToColumnName(f))
             .join(', ');
         const sql = `SELECT doc, ${constrainedFieldColumns} FROM ${this.collectionSchema.name} WHERE _id = ?`;
-        const params = [id];
+        const params = [_id];
         const rows = this.driver.querySync(sql, params);
         if (rows.length === 0) return null;
         return mergeConstrainedFields(
@@ -1258,20 +1258,20 @@ export class Collection<T extends z.ZodSchema> {
         return rows.length > 0 ? parseDoc(rows[0].doc) : null;
     }
 
-    putSync(id: string, doc: Partial<InferSchema<T>>): InferSchema<T> {
-        const existing = this.findByIdSync(id);
+    putSync(_id: string, doc: Partial<InferSchema<T>>): InferSchema<T> {
+        const existing = this.findByIdSync(_id);
         if (!existing) {
-            throw new NotFoundError('Document not found', id);
+            throw new NotFoundError('Document not found', _id);
         }
 
-        const updatedDoc = { ...existing, ...doc, id };
+        const updatedDoc = { ...existing, ...doc, _id };
         const validatedDoc = this.validateDocument(updatedDoc);
 
         try {
             const { sql, params } = SQLTranslator.buildUpdateQuery(
                 this.collectionSchema.name,
                 validatedDoc,
-                id,
+                _id,
                 this.collectionSchema.constrainedFields,
                 this.collectionSchema.schema
             );
@@ -1287,7 +1287,7 @@ export class Collection<T extends z.ZodSchema> {
                     const field = fieldMatch ? fieldMatch[1] : 'unknown';
                     throw new UniqueConstraintError(
                         `Document violates unique constraint on field: ${field}`,
-                        id
+                        _id
                     );
                 } else if (error.message.includes('FOREIGN KEY constraint')) {
                     throw new ValidationError(
@@ -1300,10 +1300,10 @@ export class Collection<T extends z.ZodSchema> {
         }
     }
 
-    deleteSync(id: string): boolean {
+    deleteSync(_id: string): boolean {
         const { sql, params } = SQLTranslator.buildDeleteQuery(
             this.collectionSchema.name,
-            id
+            _id
         );
         this.driver.execSync(sql, params);
         return true;
@@ -1311,19 +1311,19 @@ export class Collection<T extends z.ZodSchema> {
 
     deleteBulkSync(ids: string[]): number {
         let count = 0;
-        for (const id of ids) {
-            if (this.deleteSync(id)) count++;
+        for (const _id of ids) {
+            if (this.deleteSync(_id)) count++;
         }
         return count;
     }
 
-    upsertSync(id: string, doc: Omit<InferSchema<T>, 'id'>): InferSchema<T> {
+    upsertSync(_id: string, doc: Omit<InferSchema<T>, '_id'>): InferSchema<T> {
         try {
-            const existing = this.findByIdSync(id);
+            const existing = this.findByIdSync(_id);
             if (existing) {
-                return this.putSync(id, doc as Partial<InferSchema<T>>);
+                return this.putSync(_id, doc as Partial<InferSchema<T>>);
             } else {
-                return this.insertSync({ ...doc, id } as any);
+                return this.insertSync({ ...doc, _id } as any);
             }
         } catch (error) {
             if (error instanceof Error) {
@@ -1335,7 +1335,7 @@ export class Collection<T extends z.ZodSchema> {
                     const field = fieldMatch ? fieldMatch[1] : 'unknown';
                     throw new UniqueConstraintError(
                         `Document violates unique constraint on field: ${field}`,
-                        id
+                        _id
                     );
                 } else if (error.message.includes('FOREIGN KEY constraint')) {
                     throw new ValidationError(
@@ -1349,7 +1349,7 @@ export class Collection<T extends z.ZodSchema> {
     }
 
     upsertBulkSync(
-        docs: { id: string; doc: Omit<InferSchema<T>, 'id'> }[]
+        docs: { _id: string; doc: Omit<InferSchema<T>, '_id'> }[]
     ): InferSchema<T>[] {
         if (docs.length === 0) return [];
 
@@ -1359,7 +1359,7 @@ export class Collection<T extends z.ZodSchema> {
             const allParams: any[] = [];
 
             for (const item of docs) {
-                const fullDoc = { ...item.doc, id: item.id };
+                const fullDoc = { ...item.doc, _id: item._id };
                 const validatedDoc = this.validateDocument(fullDoc);
                 validatedDocs.push(validatedDoc);
 
@@ -1370,12 +1370,12 @@ export class Collection<T extends z.ZodSchema> {
                 ) {
                     const valuePart = `(?, ?)`;
                     sqlParts.push(valuePart);
-                    allParams.push(item.id, JSON.stringify(validatedDoc));
+                    allParams.push(item._id, JSON.stringify(validatedDoc));
                 } else {
                     const { sql, params } = SQLTranslator.buildInsertQuery(
                         this.collectionSchema.name,
                         validatedDoc,
-                        item.id,
+                        item._id,
                         this.collectionSchema.constrainedFields,
                         this.collectionSchema.schema
                     );
@@ -1399,7 +1399,7 @@ export class Collection<T extends z.ZodSchema> {
                 const firstQuery = SQLTranslator.buildInsertQuery(
                     this.collectionSchema.name,
                     validatedDocs[0],
-                    docs[0].id,
+                    docs[0]._id,
                     this.collectionSchema.constrainedFields,
                     this.collectionSchema.schema
                 );
@@ -1437,7 +1437,7 @@ export class Collection<T extends z.ZodSchema> {
     }
 
     putBulkSync(
-        updates: { id: string; doc: Partial<InferSchema<T>> }[]
+        updates: { _id: string; doc: Partial<InferSchema<T>> }[]
     ): InferSchema<T>[] {
         if (updates.length === 0) return [];
 
@@ -1446,15 +1446,15 @@ export class Collection<T extends z.ZodSchema> {
             const sqlStatements: { sql: string; params: any[] }[] = [];
 
             for (const update of updates) {
-                const existing = this.findByIdSync(update.id);
+                const existing = this.findByIdSync(update._id);
                 if (!existing) {
-                    throw new NotFoundError('Document not found', update.id);
+                    throw new NotFoundError('Document not found', update._id);
                 }
 
                 const updatedDoc = {
                     ...existing,
                     ...update.doc,
-                    id: update.id,
+                    _id: update._id,
                 };
                 const validatedDoc = this.validateDocument(updatedDoc);
                 validatedDocs.push(validatedDoc);
@@ -1462,7 +1462,7 @@ export class Collection<T extends z.ZodSchema> {
                 const { sql, params } = SQLTranslator.buildUpdateQuery(
                     this.collectionSchema.name,
                     validatedDoc,
-                    update.id,
+                    update._id,
                     this.collectionSchema.constrainedFields,
                     this.collectionSchema.schema
                 );
@@ -1608,7 +1608,7 @@ export class Collection<T extends z.ZodSchema> {
                 (row) => ({
                     document: parseDoc(row.doc),
                     distance: row.distance as number,
-                    id: row._id as string,
+                    _id: row._id as string,
                 })
             );
 

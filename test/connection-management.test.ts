@@ -141,7 +141,7 @@ describe('Connection Management', () => {
             databases.push(db);
 
             const userSchema = z.object({
-                id: z.string(),
+                _id: z.string(),
                 name: z.string(),
                 email: z.string().email(),
             });
@@ -156,12 +156,12 @@ describe('Connection Management', () => {
                 email: 'john@example.com',
             });
             
-            expect(insertedUser.id).toBeDefined();
+            expect(insertedUser._id).toBeDefined();
             expect(insertedUser.name).toBe('John Doe');
             expect(insertedUser.email).toBe('john@example.com');
             
             // Should be able to query the inserted user
-            const foundUser = await users.findById(insertedUser.id);
+            const foundUser = await users.findById(insertedUser._id);
             expect(foundUser).toEqual(insertedUser);
         });
     });

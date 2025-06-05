@@ -4,20 +4,20 @@ import { createDB } from '../index';
 
 // Test schemas for different complexity levels
 const simpleSchema = z.object({
-    id: z.string().optional(),
+    _id: z.string().optional(),
     name: z.string(),
     score: z.number(),
 });
 
 const constrainedSchema = z.object({
-    id: z.string().optional(),
+    _id: z.string().optional(),
     email: z.string().email(),
     username: z.string(),
     score: z.number(),
 });
 
 const complexSchema = z.object({
-    id: z.string().optional(),
+    _id: z.string().optional(),
     name: z.string(),
     email: z.string().email(),
     age: z.number().int(),
@@ -77,7 +77,7 @@ async function analyzeUpsertPerformance() {
         score: Math.random() * 1000,
     }));
     const preInserted = await simpleCollection.insertBulk(preData);
-    const existingIds = preInserted.map((doc) => doc.id!);
+    const existingIds = preInserted.map((doc) => doc._id!);
 
     // Generate test data: 500 existing IDs (updates) + 500 new IDs (inserts)
     const newIds = Array.from({ length: 500 }, () => crypto.randomUUID());
@@ -127,7 +127,7 @@ async function analyzeUpsertPerformance() {
     const constrainedPreInserted = await constrainedCollection.insertBulk(
         constrainedPreData
     );
-    const constrainedExistingIds = constrainedPreInserted.map((doc) => doc.id!);
+    const constrainedExistingIds = constrainedPreInserted.map((doc) => doc._id!);
 
     const constrainedNewIds = Array.from({ length: 500 }, () =>
         crypto.randomUUID()
@@ -173,7 +173,7 @@ async function analyzeUpsertPerformance() {
     const complexPreInserted = await complexCollection.insertBulk(
         complexPreData
     );
-    const complexExistingIds = complexPreInserted.map((doc) => doc.id!);
+    const complexExistingIds = complexPreInserted.map((doc) => doc._id!);
 
     const complexNewIds = Array.from({ length: 500 }, () =>
         crypto.randomUUID()
@@ -308,7 +308,7 @@ test('Upsert Performance Analysis > should test basic upsert functionality', asy
             score: 100,
         });
 
-        expect(insertResult.id).toBe(testId);
+        expect(insertResult._id).toBe(testId);
         expect(insertResult.name).toBe('Test User');
         expect(insertResult.score).toBe(100);
 
@@ -318,7 +318,7 @@ test('Upsert Performance Analysis > should test basic upsert functionality', asy
             score: 200,
         });
 
-        expect(updateResult.id).toBe(testId);
+        expect(updateResult._id).toBe(testId);
         expect(updateResult.name).toBe('Updated User');
         expect(updateResult.score).toBe(200);
 
@@ -337,7 +337,7 @@ test('Upsert Performance Analysis > should test bulk upsert functionality', asyn
         const collection = db.collection('bulk_test', simpleSchema);
 
         const testData = Array.from({ length: 100 }, (_, i) => ({
-            id: crypto.randomUUID(),
+            _id: crypto.randomUUID(),
             doc: {
                 name: `Bulk User ${i}`,
                 score: i * 10,

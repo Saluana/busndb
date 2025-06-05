@@ -9,7 +9,7 @@ import {
 import { unique, foreignKey, check, index } from '../src/schema-constraints.js';
 
 const userSchema = z.object({
-    id: z.string().uuid(),
+    _id: z.string().uuid(),
     name: z.string(),
     email: z.string().email(),
     age: z.number().int().optional(),
@@ -19,7 +19,7 @@ const userSchema = z.object({
 });
 
 const postSchema = z.object({
-    id: z.string().uuid(),
+    _id: z.string().uuid(),
     title: z.string(),
     content: z.string(),
     authorId: z.string().uuid(),
@@ -46,7 +46,7 @@ describe('Integration: skibbaDB End-to-End', () => {
         posts = db.collection('posts', postSchema, {
             constraints: {
                 constraints: {
-                    authorId: foreignKey('users', 'id'),
+                    authorId: foreignKey('users', '_id'),
                 },
                 indexes: {
                     title: index('title'),
@@ -60,8 +60,8 @@ describe('Integration: skibbaDB End-to-End', () => {
             name: 'Alice',
             email: 'alice@example.com',
         });
-        expect(user.id).toBeDefined();
-        const found = users.findByIdSync(user.id);
+        expect(user._id).toBeDefined();
+        const found = users.findByIdSync(user._id);
         expect(found).toEqual(user);
     });
 
@@ -72,8 +72,8 @@ describe('Integration: skibbaDB End-to-End', () => {
         ];
         const inserted = users.insertBulkSync(docs);
         expect(inserted).toHaveLength(2);
-        expect(inserted[0].id).toBeDefined();
-        expect(inserted[1].id).toBeDefined();
+        expect(inserted[0]._id).toBeDefined();
+        expect(inserted[1]._id).toBeDefined();
     });
 
     test('unique constraint violation', () => {
@@ -94,7 +94,7 @@ describe('Integration: skibbaDB End-to-End', () => {
             name: 'Frank',
             email: 'frank@example.com',
         });
-        const updated = users.putSync(user.id, { name: 'Franklin' });
+        const updated = users.putSync(user._id, { name: 'Franklin' });
         expect(updated.name).toBe('Franklin');
         expect(updated.email).toBe('frank@example.com');
     });
@@ -110,8 +110,8 @@ describe('Integration: skibbaDB End-to-End', () => {
             name: 'Helen',
             email: 'helen@example.com',
         });
-        expect(users.deleteSync(user.id)).toBe(true);
-        expect(users.findByIdSync(user.id)).toBeNull();
+        expect(users.deleteSync(user._id)).toBe(true);
+        expect(users.findByIdSync(user._id)).toBeNull();
     });
 
     test('delete bulk users', () => {
@@ -120,7 +120,7 @@ describe('Integration: skibbaDB End-to-End', () => {
             name: 'Jack',
             email: 'jack@example.com',
         });
-        expect(users.deleteBulkSync([u1.id, u2.id])).toBe(2);
+        expect(users.deleteBulkSync([u1._id, u2._id])).toBe(2);
     });
 
     test('foreign key constraint', () => {
@@ -131,9 +131,9 @@ describe('Integration: skibbaDB End-to-End', () => {
         const post = posts.insertSync({
             title: 'Hello',
             content: 'World',
-            authorId: user.id,
+            authorId: user._id,
         });
-        expect(post.authorId).toBe(user.id);
+        expect(post.authorId).toBe(user._id);
         expect(() =>
             posts.insertSync({
                 title: 'Bad',
@@ -263,16 +263,16 @@ describe('Integration: skibbaDB End-to-End', () => {
     test('putBulk/upsert/upsertBulk', () => {
         const u = users.insertSync({ name: 'Bulk', email: 'bulk@example.com' });
         const updated = users.putBulkSync([
-            { id: u.id, doc: { name: 'Bulk2' } },
+            { _id: u._id, doc: { name: 'Bulk2' } },
         ]);
         expect(updated[0].name).toBe('Bulk2');
-        const up = users.upsertSync(u.id, {
+        const up = users.upsertSync(u._id, {
             name: 'Bulk3',
             email: 'bulk3@example.com',
         });
         expect(up.name).toBe('Bulk3');
         const upBulk = users.upsertBulkSync([
-            { id: u.id, doc: { name: 'Bulk4', email: 'bulk4@example.com' } },
+            { _id: u._id, doc: { name: 'Bulk4', email: 'bulk4@example.com' } },
         ]);
         expect(upBulk[0].name).toBe('Bulk4');
     });
@@ -301,7 +301,7 @@ describe('Integration: skibbaDB End-to-End', () => {
             email: 'edge2@example.com',
         });
         expect(() =>
-            users.putSync(u2.id, { email: 'edge1@example.com' })
+            users.putSync(u2._id, { email: 'edge1@example.com' })
         ).toThrow(UniqueConstraintError);
     });
 
@@ -311,7 +311,7 @@ describe('Integration: skibbaDB End-to-End', () => {
             email: 'edge3@example.com',
         });
         expect(() =>
-            users.upsertSync(u1.id, {
+            users.upsertSync(u1._id, {
                 name: 'Edge3',
                 email: 'edge3@example.com',
             })
@@ -321,7 +321,7 @@ describe('Integration: skibbaDB End-to-End', () => {
             email: 'edge4@example.com',
         });
         expect(() =>
-            users.upsertSync(u2.id, {
+            users.upsertSync(u2._id, {
                 name: 'Edge4',
                 email: 'edge3@example.com',
             })
@@ -337,7 +337,7 @@ describe('Integration: skibbaDB End-to-End', () => {
             name: 'Edge5',
             email: 'edge5@example.com',
         });
-        expect(users.deleteBulkSync([u.id, 'bad-id'])).toBe(2);
+        expect(users.deleteBulkSync([u._id, 'bad-id'])).toBe(2);
     });
 
     test('edge: upsertBulk with new and existing', () => {
@@ -348,9 +348,9 @@ describe('Integration: skibbaDB End-to-End', () => {
         // Generate a valid uuid for the new id
         const newId = crypto.randomUUID();
         const res = users.upsertBulkSync([
-            { id: u.id, doc: { name: 'Edge6-up', email: 'edge6@example.com' } },
+            { _id: u._id, doc: { name: 'Edge6-up', email: 'edge6@example.com' } },
             {
-                id: newId,
+                _id: newId,
                 doc: { name: 'Edge7', email: 'edge7@example.com' },
             },
         ]);
@@ -366,7 +366,7 @@ describe('Integration: skibbaDB End-to-End', () => {
             }));
             const inserted = users.insertBulkSync(docs);
             expect(inserted.length).toBe(5);
-            const ids = inserted.map((u) => u.id);
+            const ids = inserted.map((u) => u._id);
             expect(users.deleteBulkSync(ids)).toBe(5);
         });
     }
@@ -428,7 +428,7 @@ describe('Integration: skibbaDB End-to-End', () => {
         const u = users.insertSync({ name: 'Dup', email: 'dup@example.com' });
         expect(() =>
             users.insertSync({
-                id: u.id,
+                _id: u._id,
                 name: 'Dup2',
                 email: 'dup2@example.com',
             } as any)
@@ -528,7 +528,7 @@ describe('Integration: skibbaDB End-to-End', () => {
     test('insert with invalid uuid', () => {
         expect(() =>
             users.insertSync({
-                id: 'not-a-uuid',
+                _id: 'not-a-uuid',
                 name: 'Bad',
                 email: 'bad@example.com',
             } as any)
@@ -541,6 +541,6 @@ describe('Integration: skibbaDB End-to-End', () => {
             name: 'Good',
             email: 'good@example.com',
         });
-        expect(user.id).toBe(id);
+        expect(user._id).toBe(id);
     });
 });

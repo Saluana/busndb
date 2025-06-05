@@ -18,7 +18,7 @@ async function testDatabase() {
         console.log(`✅ ${driver} database created successfully`);
 
         const schema = z.object({
-            id: z.string().optional(),
+            _id: z.string().optional(),
             title: z.string(),
             completed: z.boolean().default(false),
         });
