@@ -14,7 +14,11 @@ import {
     NotFoundError,
     UniqueConstraintError,
 } from './errors.js';
-import { parseDoc, mergeConstrainedFields } from './json-utils.js';
+import {
+    parseDoc,
+    mergeConstrainedFields,
+    reconstructNestedObject,
+} from './json-utils.js';
 import type { QueryablePaths, OrderablePaths } from './types/nested-paths';
 import type { PluginManager } from './plugin-system';
 import { Migrator } from './migrator';
@@ -281,28 +285,28 @@ export class Collection<T extends z.ZodSchema> {
         await this.pluginManager?.executeHookSafe('onBeforeInsert', context);
 
         try {
-        // Check if _id is provided in doc (via type assertion)
-        const docWithPossibleId = doc as any;
-        let _id: string;
+            // Check if _id is provided in doc (via type assertion)
+            const docWithPossibleId = doc as any;
+            let _id: string;
 
-        if (docWithPossibleId._id) {
-            // If _id is provided, validate it and check for duplicates
-            _id = docWithPossibleId._id;
+            if (docWithPossibleId._id) {
+                // If _id is provided, validate it and check for duplicates
+                _id = docWithPossibleId._id;
 
-            // Check if this _id already exists
-            const existing = await this.findById(_id);
-            if (existing) {
-                throw new UniqueConstraintError(
+                // Check if this _id already exists
+                const existing = await this.findById(_id);
+                if (existing) {
+                    throw new UniqueConstraintError(
                         `Document with _id '${_id}' already exists`,
                         '_id'
-                );
+                    );
+                }
+            } else {
+                _id = this.generateId();
             }
-        } else {
-            _id = this.generateId();
-        }
 
-        const fullDoc = { ...doc, _id };
-        const validatedDoc = this.validateDocument(fullDoc);
+            const fullDoc = { ...doc, _id };
+            const validatedDoc = this.validateDocument(fullDoc);
 
             // Constraints are now enforced at the SQL level via constrainedFields
 
@@ -1732,7 +1736,8 @@ QueryBuilder.prototype.toArray = async function <T>(
         for (const key of Object.keys(row)) {
             obj[key] = row[key];
         }
-        return obj as T;
+        // If we have field selections with nested paths, reconstruct the nested structure
+        return reconstructNestedObject(obj) as T;
     });
 };
 
@@ -1831,7 +1836,8 @@ QueryBuilder.prototype.toArraySync = function <T>(
         for (const key of Object.keys(row)) {
             obj[key] = row[key];
         }
-        return obj as T;
+        // If we have field selections with nested paths, reconstruct the nested structure
+        return reconstructNestedObject(obj) as T;
     });
 };
 

@@ -408,9 +408,9 @@ describe('Select Field Tests', () => {
 
             expect(results).toHaveLength(1);
             expect(results[0].name).toBe('Alice');
-            // Check if nested field selection works - the implementation returns flat properties with dot notation names
-            expect(results[0]['metadata.role']).toBe('senior');
-            expect(results[0]['metadata.level']).toBe(3);
+            // Check if nested field selection works - now returns proper nested object structure
+            expect(results[0]?.metadata?.role).toBe('senior');
+            expect(results[0]?.metadata?.level).toBe(3);
         });
     });
 
@@ -483,6 +483,488 @@ describe('Select Field Tests', () => {
 
             expect(results).toHaveLength(50);
             expect(end - start).toBeLessThan(100); // Should complete within 100ms
+        });
+    });
+});
+
+// Deep Nested Field Tests
+const deepNestedSchema = z.object({
+    _id: z.string().uuid(),
+    name: z.string(),
+    profile: z.object({
+        personal: z.object({
+            bio: z.string(),
+            contact: z.object({
+                primary: z.object({
+                    phone: z.string(),
+                    email: z.string(),
+                }),
+                secondary: z
+                    .object({
+                        phone: z.string().optional(),
+                        email: z.string().optional(),
+                    })
+                    .optional(),
+            }),
+        }),
+        professional: z.object({
+            company: z.string(),
+            position: z.object({
+                title: z.string(),
+                level: z.number(),
+                department: z.object({
+                    name: z.string(),
+                    division: z.object({
+                        name: z.string(),
+                        region: z.string(),
+                    }),
+                }),
+            }),
+            skills: z.array(
+                z.object({
+                    name: z.string(),
+                    proficiency: z.object({
+                        level: z.number(),
+                        verified: z.boolean(),
+                    }),
+                })
+            ),
+        }),
+        preferences: z.object({
+            notifications: z.object({
+                email: z.object({
+                    marketing: z.boolean(),
+                    updates: z.boolean(),
+                }),
+                push: z.object({
+                    urgent: z.boolean(),
+                    daily: z.boolean(),
+                }),
+            }),
+            ui: z.object({
+                theme: z.string(),
+                language: z.string(),
+                accessibility: z.object({
+                    highContrast: z.boolean(),
+                    fontSize: z.string(),
+                }),
+            }),
+        }),
+    }),
+});
+
+describe('Deep Nested Field Selection Tests', () => {
+    let db: Database;
+    let profiles: ReturnType<typeof db.collection<typeof deepNestedSchema>>;
+
+    beforeEach(() => {
+        db = createDB({ memory: true });
+        profiles = db.collection('profiles', deepNestedSchema);
+
+        profiles.insertBulkSync([
+            {
+                name: 'Alice Johnson',
+                profile: {
+                    personal: {
+                        bio: 'Senior software engineer with 8+ years experience',
+                        contact: {
+                            primary: {
+                                phone: '+1-555-0101',
+                                email: 'alice.j@company.com',
+                            },
+                            secondary: {
+                                phone: '+1-555-0102',
+                                email: 'alice.personal@gmail.com',
+                            },
+                        },
+                    },
+                    professional: {
+                        company: 'TechCorp Inc',
+                        position: {
+                            title: 'Senior Software Engineer',
+                            level: 4,
+                            department: {
+                                name: 'Engineering',
+                                division: {
+                                    name: 'Platform',
+                                    region: 'North America',
+                                },
+                            },
+                        },
+                        skills: [
+                            {
+                                name: 'TypeScript',
+                                proficiency: {
+                                    level: 9,
+                                    verified: true,
+                                },
+                            },
+                            {
+                                name: 'React',
+                                proficiency: {
+                                    level: 8,
+                                    verified: true,
+                                },
+                            },
+                        ],
+                    },
+                    preferences: {
+                        notifications: {
+                            email: {
+                                marketing: false,
+                                updates: true,
+                            },
+                            push: {
+                                urgent: true,
+                                daily: false,
+                            },
+                        },
+                        ui: {
+                            theme: 'dark',
+                            language: 'en-US',
+                            accessibility: {
+                                highContrast: false,
+                                fontSize: 'medium',
+                            },
+                        },
+                    },
+                },
+            },
+            {
+                name: 'Bob Smith',
+                profile: {
+                    personal: {
+                        bio: 'Marketing manager with focus on digital campaigns',
+                        contact: {
+                            primary: {
+                                phone: '+1-555-0201',
+                                email: 'bob.s@company.com',
+                            },
+                        },
+                    },
+                    professional: {
+                        company: 'TechCorp Inc',
+                        position: {
+                            title: 'Marketing Manager',
+                            level: 3,
+                            department: {
+                                name: 'Marketing',
+                                division: {
+                                    name: 'Growth',
+                                    region: 'Europe',
+                                },
+                            },
+                        },
+                        skills: [
+                            {
+                                name: 'SEO',
+                                proficiency: {
+                                    level: 8,
+                                    verified: true,
+                                },
+                            },
+                        ],
+                    },
+                    preferences: {
+                        notifications: {
+                            email: {
+                                marketing: true,
+                                updates: true,
+                            },
+                            push: {
+                                urgent: true,
+                                daily: true,
+                            },
+                        },
+                        ui: {
+                            theme: 'light',
+                            language: 'en-GB',
+                            accessibility: {
+                                highContrast: true,
+                                fontSize: 'large',
+                            },
+                        },
+                    },
+                },
+            },
+        ]);
+    });
+
+    describe('3-4 Level Deep Nested Field Selection', () => {
+        test('select 3-level deep fields', () => {
+            const results = profiles
+                .query()
+                .select(
+                    'name',
+                    'profile.professional.company',
+                    'profile.personal.bio'
+                )
+                .toArraySync();
+
+            console.log(
+                '3-level deep results:',
+                JSON.stringify(results, null, 2)
+            );
+
+            expect(results).toHaveLength(2);
+            expect(results[0].name).toBe('Alice Johnson');
+            expect(results[0].profile?.professional?.company).toBe(
+                'TechCorp Inc'
+            );
+            expect(results[0].profile?.personal?.bio).toBe(
+                'Senior software engineer with 8+ years experience'
+            );
+        });
+
+        test('select 4-level deep fields', () => {
+            const results = profiles
+                .query()
+                .select(
+                    'name',
+                    'profile.professional.position.title',
+                    'profile.professional.position.level',
+                    'profile.professional.position.department.division.name',
+                    'profile.professional.position.department.division.region'
+                )
+                .toArraySync();
+
+            console.log(
+                '4-level deep results:',
+                JSON.stringify(results, null, 2)
+            );
+
+            expect(results).toHaveLength(2);
+
+            // Alice's data
+            expect(results[0].name).toBe('Alice Johnson');
+            expect(results[0].profile?.professional?.position?.title).toBe(
+                'Senior Software Engineer'
+            );
+            expect(results[0].profile?.professional?.position?.level).toBe(4);
+            expect(
+                results[0].profile?.professional?.position?.department?.division
+                    ?.name
+            ).toBe('Platform');
+            expect(
+                results[0].profile?.professional?.position?.department?.division
+                    ?.region
+            ).toBe('North America');
+
+            // Bob's data
+            expect(results[1].name).toBe('Bob Smith');
+            expect(results[1].profile?.professional?.position?.title).toBe(
+                'Marketing Manager'
+            );
+            expect(results[1].profile?.professional?.position?.level).toBe(3);
+            expect(
+                results[1].profile?.professional?.position?.department?.division
+                    ?.name
+            ).toBe('Growth');
+            expect(
+                results[1].profile?.professional?.position?.department?.division
+                    ?.region
+            ).toBe('Europe');
+        });
+
+        test('select very deep contact information', () => {
+            const results = profiles
+                .query()
+                .select(
+                    'name',
+                    'profile.personal.contact.primary.email',
+                    'profile.personal.contact.primary.phone',
+                    'profile.personal.contact.secondary.email'
+                )
+                .toArraySync();
+
+            console.log(
+                'Deep contact results:',
+                JSON.stringify(results, null, 2)
+            );
+
+            expect(results).toHaveLength(2);
+            expect(results[0].profile?.personal?.contact?.primary?.email).toBe(
+                'alice.j@company.com'
+            );
+            expect(results[0].profile?.personal?.contact?.primary?.phone).toBe(
+                '+1-555-0101'
+            );
+            expect(
+                results[0].profile?.personal?.contact?.secondary?.email
+            ).toBe('alice.personal@gmail.com');
+
+            expect(results[1].profile?.personal?.contact?.primary?.email).toBe(
+                'bob.s@company.com'
+            );
+            expect(results[1].profile?.personal?.contact?.primary?.phone).toBe(
+                '+1-555-0201'
+            );
+            expect(
+                results[1].profile?.personal?.contact?.secondary?.email
+            ).toBeUndefined();
+        });
+
+        test('select mixed depth preferences', () => {
+            const results = profiles
+                .query()
+                .select(
+                    'name',
+                    'profile.preferences.ui.theme',
+                    'profile.preferences.ui.accessibility.highContrast',
+                    'profile.preferences.ui.accessibility.fontSize',
+                    'profile.preferences.notifications.email.marketing',
+                    'profile.preferences.notifications.push.urgent'
+                )
+                .toArraySync();
+
+            console.log(
+                'Mixed depth preferences:',
+                JSON.stringify(results, null, 2)
+            );
+
+            expect(results).toHaveLength(2);
+
+            // Alice's preferences
+            expect(results[0].profile?.preferences?.ui?.theme).toBe('dark');
+            expect(
+                results[0].profile?.preferences?.ui?.accessibility?.highContrast
+            ).toBe(false);
+            expect(
+                results[0].profile?.preferences?.ui?.accessibility?.fontSize
+            ).toBe('medium');
+            expect(
+                results[0].profile?.preferences?.notifications?.email?.marketing
+            ).toBe(false);
+            expect(
+                results[0].profile?.preferences?.notifications?.push?.urgent
+            ).toBe(true);
+
+            // Bob's preferences
+            expect(results[1].profile?.preferences?.ui?.theme).toBe('light');
+            expect(
+                results[1].profile?.preferences?.ui?.accessibility?.highContrast
+            ).toBe(true);
+            expect(
+                results[1].profile?.preferences?.ui?.accessibility?.fontSize
+            ).toBe('large');
+            expect(
+                results[1].profile?.preferences?.notifications?.email?.marketing
+            ).toBe(true);
+            expect(
+                results[1].profile?.preferences?.notifications?.push?.urgent
+            ).toBe(true);
+        });
+
+        test('select with filters on deep nested fields', () => {
+            const results = profiles
+                .query()
+                .select(
+                    'name',
+                    'profile.professional.position.title',
+                    'profile.professional.position.department.division.region'
+                )
+                .where(
+                    'profile.professional.position.department.division.region'
+                )
+                .eq('North America')
+                .toArraySync();
+
+            console.log(
+                'Filtered deep nested:',
+                JSON.stringify(results, null, 2)
+            );
+
+            expect(results).toHaveLength(1);
+            expect(results[0].name).toBe('Alice Johnson');
+            expect(results[0].profile?.professional?.position?.title).toBe(
+                'Senior Software Engineer'
+            );
+            expect(
+                results[0].profile?.professional?.position?.department?.division
+                    ?.region
+            ).toBe('North America');
+        });
+
+        test('select array element deep fields', () => {
+            // Note: This tests selecting from array elements - behavior may vary based on implementation
+            const results = profiles
+                .query()
+                .select('name', 'profile.professional.skills')
+                .where('name')
+                .eq('Alice Johnson')
+                .toArraySync();
+
+            console.log('Array deep fields:', JSON.stringify(results, null, 2));
+
+            expect(results).toHaveLength(1);
+            expect(results[0].profile?.professional?.skills).toHaveLength(2);
+            expect(results[0].profile?.professional?.skills?.[0]?.name).toBe(
+                'TypeScript'
+            );
+            expect(
+                results[0].profile?.professional?.skills?.[0]?.proficiency
+                    ?.level
+            ).toBe(9);
+            expect(
+                results[0].profile?.professional?.skills?.[0]?.proficiency
+                    ?.verified
+            ).toBe(true);
+        });
+
+        test('select combination of shallow and deep fields', () => {
+            const results = profiles
+                .query()
+                .select(
+                    'name', // 1 level
+                    'profile.personal.bio', // 3 levels
+                    'profile.professional.position.level', // 4 levels
+                    'profile.preferences.notifications.email.marketing' // 5 levels
+                )
+                .toArraySync();
+
+            console.log(
+                'Mixed depth combination:',
+                JSON.stringify(results, null, 2)
+            );
+
+            expect(results).toHaveLength(2);
+
+            // Verify all nesting levels work together
+            expect(results[0].name).toBe('Alice Johnson');
+            expect(results[0].profile?.personal?.bio).toBe(
+                'Senior software engineer with 8+ years experience'
+            );
+            expect(results[0].profile?.professional?.position?.level).toBe(4);
+            expect(
+                results[0].profile?.preferences?.notifications?.email?.marketing
+            ).toBe(false);
+        });
+
+        test('async version of deep nested selection', async () => {
+            const results = await profiles
+                .query()
+                .select(
+                    'name',
+                    'profile.professional.position.department.division.name',
+                    'profile.preferences.ui.accessibility.fontSize'
+                )
+                .toArray();
+
+            expect(results).toHaveLength(2);
+            expect(
+                results[0].profile?.professional?.position?.department?.division
+                    ?.name
+            ).toBe('Platform');
+            expect(
+                results[0].profile?.preferences?.ui?.accessibility?.fontSize
+            ).toBe('medium');
+            expect(
+                results[1].profile?.professional?.position?.department?.division
+                    ?.name
+            ).toBe('Growth');
+            expect(
+                results[1].profile?.preferences?.ui?.accessibility?.fontSize
+            ).toBe('large');
         });
     });
 });
