@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { createDB } from '../index';
 
 const testSchema = z.object({
-    id: z.string().optional(),
+    _id: z.string().optional(),
     name: z.string(),
     email: z.string().email(),
     score: z.number(),
@@ -119,7 +119,7 @@ test('Upsert Benchmark - Comprehensive Sync vs Async', async () => {
     }));
 
     const setupDocs = await collection.insertBulk(setupData);
-    const existingIds = setupDocs.map((doc) => doc.id!);
+    const existingIds = setupDocs.map((doc) => doc._id!);
 
     // Generate test data: 50% updates (existing IDs) + 50% inserts (new IDs)
     const newIds = Array.from({ length: benchmarkCount }, () =>
@@ -435,8 +435,8 @@ test('Upsert Benchmark - Comprehensive Sync vs Async', async () => {
         score: 200,
     });
 
-    expect(syncUpsertResult.id).toBe(testId);
-    expect(asyncUpsertResult.id).toBe(testId);
+    expect(syncUpsertResult._id).toBe(testId);
+    expect(asyncUpsertResult._id).toBe(testId);
     expect(asyncUpsertResult.score).toBe(200);
 
     console.log(`\n✅ All benchmark tests completed successfully!`);
@@ -458,7 +458,7 @@ test('Upsert Correctness - Sync vs Async Equivalence', async () => {
     // Test 1: Insert via sync upsert
     const syncInsertResult = collection.upsertSync(testId, insertDoc);
     console.log(
-        `Sync insert result: ID=${syncInsertResult.id}, score=${syncInsertResult.score}`
+        `Sync insert result: ID=${syncInsertResult._id}, score=${syncInsertResult.score}`
     );
 
     // Test 2: Update via async upsert
@@ -467,15 +467,15 @@ test('Upsert Correctness - Sync vs Async Equivalence', async () => {
         score: 100,
     });
     console.log(
-        `Async update result: ID=${asyncUpdateResult.id}, score=${asyncUpdateResult.score}`
+        `Async update result: ID=${asyncUpdateResult._id}, score=${asyncUpdateResult.score}`
     );
 
     // Test 3: Verify final state
     const finalDoc = collection.findByIdSync(testId);
-    console.log(`Final state: ID=${finalDoc?.id}, score=${finalDoc?.score}`);
+    console.log(`Final state: ID=${finalDoc?._id}, score=${finalDoc?.score}`);
 
-    expect(syncInsertResult.id).toBe(testId);
-    expect(asyncUpdateResult.id).toBe(testId);
+    expect(syncInsertResult._id).toBe(testId);
+    expect(asyncUpdateResult._id).toBe(testId);
     expect(finalDoc?.score).toBe(100);
     expect(finalDoc?.name).toBe('Equivalence Test');
 

@@ -12,7 +12,7 @@ describe('Schema Migrations', () => {
 
     it('should add version field to collection schema', () => {
         const UserSchema = z.object({
-            id: z.string(),
+            _id: z.string(),
             name: z.string(),
             email: z.string(),
         });
@@ -23,7 +23,7 @@ describe('Schema Migrations', () => {
 
     it('should handle collections without explicit version (defaults to 1)', () => {
         const UserSchema = z.object({
-            id: z.string(),
+            _id: z.string(),
             name: z.string(),
         });
 
@@ -68,12 +68,12 @@ describe('Schema Migrations', () => {
         const migrator = new Migrator(driver);
         
         const oldSchema = z.object({
-            id: z.string(),
+            _id: z.string(),
             name: z.string(),
         });
         
         const newSchema = z.object({
-            id: z.string(),
+            _id: z.string(),
             name: z.string(),
             email: z.string().optional(),
             age: z.number().optional(),
@@ -92,13 +92,13 @@ describe('Schema Migrations', () => {
         const migrator = new Migrator(driver);
         
         const oldSchema = z.object({
-            id: z.string(),
+            _id: z.string(),
             name: z.string(),
             email: z.string(),
         });
         
         const newSchema = z.object({
-            id: z.string(),
+            _id: z.string(),
             name: z.string(),
         });
         
@@ -113,12 +113,12 @@ describe('Schema Migrations', () => {
         const migrator = new Migrator(driver);
         
         const oldSchema = z.object({
-            id: z.string(),
+            _id: z.string(),
             age: z.string(),
         });
         
         const newSchema = z.object({
-            id: z.string(),
+            _id: z.string(),
             age: z.number(),
         });
         
@@ -130,7 +130,7 @@ describe('Schema Migrations', () => {
 
     it('should run migration for new collection', async () => {
         const UserSchema = z.object({
-            id: z.string(),
+            _id: z.string(),
             name: z.string(),
             email: z.string().optional(),
         });
@@ -140,13 +140,13 @@ describe('Schema Migrations', () => {
         
         // Insert a test document to ensure the collection works
         const user = await users.insert({ name: 'John', email: 'john@example.com' });
-        expect(user.id).toBeDefined();
+        expect(user._id).toBeDefined();
         expect(user.name).toBe('John');
     });
 
     it('should get migration status', async () => {
         const UserSchema = z.object({
-            id: z.string(),
+            _id: z.string(),
             name: z.string(),
         });
 
@@ -167,7 +167,7 @@ describe('Schema Migrations', () => {
         
         try {
             const UserSchema = z.object({
-                id: z.string(),
+                _id: z.string(),
                 name: z.string(),
             });
 
@@ -189,7 +189,7 @@ describe('Schema Migrations', () => {
         const migrator = new Migrator(driver);
         
         const schema = z.object({
-            id: z.string(),
+            _id: z.string(),
             name: z.string(),
             age: z.number(),
             isActive: z.boolean(),

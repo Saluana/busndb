@@ -5,7 +5,7 @@ import type { CollectionSchema, VectorSearchOptions } from '../src/types';
 
 // Simple test with small vectors to avoid API calls
 const DocumentSchema = z.object({
-    id: z.string(),
+    _id: z.string(),
     title: z.string(),
     embedding: z.array(z.number()),
 });
@@ -15,7 +15,7 @@ type Document = z.infer<typeof DocumentSchema>;
 const documentCollection: CollectionSchema<Document> = {
     name: 'documents',
     schema: DocumentSchema,
-    primaryKey: 'id',
+    primaryKey: '_id',
     constrainedFields: {
         'embedding': {
             type: 'VECTOR',
@@ -47,7 +47,7 @@ describe('Vector Search Basic Tests', () => {
     beforeEach(async () => {
         db = new Database({ driver: 'bun', memory: true });
         collection = db.collection('documents', DocumentSchema, {
-            primaryKey: 'id',
+            primaryKey: '_id',
             constrainedFields: {
                 'embedding': {
                     type: 'VECTOR',

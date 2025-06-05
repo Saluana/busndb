@@ -4,7 +4,7 @@ import { z } from 'zod';
 
 // Test schemas
 const UserSchema = z.object({
-    id: z.string(),
+    _id: z.string(),
     name: z.string(),
     email: z.string(),
     age: z.number(),
@@ -29,7 +29,7 @@ const UserSchema = z.object({
 });
 
 const OrderSchema = z.object({
-    id: z.string(),
+    _id: z.string(),
     userId: z.string(),
     total: z.number(),
     items: z.array(
@@ -44,7 +44,7 @@ const OrderSchema = z.object({
 });
 
 const ProductSchema = z.object({
-    id: z.string(),
+    _id: z.string(),
     name: z.string(),
     price: z.number(),
     category: z.string(),
@@ -70,16 +70,16 @@ describe('Enhanced Query Engine', () => {
         db = new Database({ memory: true });
 
         // Create collections
-        users = db.collection('users', UserSchema, { primaryKey: 'id' });
-        orders = db.collection('orders', OrderSchema, { primaryKey: 'id' });
+        users = db.collection('users', UserSchema, { primaryKey: '_id' });
+        orders = db.collection('orders', OrderSchema, { primaryKey: '_id' });
         products = db.collection('products', ProductSchema, {
-            primaryKey: 'id',
+            primaryKey: '_id',
         });
 
         // Sample data
         const sampleUsers = [
             {
-                id: '1',
+                _id: '1',
                 name: 'Alice Smith',
                 email: 'alice@example.com',
                 age: 28,
@@ -91,7 +91,7 @@ describe('Enhanced Query Engine', () => {
                 metadata: { category: 'premium', score: 95 },
             },
             {
-                id: '2',
+                _id: '2',
                 name: 'Bob Johnson',
                 email: 'bob@example.com',
                 age: 35,
@@ -103,7 +103,7 @@ describe('Enhanced Query Engine', () => {
                 metadata: { category: 'standard', score: 82 },
             },
             {
-                id: '3',
+                _id: '3',
                 name: 'Carol Davis',
                 email: 'carol@example.com',
                 age: 24,
@@ -117,7 +117,7 @@ describe('Enhanced Query Engine', () => {
 
         const sampleOrders = [
             {
-                id: 'order1',
+                _id: 'order1',
                 userId: '1',
                 total: 150.5,
                 items: [
@@ -128,7 +128,7 @@ describe('Enhanced Query Engine', () => {
                 createdAt: new Date('2024-01-15'),
             },
             {
-                id: 'order2',
+                _id: 'order2',
                 userId: '1',
                 total: 75.25,
                 items: [{ name: 'Keyboard', price: 75.25, quantity: 1 }],
@@ -136,7 +136,7 @@ describe('Enhanced Query Engine', () => {
                 createdAt: new Date('2024-01-20'),
             },
             {
-                id: 'order3',
+                _id: 'order3',
                 userId: '2',
                 total: 200.0,
                 items: [{ name: 'Monitor', price: 200, quantity: 1 }],
@@ -147,7 +147,7 @@ describe('Enhanced Query Engine', () => {
 
         const sampleProducts = [
             {
-                id: 'prod1',
+                _id: 'prod1',
                 name: 'Laptop',
                 price: 1000,
                 category: 'electronics',
@@ -158,7 +158,7 @@ describe('Enhanced Query Engine', () => {
                 ],
             },
             {
-                id: 'prod2',
+                _id: 'prod2',
                 name: 'Mouse',
                 price: 25,
                 category: 'electronics',
@@ -166,7 +166,7 @@ describe('Enhanced Query Engine', () => {
                 reviews: [{ rating: 4, comment: 'Works well', userId: '1' }],
             },
             {
-                id: 'prod3',
+                _id: 'prod3',
                 name: 'Desk',
                 price: 300,
                 category: 'furniture',
@@ -285,7 +285,7 @@ describe('Enhanced Query Engine', () => {
             const result = await users
                 .query()
                 .select('name', 'email')
-                .join('orders', 'id', 'userId')
+                .join('orders', '_id', 'userId')
                 .where('total')
                 .gt(100)
                 .exec();
@@ -300,7 +300,7 @@ describe('Enhanced Query Engine', () => {
             const result = await users
                 .query()
                 .select('name')
-                .leftJoin('orders', 'id', 'userId')
+                .leftJoin('orders', '_id', 'userId')
                 .exec();
 
             // Should include all users, even those without orders
@@ -310,7 +310,7 @@ describe('Enhanced Query Engine', () => {
         it('should join with custom operators', async () => {
             const result = await orders
                 .query()
-                .select('id', 'total')
+                .select('_id', 'total')
                 .join('products', 'total', 'price', '>')
                 .exec();
 
@@ -330,7 +330,7 @@ describe('Enhanced Query Engine', () => {
 
             const result = await users
                 .query()
-                .where('id')
+                .where('_id')
                 .existsSubquery(subquery, 'orders')
                 .exec();
 
@@ -343,7 +343,7 @@ describe('Enhanced Query Engine', () => {
 
             const result = await users
                 .query()
-                .where('id')
+                .where('_id')
                 .notExistsSubquery(subquery, 'orders')
                 .exec();
 
@@ -360,7 +360,7 @@ describe('Enhanced Query Engine', () => {
 
             const result = await users
                 .query()
-                .where('id')
+                .where('_id')
                 .inSubquery(subquery, 'orders')
                 .exec();
 
@@ -377,7 +377,7 @@ describe('Enhanced Query Engine', () => {
 
             const result = await users
                 .query()
-                .where('id')
+                .where('_id')
                 .notInSubquery(subquery, 'orders')
                 .exec();
 
@@ -467,7 +467,7 @@ describe('Enhanced Query Engine', () => {
             // Find premium users and their order statistics
             const premiumUserSubquery = users
                 .query()
-                .select('id')
+                .select('_id')
                 .where('metadata.category')
                 .eq('premium');
 

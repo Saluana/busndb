@@ -118,7 +118,7 @@ export type ArrayQueryPaths<T> = {
  * Example usage types for testing autocomplete
  */
 export interface ExampleSchema {
-    id: string;
+    _id: string;
     name: string;
     age: number;
     isActive: boolean;
@@ -145,7 +145,7 @@ export interface ExampleSchema {
 
 // Test types (these should provide autocomplete)
 type TestPaths = QueryablePaths<ExampleSchema>;
-// Should include: 'id', 'name', 'age', 'metadata.category', 'metadata.priority', 
+// Should include: '_id', 'name', 'age', 'metadata.category', 'metadata.priority',
 // 'metadata.settings.theme', 'profile.bio', 'profile.social.twitter', etc.
 
 type TestOrderable = OrderablePaths<ExampleSchema>;

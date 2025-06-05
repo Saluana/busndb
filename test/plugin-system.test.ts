@@ -17,18 +17,18 @@ describe('PluginManager', () => {
                 name: 'testCollection',
                 fields: [
                     {
-                        name: 'id',
+                        name: '_id',
                         type: 'string',
                         unique: true,
                         primaryKey: true,
                     },
                 ],
-                primaryKey: 'id',
+                primaryKey: '_id',
                 indexes: [],
                 constraints: [],
             } as unknown as CollectionSchema, // Using unknown to bypass strict CollectionSchema typing for tests
             operation: 'testOperation',
-            data: { id: 1, name: 'testData' },
+            data: { _id: 1, name: 'testData' },
             result: undefined,
             error: undefined,
         };

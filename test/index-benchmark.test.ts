@@ -4,7 +4,7 @@ import { index } from '../src/schema-constraints.js';
 
 // Define a comprehensive schema with both shallow and deep fields
 const userSchema = z.object({
-    id: z.string().uuid(),
+    _id: z.string().uuid(),
     name: z.string(),
     email: z.string().email(),
     age: z.number().int(),
