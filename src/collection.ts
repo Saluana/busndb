@@ -1724,7 +1724,17 @@ QueryBuilder.prototype.toArray = async function <T>(
         }) as T[];
     }
 
-    return rows.map((row) => parseDoc(row.doc));
+    return rows.map((row) => {
+        if (row.doc !== undefined) {
+            return parseDoc(row.doc);
+        }
+        const obj: any = {};
+        for (const key of Object.keys(row)) {
+            if (key === '_id') obj.id = row[key];
+            else obj[key] = row[key];
+        }
+        return obj as T;
+    });
 };
 
 // Add exec as alias for toArray
@@ -1814,7 +1824,17 @@ QueryBuilder.prototype.toArraySync = function <T>(
         }) as T[];
     }
 
-    return rows.map((row) => parseDoc(row.doc));
+    return rows.map((row) => {
+        if (row.doc !== undefined) {
+            return parseDoc(row.doc);
+        }
+        const obj: any = {};
+        for (const key of Object.keys(row)) {
+            if (key === '_id') obj.id = row[key];
+            else obj[key] = row[key];
+        }
+        return obj as T;
+    });
 };
 
 QueryBuilder.prototype.firstSync = function <T>(
