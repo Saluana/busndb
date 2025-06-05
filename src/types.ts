@@ -185,7 +185,7 @@ export interface VectorSearchOptions {
 export interface VectorSearchResult<T = any> {
     document: T;
     distance: number;
-    id: string;
+    _id: string;
 }
 
 // Re-export Plugin from plugin-system for convenience

@@ -27,7 +27,6 @@ describe('Select Field Tests', () => {
         users = db.collection('users', userSchema);
         users.insertBulkSync([
             {
-                _id: crypto.randomUUID(),
                 name: 'Alice',
                 email: 'alice@example.com',
                 age: 25,
@@ -36,7 +35,6 @@ describe('Select Field Tests', () => {
                 metadata: { role: 'senior', level: 3 },
             },
             {
-                _id: crypto.randomUUID(),
                 name: 'Bob',
                 email: 'bob@example.com',
                 age: 30,
@@ -45,7 +43,6 @@ describe('Select Field Tests', () => {
                 metadata: { role: 'manager', level: 2 },
             },
             {
-                _id: crypto.randomUUID(),
                 name: 'Charlie',
                 email: 'charlie@example.com',
                 age: 35,
@@ -351,7 +348,6 @@ describe('Select Field Tests', () => {
         test('select with distinct', () => {
             // Add duplicate department data
             users.insertSync({
-                _id: crypto.randomUUID(),
                 name: 'David',
                 email: 'david@example.com',
                 age: 28,
