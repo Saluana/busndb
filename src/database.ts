@@ -403,9 +403,12 @@ export class Database {
     }
 
     // Plugin management methods
-    use(pluginInput: Plugin | PluginClass | PluginFactory | any, options?: any): this {
+    use(
+        pluginInput: Plugin | PluginClass | PluginFactory | any,
+        options?: any
+    ): this {
         let plugin: Plugin;
-        
+
         // Handle different plugin input types
         if (this.isPluginInstance(pluginInput)) {
             // Already a plugin instance
@@ -420,9 +423,11 @@ export class Database {
             // ES module with default export - try that
             return this.use(pluginInput.default, options);
         } else {
-            throw new Error('Invalid plugin: must be Plugin instance, class, or factory function');
+            throw new Error(
+                'Invalid plugin: must be Plugin instance, class, or factory function'
+            );
         }
-        
+
         this.plugins.register(plugin);
         return this;
     }
@@ -432,8 +437,12 @@ export class Database {
     }
 
     private isPluginClass(obj: any): obj is new (options?: any) => Plugin {
-        return typeof obj === 'function' && obj.prototype && 
-               (obj.prototype.name !== undefined || obj.prototype.constructor === obj);
+        return (
+            typeof obj === 'function' &&
+            obj.prototype &&
+            (obj.prototype.name !== undefined ||
+                obj.prototype.constructor === obj)
+        );
     }
 
     private isPluginFactory(obj: any): obj is (options?: any) => Plugin {

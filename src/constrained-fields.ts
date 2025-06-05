@@ -9,11 +9,11 @@ export function extractConstrainedValues(
     constrainedFields: { [fieldPath: string]: ConstrainedFieldDefinition }
 ): { [fieldPath: string]: any } {
     const values: { [fieldPath: string]: any } = {};
-    
+
     for (const fieldPath of Object.keys(constrainedFields)) {
         values[fieldPath] = getNestedValue(doc, fieldPath);
     }
-    
+
     return values;
 }
 
@@ -22,15 +22,15 @@ export function extractConstrainedValues(
  */
 export function getNestedValue(obj: any, path: string): any {
     if (!path || !obj) return undefined;
-    
+
     const keys = path.split('.');
     let current = obj;
-    
+
     for (const key of keys) {
         if (current === null || current === undefined) return undefined;
         current = current[key];
     }
-    
+
     return current;
 }
 
@@ -39,46 +39,53 @@ export function getNestedValue(obj: any, path: string): any {
  */
 export function setNestedValue(obj: any, path: string, value: any): void {
     if (!path || !obj) return;
-    
+
     const keys = path.split('.');
     let current = obj;
-    
+
     for (let i = 0; i < keys.length - 1; i++) {
         const key = keys[i];
-        if (!(key in current) || current[key] === null || typeof current[key] !== 'object') {
+        if (
+            !(key in current) ||
+            current[key] === null ||
+            typeof current[key] !== 'object'
+        ) {
             current[key] = {};
         }
         current = current[key];
     }
-    
+
     current[keys[keys.length - 1]] = value;
 }
 
 /**
  * Infer SQLite column type from Zod type
  */
-export function inferSQLiteType(zodType: z.ZodType, fieldDef?: ConstrainedFieldDefinition): string {
+export function inferSQLiteType(
+    zodType: z.ZodType,
+    fieldDef?: ConstrainedFieldDefinition
+): string {
     // If type is explicitly specified, use it
     if (fieldDef?.type) {
         return fieldDef.type;
     }
-    
+
     // In Zod v4, internal structure has changed. For simplicity and reliability,
     // we'll use a more pragmatic approach: try parsing with different types
     // and infer based on successful parsing patterns.
-    
+
     // Test with common types to infer the expected type
     const testValues = [
-        { value: "test", type: 'TEXT' },
+        { value: 'test', type: 'TEXT' },
         { value: 42, type: 'REAL' },
         { value: BigInt(42), type: 'INTEGER' },
         { value: true, type: 'INTEGER' }, // SQLite uses 0/1 for booleans
         { value: new Date(), type: 'TEXT' }, // Store as ISO string
         { value: [1, 2, 3], type: 'VECTOR' }, // Number arrays could be vectors
-        { value: ["a", "b"], type: 'TEXT' }, // Other arrays serialize as JSON
-        { value: { key: "value" }, type: 'TEXT' }, // Objects serialize as JSON
+        { value: ['a', 'b'], type: 'TEXT' }, // Other arrays serialize as JSON
+        { value: { key: 'value' }, type: 'TEXT' }, // Objects serialize as JSON
     ];
-    
+
     for (const test of testValues) {
         const result = zodType.safeParse(test.value);
         if (result.success) {
@@ -93,20 +100,23 @@ export function inferSQLiteType(zodType: z.ZodType, fieldDef?: ConstrainedFieldD
             return test.type;
         }
     }
-    
+
     // Default fallback
     return 'TEXT';
 }
 
 /**
  * Get Zod type for a nested field path
- * 
+ *
  * Note: In Zod v4, introspecting schema structure is complex due to internal API changes.
  * For performance and simplicity, we skip validation here and trust that developers
  * define constrained fields correctly. Runtime database operations will catch any
  * mismatches with clear error messages.
  */
-export function getZodTypeForPath(schema: z.ZodType, path: string): z.ZodType | null {
+export function getZodTypeForPath(
+    schema: z.ZodType,
+    path: string
+): z.ZodType | null {
     // Always return the schema as valid - skip expensive validation
     // The actual database operations will validate field existence at runtime
     return schema;
@@ -120,21 +130,25 @@ export function validateConstrainedFields(
     constrainedFields: { [fieldPath: string]: ConstrainedFieldDefinition }
 ): string[] {
     const errors: string[] = [];
-    
+
     for (const fieldPath of Object.keys(constrainedFields)) {
         const zodType = getZodTypeForPath(schema, fieldPath);
         if (!zodType) {
-            errors.push(`Constrained field '${fieldPath}' does not exist in schema`);
+            errors.push(
+                `Constrained field '${fieldPath}' does not exist in schema`
+            );
         }
     }
-    
+
     return errors;
 }
 
 /**
- * Parse foreign key reference string 'table.column' 
+ * Parse foreign key reference string 'table.column'
  */
-export function parseForeignKeyReference(reference: string): { table: string; column: string } | null {
+export function parseForeignKeyReference(
+    reference: string
+): { table: string; column: string } | null {
     const parts = reference.split('.');
     if (parts.length !== 2) {
         return null;
@@ -156,7 +170,7 @@ export function convertValueForStorage(value: any, sqliteType: string): any {
     if (value === null || value === undefined) {
         return null;
     }
-    
+
     switch (sqliteType) {
         case 'INTEGER':
             if (typeof value === 'boolean') return value ? 1 : 0;
@@ -187,7 +201,7 @@ export function convertValueFromStorage(value: any, sqliteType: string): any {
     if (value === null || value === undefined) {
         return null;
     }
-    
+
     switch (sqliteType) {
         case 'INTEGER':
             return Number(value);

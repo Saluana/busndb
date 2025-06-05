@@ -11,14 +11,14 @@ function zodTypeToSQL(zodDef) {
         return 'TEXT';
     }
 
-    // In Zod v4, _def moved to _zod.def  
+    // In Zod v4, _def moved to _zod.def
     const def = zodDef._zod?.def || zodDef._def || zodDef.def;
     if (!def) {
         return 'TEXT';
     }
 
     const typeName = def.typeName || def.type;
-    
+
     switch (typeName) {
         case 'ZodString':
         case 'string':

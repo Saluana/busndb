@@ -41,15 +41,20 @@ export class Migrator {
                 updated_at TEXT NOT NULL DEFAULT (datetime('now'))
             )
         `;
-        
+
         try {
             await this.driver.exec(createTableSQL);
         } catch (error) {
             // Handle nested transaction errors and other transaction-related issues
-            if (error instanceof Error && (
-                error.message.includes('cannot start a transaction within a transaction') ||
-                error.message.includes('Failed to execute: SQLiteError: cannot start a transaction within a transaction')
-            )) {
+            if (
+                error instanceof Error &&
+                (error.message.includes(
+                    'cannot start a transaction within a transaction'
+                ) ||
+                    error.message.includes(
+                        'Failed to execute: SQLiteError: cannot start a transaction within a transaction'
+                    ))
+            ) {
                 // Ignore the error if we're in a transaction - table should already exist or be created elsewhere
                 return;
             }
@@ -64,17 +69,24 @@ export class Migrator {
             return rows.length > 0 ? rows[0].version : 0;
         } catch (error) {
             // If migration table doesn't exist yet and we're in a transaction, return 0
-            if (error instanceof Error && (
-                error.message.includes('no such table') ||
-                error.message.includes('cannot start a transaction within a transaction')
-            )) {
+            if (
+                error instanceof Error &&
+                (error.message.includes('no such table') ||
+                    error.message.includes(
+                        'cannot start a transaction within a transaction'
+                    ))
+            ) {
                 return 0;
             }
             throw error;
         }
     }
 
-    async setStoredVersion(collectionName: string, version: number, completedAlters: string[] = []): Promise<void> {
+    async setStoredVersion(
+        collectionName: string,
+        version: number,
+        completedAlters: string[] = []
+    ): Promise<void> {
         try {
             const sql = `
                 INSERT INTO ${Migrator.META_TABLE} (collection_name, version, completed_alters, updated_at)
@@ -84,18 +96,33 @@ export class Migrator {
                     completed_alters = excluded.completed_alters,
                     updated_at = excluded.updated_at
             `;
-            await this.driver.exec(sql, [collectionName, version, JSON.stringify(completedAlters)]);
+            await this.driver.exec(sql, [
+                collectionName,
+                version,
+                JSON.stringify(completedAlters),
+            ]);
         } catch (error) {
             // If we're in a transaction and can't update the migration table, log but continue
-            if (error instanceof Error && error.message.includes('cannot start a transaction within a transaction')) {
-                console.warn(`Could not update migration version for '${collectionName}' (in transaction)`);
+            if (
+                error instanceof Error &&
+                error.message.includes(
+                    'cannot start a transaction within a transaction'
+                )
+            ) {
+                console.warn(
+                    `Could not update migration version for '${collectionName}' (in transaction)`
+                );
                 return;
             }
             throw error;
         }
     }
 
-    generateSchemaDiff(oldSchema: z.ZodType | null, newSchema: z.ZodType, tableName: string): SchemaDiff {
+    generateSchemaDiff(
+        oldSchema: z.ZodType | null,
+        newSchema: z.ZodType,
+        tableName: string
+    ): SchemaDiff {
         const alters: string[] = [];
         const breakingReasons: string[] = [];
         let breaking = false;
@@ -109,29 +136,45 @@ export class Migrator {
 
         if (!oldShape || !newShape) {
             breaking = true;
-            breakingReasons.push('Cannot analyze schema shape - manual migration required');
+            breakingReasons.push(
+                'Cannot analyze schema shape - manual migration required'
+            );
             return { alters, breaking, breakingReasons };
         }
 
         for (const [fieldName, fieldDef] of Object.entries(newShape)) {
             if (!oldShape[fieldName]) {
                 const sqlType = this.zodTypeToSQL(fieldDef);
-                const nullable = this.isFieldOptional(fieldDef) ? '' : ' NOT NULL DEFAULT NULL';
-                alters.push(`ALTER TABLE ${tableName} ADD COLUMN ${fieldName} ${sqlType}${nullable}`);
+                const nullable = this.isFieldOptional(fieldDef)
+                    ? ''
+                    : ' NOT NULL DEFAULT NULL';
+                alters.push(
+                    `ALTER TABLE ${tableName} ADD COLUMN ${fieldName} ${sqlType}${nullable}`
+                );
             } else {
-                console.log(`DEBUG: oldShape[${fieldName}]:`, oldShape[fieldName]);
+                console.log(
+                    `DEBUG: oldShape[${fieldName}]:`,
+                    oldShape[fieldName]
+                );
                 console.log(`DEBUG: fieldDef:`, fieldDef);
-                console.log(`DEBUG: oldShape[${fieldName}].def:`, oldShape[fieldName].def);
+                console.log(
+                    `DEBUG: oldShape[${fieldName}].def:`,
+                    oldShape[fieldName].def
+                );
                 console.log(`DEBUG: fieldDef.def:`, fieldDef.def);
-                
+
                 const oldType = this.zodTypeToSQL(oldShape[fieldName]);
                 const newType = this.zodTypeToSQL(fieldDef);
-                
-                console.log(`DEBUG: Field '${fieldName}' - old: '${oldType}', new: '${newType}'`);
-                
+
+                console.log(
+                    `DEBUG: Field '${fieldName}' - old: '${oldType}', new: '${newType}'`
+                );
+
                 if (oldType !== newType) {
                     breaking = true;
-                    breakingReasons.push(`Field '${fieldName}' type changed from ${oldType} to ${newType}`);
+                    breakingReasons.push(
+                        `Field '${fieldName}' type changed from ${oldType} to ${newType}`
+                    );
                 }
             }
         }
@@ -150,7 +193,7 @@ export class Migrator {
         if ('shape' in schema && schema.shape) {
             return schema.shape as Record<string, any>;
         }
-        
+
         // In Zod v4, _def moved to _zod.def
         const def = (schema as any)._zod?.def || (schema as any)._def;
         if (def && def.shape) {
@@ -172,7 +215,7 @@ export class Migrator {
         }
 
         const typeName = def.type || def.typeName;
-        
+
         switch (typeName) {
             case 'ZodString':
             case 'string':
@@ -227,15 +270,21 @@ export class Migrator {
         }
 
         const typeName = def.typeName;
-        
+
         if (typeName === 'ZodOptional' || typeName === 'ZodNullable') {
             return true;
         }
 
         if (typeName === 'ZodUnion') {
             const options = zodDef._def.options;
-            return options && options.some((opt: any) => 
-                opt._def && (opt._def.typeName === 'ZodNull' || opt._def.typeName === 'ZodUndefined')
+            return (
+                options &&
+                options.some(
+                    (opt: any) =>
+                        opt._def &&
+                        (opt._def.typeName === 'ZodNull' ||
+                            opt._def.typeName === 'ZodUndefined')
+                )
             );
         }
 
@@ -243,14 +292,16 @@ export class Migrator {
     }
 
     async runMigration(
-        collectionName: string, 
-        oldVersion: number, 
-        newVersion: number, 
+        collectionName: string,
+        oldVersion: number,
+        newVersion: number,
         diff: SchemaDiff
     ): Promise<void> {
         if (diff.breaking) {
             throw new DatabaseError(
-                `Breaking schema migration required for collection '${collectionName}' (v${oldVersion} → v${newVersion}): ${diff.breakingReasons.join(', ')}. Manual migration required.`,
+                `Breaking schema migration required for collection '${collectionName}' (v${oldVersion} → v${newVersion}): ${diff.breakingReasons.join(
+                    ', '
+                )}. Manual migration required.`,
                 'BREAKING_MIGRATION'
             );
         }
@@ -264,7 +315,7 @@ export class Migrator {
         for (const alterSQL of diff.alters) {
             await this.driver.exec(alterSQL);
         }
-        
+
         await this.setStoredVersion(collectionName, newVersion, diff.alters);
     }
 
@@ -274,7 +325,7 @@ export class Migrator {
         database?: any
     ): Promise<void> {
         const { name, version = 1, schema, upgrade, seed } = collectionSchema;
-        
+
         // In test environments, be selective about which migrations to run
         // Skip migrations for transaction tests but allow them for upgrade function tests
         if (process.env.NODE_ENV === 'test') {
@@ -286,20 +337,20 @@ export class Migrator {
                 return;
             }
         }
-        
+
         // Handle nested transaction errors gracefully by wrapping all migration operations
         try {
             await this.initializeMigrationsTable();
             const storedVersion = await this.getStoredVersion(name);
-            
+
             if (storedVersion === version) {
                 return;
             }
-            
+
             if (storedVersion > version) {
                 console.warn(
                     `Collection '${name}' has stored version ${storedVersion} which is higher than schema version ${version}. ` +
-                    `This might happen when switching between git branches. No migration will be performed.`
+                        `This might happen when switching between git branches. No migration will be performed.`
                 );
                 return;
             }
@@ -309,69 +360,106 @@ export class Migrator {
                 oldSchema = schema as z.ZodType;
             }
 
-            const diff = this.generateSchemaDiff(oldSchema, schema as z.ZodType, name);
-        
-        if (process.env.SKIBBADB_MIGRATE === 'print') {
-            console.log(`Migration plan for ${name} (v${storedVersion} → v${version}):`);
-            if (diff.breaking) {
-                console.log('  BREAKING CHANGES:', diff.breakingReasons.join(', '));
-            }
-            for (const alter of diff.alters) {
-                console.log(`  ${alter}`);
-            }
-            
-            // Print upgrade functions plan
-            if (upgrade && database && collection) {
-                const upgradeRunner = new UpgradeRunner(this.driver, database);
-                await upgradeRunner.printUpgradePlan(name, upgrade, storedVersion, version);
-            }
-            
-            // Print seed function info
-            if (storedVersion === 0 && seed) {
-                console.log(`  Seed function: Will run after migration`);
-            }
-            
-            return;
-        }
+            const diff = this.generateSchemaDiff(
+                oldSchema,
+                schema as z.ZodType,
+                name
+            );
 
-        // Check if we're already in a transaction to avoid nested transaction issues
-        const runMigrationOperations = async () => {
-            // 1. Run automatic schema migrations (ALTER TABLE)
-            await this.runMigration(name, storedVersion, version, diff);
-            
-            // 2. Run custom upgrade functions
-            if (upgrade && collection && database) {
-                const upgradeRunner = new UpgradeRunner(this.driver, database);
-                await upgradeRunner.runUpgrades(collection, upgrade, storedVersion, version);
-            }
-            
-            // 3. Run seed function for new collections
-            if (storedVersion === 0 && seed && collection) {
-                const upgradeRunner = new UpgradeRunner(this.driver, database);
-                await upgradeRunner.runSeedFunction(collection, seed);
-            }
-        };
+            if (process.env.SKIBBADB_MIGRATE === 'print') {
+                console.log(
+                    `Migration plan for ${name} (v${storedVersion} → v${version}):`
+                );
+                if (diff.breaking) {
+                    console.log(
+                        '  BREAKING CHANGES:',
+                        diff.breakingReasons.join(', ')
+                    );
+                }
+                for (const alter of diff.alters) {
+                    console.log(`  ${alter}`);
+                }
 
-        // Check if driver has transaction state tracking and use it
-        const transactionDriver = this.driver as any;
-        if (transactionDriver.isInTransaction) {
-            // We're already in a transaction, run operations directly
-            await runMigrationOperations();
-        } else {
-            // Not in a transaction, wrap in transaction for safety
-            await this.driver.transaction(runMigrationOperations);
-        }
-        
-        const hasChanges = diff.alters.length > 0 || upgrade || (storedVersion === 0 && seed);
-        if (hasChanges) {
-            console.log(`Migrated collection '${name}' from v${storedVersion} to v${version}`);
-        }
-        
+                // Print upgrade functions plan
+                if (upgrade && database && collection) {
+                    const upgradeRunner = new UpgradeRunner(
+                        this.driver,
+                        database
+                    );
+                    await upgradeRunner.printUpgradePlan(
+                        name,
+                        upgrade,
+                        storedVersion,
+                        version
+                    );
+                }
+
+                // Print seed function info
+                if (storedVersion === 0 && seed) {
+                    console.log(`  Seed function: Will run after migration`);
+                }
+
+                return;
+            }
+
+            // Check if we're already in a transaction to avoid nested transaction issues
+            const runMigrationOperations = async () => {
+                // 1. Run automatic schema migrations (ALTER TABLE)
+                await this.runMigration(name, storedVersion, version, diff);
+
+                // 2. Run custom upgrade functions
+                if (upgrade && collection && database) {
+                    const upgradeRunner = new UpgradeRunner(
+                        this.driver,
+                        database
+                    );
+                    await upgradeRunner.runUpgrades(
+                        collection,
+                        upgrade,
+                        storedVersion,
+                        version
+                    );
+                }
+
+                // 3. Run seed function for new collections
+                if (storedVersion === 0 && seed && collection) {
+                    const upgradeRunner = new UpgradeRunner(
+                        this.driver,
+                        database
+                    );
+                    await upgradeRunner.runSeedFunction(collection, seed);
+                }
+            };
+
+            // Check if driver has transaction state tracking and use it
+            const transactionDriver = this.driver as any;
+            if (transactionDriver.isInTransaction) {
+                // We're already in a transaction, run operations directly
+                await runMigrationOperations();
+            } else {
+                // Not in a transaction, wrap in transaction for safety
+                await this.driver.transaction(runMigrationOperations);
+            }
+
+            const hasChanges =
+                diff.alters.length > 0 ||
+                upgrade ||
+                (storedVersion === 0 && seed);
+            if (hasChanges) {
+                console.log(
+                    `Migrated collection '${name}' from v${storedVersion} to v${version}`
+                );
+            }
         } catch (outerError) {
-            if (outerError instanceof Error && (
-                outerError.message.includes('cannot start a transaction within a transaction') ||
-                outerError.message.includes('Failed to execute: SQLiteError: cannot start a transaction within a transaction')
-            )) {
+            if (
+                outerError instanceof Error &&
+                (outerError.message.includes(
+                    'cannot start a transaction within a transaction'
+                ) ||
+                    outerError.message.includes(
+                        'Failed to execute: SQLiteError: cannot start a transaction within a transaction'
+                    ))
+            ) {
                 // We're in a transaction context, skip migrations to avoid conflicts
                 return;
             }
@@ -381,14 +469,14 @@ export class Migrator {
 
     async getMigrationStatus(): Promise<MigrationInfo[]> {
         await this.initializeMigrationsTable();
-        
+
         const sql = `SELECT collection_name, version, completed_alters FROM ${Migrator.META_TABLE} ORDER BY collection_name`;
         const rows = await this.driver.query(sql);
-        
-        return rows.map(row => ({
+
+        return rows.map((row) => ({
             collectionName: row.collection_name,
             version: row.version,
-            completedAlters: JSON.parse(row.completed_alters || '[]')
+            completedAlters: JSON.parse(row.completed_alters || '[]'),
         }));
     }
 }

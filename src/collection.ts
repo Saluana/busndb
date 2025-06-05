@@ -359,9 +359,7 @@ export class Collection<T extends z.ZodType = any> {
         }
     }
 
-    async insertBulk(
-        docs: Omit<z.infer<T>, 'id'>[]
-    ): Promise<z.infer<T>[]> {
+    async insertBulk(docs: Omit<z.infer<T>, 'id'>[]): Promise<z.infer<T>[]> {
         await this.ensureInitialized();
         if (docs.length === 0) return [];
 
@@ -471,10 +469,7 @@ export class Collection<T extends z.ZodType = any> {
         }
     }
 
-    async put(
-        id: string,
-        doc: Partial<z.infer<T>>
-    ): Promise<z.infer<T>> {
+    async put(id: string, doc: Partial<z.infer<T>>): Promise<z.infer<T>> {
         await this.ensureInitialized();
         const existing = await this.findById(id);
         if (!existing) {
@@ -654,10 +649,7 @@ export class Collection<T extends z.ZodType = any> {
         }
         return count;
     }
-    async upsert(
-        id: string,
-        doc: Omit<z.infer<T>, 'id'>
-    ): Promise<z.infer<T>> {
+    async upsert(id: string, doc: Omit<z.infer<T>, 'id'>): Promise<z.infer<T>> {
         // Use the optimized SQL-level upsert for best performance
         return this.upsertOptimized(id, doc);
     }
