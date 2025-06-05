@@ -4,20 +4,20 @@ import { createDB } from '../index';
 
 // Test schemas for different complexity levels
 const simpleSchema = z.object({
-    _id: z.string().optional(),
+    _id: z.string().default(() => crypto.randomUUID()),
     name: z.string(),
     score: z.number(),
 });
 
 const constrainedSchema = z.object({
-    _id: z.string().optional(),
+    _id: z.string().default(() => crypto.randomUUID()),
     email: z.string().email(),
     username: z.string(),
     score: z.number(),
 });
 
 const complexSchema = z.object({
-    _id: z.string().optional(),
+    _id: z.string().default(() => crypto.randomUUID()),
     name: z.string(),
     email: z.string().email(),
     age: z.number().int(),
@@ -100,7 +100,7 @@ async function analyzeUpsertPerformance() {
     // Test 2: Simple upsert bulk operations
     console.log('2. Testing simple upsert bulk operations...');
     const bulkUpsertData = allIds.map((id, i) => ({
-        id,
+        _id: id,
         doc: {
             name: `Bulk User ${i}`,
             score: i * 5,
@@ -127,7 +127,9 @@ async function analyzeUpsertPerformance() {
     const constrainedPreInserted = await constrainedCollection.insertBulk(
         constrainedPreData
     );
-    const constrainedExistingIds = constrainedPreInserted.map((doc) => doc._id!);
+    const constrainedExistingIds = constrainedPreInserted.map(
+        (doc) => doc._id!
+    );
 
     const constrainedNewIds = Array.from({ length: 500 }, () =>
         crypto.randomUUID()
@@ -246,7 +248,7 @@ async function analyzeUpsertPerformance() {
         });
 
         const mixedBulkData = newIds.slice(250, 500).map((id, i) => ({
-            id,
+            _id: id,
             doc: {
                 name: `Bulk Mixed User ${i}`,
                 score: i * 18,
@@ -349,8 +351,8 @@ test('Upsert Performance Analysis > should test bulk upsert functionality', asyn
         expect(insertResults).toHaveLength(100);
 
         // Test bulk upsert (all updates)
-        const updateData = testData.map(({ id }, i) => ({
-            id,
+        const updateData = testData.map(({ _id }, i) => ({
+            _id,
             doc: {
                 name: `Updated Bulk User ${i}`,
                 score: i * 20,
