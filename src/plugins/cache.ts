@@ -63,8 +63,8 @@ export class CachePlugin implements Plugin {
     }
     
     async onAfterInsert(context: PluginContext): Promise<void> {
-        if (this.options.enableDocumentCache && context.result?.id) {
-            const key = this.getCacheKey(context, context.result.id);
+        if (this.options.enableDocumentCache && (context.result?._id || context.result?.id)) {
+            const key = this.getCacheKey(context, context.result._id ?? context.result.id);
             this.documentCache.set(key, {
                 value: context.result,
                 timestamp: Date.now(),
@@ -75,8 +75,8 @@ export class CachePlugin implements Plugin {
     }
     
     async onAfterUpdate(context: PluginContext): Promise<void> {
-        if (this.options.enableDocumentCache && context.result?.id) {
-            const key = this.getCacheKey(context, context.result.id);
+        if (this.options.enableDocumentCache && (context.result?._id || context.result?.id)) {
+            const key = this.getCacheKey(context, context.result._id ?? context.result.id);
             this.documentCache.set(key, {
                 value: context.result,
                 timestamp: Date.now(),
@@ -97,8 +97,8 @@ export class CachePlugin implements Plugin {
     }
     
     async onAfterDelete(context: PluginContext): Promise<void> {
-        if (this.options.enableDocumentCache && context.data?.id) {
-            const key = this.getCacheKey(context, context.data.id);
+        if (this.options.enableDocumentCache && (context.data?._id || context.data?.id)) {
+            const key = this.getCacheKey(context, context.data._id ?? context.data.id);
             this.documentCache.delete(key);
         }
         

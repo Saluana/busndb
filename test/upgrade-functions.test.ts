@@ -12,7 +12,7 @@ describe('Upgrade Functions', () => {
 
     it('should run simple upgrade function', async () => {
         const UserSchema = z.object({
-            id: z.string(),
+            _id: z.string(),
             name: z.string(),
             email: z.string().optional(),
         });
@@ -57,7 +57,7 @@ describe('Upgrade Functions', () => {
 
     it('should run conditional upgrade function', async () => {
         const UserSchema = z.object({
-            id: z.string(),
+            _id: z.string(),
             name: z.string(),
             isActive: z.boolean().optional(),
         });
@@ -79,7 +79,7 @@ describe('Upgrade Functions', () => {
                         upgradeRan = true;
                         const users = await collection.toArray();
                         for (const user of users) {
-                            await collection.put(user.id, {
+                            await collection.put(user._id, {
                                 ...user,
                                 isActive: true,
                             });
@@ -104,7 +104,7 @@ describe('Upgrade Functions', () => {
 
     it('should skip conditional upgrade when condition is false', async () => {
         const UserSchema = z.object({
-            id: z.string(),
+            _id: z.string(),
             name: z.string(),
             processed: z.boolean().optional(),
         });
@@ -131,7 +131,7 @@ describe('Upgrade Functions', () => {
 
     it('should run multiple upgrade functions in sequence', async () => {
         const UserSchema = z.object({
-            id: z.string(),
+            _id: z.string(),
             name: z.string(),
             email: z.string().optional(),
             fullName: z.string().optional(),
@@ -147,14 +147,14 @@ describe('Upgrade Functions', () => {
                     const users = await collection.toArray();
                     for (const user of users) {
                         const email = `${user.name.toLowerCase()}@example.com`;
-                        await collection.put(user.id, { ...user, email });
+                        await collection.put(user._id, { ...user, email });
                     }
                 },
                 3: async (collection: any) => {
                     executionOrder.push(3);
                     const users = await collection.toArray();
                     for (const user of users) {
-                        await collection.put(user.id, {
+                        await collection.put(user._id, {
                             ...user,
                             fullName: user.name,
                         });
@@ -178,12 +178,12 @@ describe('Upgrade Functions', () => {
 
     it('should provide upgrade context with database access', async () => {
         const UserSchema = z.object({
-            id: z.string(),
+            _id: z.string(),
             name: z.string(),
         });
 
         const ProfileSchema = z.object({
-            id: z.string(),
+            _id: z.string(),
             userId: z.string(),
             bio: z.string(),
         });
@@ -207,7 +207,7 @@ describe('Upgrade Functions', () => {
                     const users = await collection.toArray();
                     for (const user of users) {
                         await profiles.insert({
-                            userId: user.id,
+                            userId: user._id,
                             bio: `Profile for ${user.name}`,
                         });
                     }
@@ -233,12 +233,12 @@ describe('Upgrade Functions', () => {
         const profiles = db.collection('profiles');
         const profilesData = await profiles.toArray();
         expect(profilesData.length).toBe(1);
-        expect(profilesData[0].userId).toBe(insertedUser.id);
+        expect(profilesData[0].userId).toBe(insertedUser._id);
     });
 
     it('should run upgrade functions with SQL access', async () => {
         const UserSchema = z.object({
-            id: z.string(),
+            _id: z.string(),
             name: z.string(),
             nameLength: z.number().optional(),
         });
@@ -271,7 +271,7 @@ describe('Upgrade Functions', () => {
 
     it('should run seed function for new collections', async () => {
         const UserSchema = z.object({
-            id: z.string(),
+            _id: z.string(),
             name: z.string(),
             role: z.string(),
         });
@@ -309,7 +309,7 @@ describe('Upgrade Functions', () => {
 
     it('should handle upgrade function errors gracefully', async () => {
         const UserSchema = z.object({
-            id: z.string(),
+            _id: z.string(),
             name: z.string(),
         });
 
@@ -341,7 +341,7 @@ describe('Upgrade Functions', () => {
 
         try {
             const UserSchema = z.object({
-                id: z.string(),
+                _id: z.string(),
                 name: z.string(),
                 processed: z.boolean().optional(),
             });
@@ -376,7 +376,7 @@ describe('Upgrade Functions', () => {
 
     it('should handle transaction rollback on upgrade failure', async () => {
         const UserSchema = z.object({
-            id: z.string(),
+            _id: z.string(),
             name: z.string(),
             processed: z.boolean().optional(),
         });

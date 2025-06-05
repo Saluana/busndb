@@ -12,7 +12,7 @@ describe('Upgrade Functions - Simple Tests', () => {
 
     it('should run upgrade function on new collection', async () => {
         const UserSchema = z.object({
-            id: z.string(),
+            _id: z.string(),
             name: z.string(),
             email: z.string().optional(),
         });
@@ -51,7 +51,7 @@ describe('Upgrade Functions - Simple Tests', () => {
 
     it('should run seed function for new collection', async () => {
         const UserSchema = z.object({
-            id: z.string(),
+            _id: z.string(),
             name: z.string(),
             role: z.string(),
         });
@@ -80,7 +80,7 @@ describe('Upgrade Functions - Simple Tests', () => {
 
     it('should skip conditional upgrade when condition is false', async () => {
         const UserSchema = z.object({
-            id: z.string(),
+            _id: z.string(),
             name: z.string(),
         });
 
@@ -106,7 +106,7 @@ describe('Upgrade Functions - Simple Tests', () => {
 
     it('should run multiple upgrade functions in sequence', async () => {
         const UserSchema = z.object({
-            id: z.string(),
+            _id: z.string(),
             name: z.string(),
             email: z.string().optional(),
             fullName: z.string().optional(),
@@ -125,7 +125,7 @@ describe('Upgrade Functions - Simple Tests', () => {
                     executionOrder.push(3);
                     const users = await collection.toArray();
                     for (const user of users) {
-                        await collection.put(user.id, { ...user, fullName: user.name });
+                        await collection.put(user._id, { ...user, fullName: user.name });
                     }
                 }
             }
@@ -143,7 +143,7 @@ describe('Upgrade Functions - Simple Tests', () => {
 
     it('should handle upgrade function errors gracefully', async () => {
         const UserSchema = z.object({
-            id: z.string(),
+            _id: z.string(),
             name: z.string(),
         });
 
@@ -172,7 +172,7 @@ describe('Upgrade Functions - Simple Tests', () => {
 
         try {
             const UserSchema = z.object({
-                id: z.string(),
+                _id: z.string(),
                 name: z.string(),
             });
 
@@ -206,7 +206,7 @@ describe('Upgrade Functions - Simple Tests', () => {
 
     it('should provide upgrade context with SQL access', async () => {
         const UserSchema = z.object({
-            id: z.string(),
+            _id: z.string(),
             name: z.string(),
             nameLength: z.number().optional(),
         });

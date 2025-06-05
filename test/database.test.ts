@@ -10,14 +10,14 @@ import {
 import type { Database } from '../src/database.js';
 
 const userSchema = z.object({
-    id: z.string().uuid(),
+    _id: z.string().uuid(),
     name: z.string(),
     email: z.string().email(),
     age: z.number().int().optional(),
 });
 
 const postSchema = z.object({
-    id: z.string().uuid(),
+    _id: z.string().uuid(),
     title: z.string(),
     content: z.string(),
     authorId: z.string().uuid(),
@@ -91,7 +91,7 @@ describe('skibbaDB', () => {
                 age: 30,
             });
 
-            expect(user.id).toBeDefined();
+            expect(user._id).toBeDefined();
             expect(user.name).toBe('John Doe');
             expect(user.email).toBe('john@example.com');
             expect(user.age).toBe(30);
@@ -115,8 +115,8 @@ describe('skibbaDB', () => {
 
             const inserted = users.insertBulkSync(docs);
             expect(inserted).toHaveLength(2);
-            expect(inserted[0].id).toBeDefined();
-            expect(inserted[1].id).toBeDefined();
+            expect(inserted[0]._id).toBeDefined();
+            expect(inserted[1]._id).toBeDefined();
         });
 
         test('should find document by id', () => {
@@ -125,7 +125,7 @@ describe('skibbaDB', () => {
                 email: 'john@example.com',
             });
 
-            const found = users.findByIdSync(user.id);
+            const found = users.findByIdSync(user._id);
             expect(found).toEqual(user);
         });
 
@@ -141,7 +141,7 @@ describe('skibbaDB', () => {
                 age: 30,
             });
 
-            const updated = users.putSync(user.id, { age: 31 });
+            const updated = users.putSync(user._id, { age: 31 });
             expect(updated.age).toBe(31);
             expect(updated.name).toBe('John Doe');
         });
@@ -158,9 +158,9 @@ describe('skibbaDB', () => {
                 email: 'john@example.com',
             });
 
-            const deleted = users.deleteSync(user.id);
+            const deleted = users.deleteSync(user._id);
             expect(deleted).toBe(true);
-            expect(users.findByIdSync(user.id)).toBeNull();
+            expect(users.findByIdSync(user._id)).toBeNull();
         });
 
         test('should delete bulk documents', () => {
@@ -173,7 +173,7 @@ describe('skibbaDB', () => {
                 email: 'user2@example.com',
             });
 
-            const count = users.deleteBulkSync([user1.id, user2.id]);
+            const count = users.deleteBulkSync([user1._id, user2._id]);
             expect(count).toBe(2);
         });
     });

@@ -42,7 +42,7 @@ export class AuditLogPlugin implements Plugin {
     
     async onAfterInsert(context: PluginContext): Promise<void> {
         if (this.options.logInserts) {
-            const id = context.result?.id || 'unknown';
+            const id = context.result?._id ?? context.result?.id ?? 'unknown';
             this.options.customLogger(
                 this.options.logLevel,
                 `Document inserted: ${context.collectionName}:${id}`,
@@ -53,7 +53,7 @@ export class AuditLogPlugin implements Plugin {
     
     async onAfterUpdate(context: PluginContext): Promise<void> {
         if (this.options.logUpdates) {
-            const id = context.result?.id || context.data?.id || 'unknown';
+            const id = context.result?._id ?? context.result?.id ?? context.data?._id ?? context.data?.id ?? 'unknown';
             this.options.customLogger(
                 this.options.logLevel,
                 `Document updated: ${context.collectionName}:${id}`,
@@ -64,7 +64,7 @@ export class AuditLogPlugin implements Plugin {
     
     async onAfterDelete(context: PluginContext): Promise<void> {
         if (this.options.logDeletes) {
-            const id = context.data?.id || 'unknown';
+            const id = context.data?._id ?? context.data?.id ?? 'unknown';
             this.options.customLogger(
                 this.options.logLevel,
                 `Document deleted: ${context.collectionName}:${id}`,

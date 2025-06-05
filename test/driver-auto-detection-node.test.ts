@@ -144,18 +144,18 @@ describe.skipIf(isRunningInBun())(
                 try {
                     // Test basic driver operations
                     const testSchema = z.object({
-                        id: z.string(),
+                        _id: z.string(),
                         name: z.string(),
                     });
                     const collection = db.collection('test', testSchema);
 
                     // Correct: do not pass id to insert
                     const inserted = await collection.insert({ name: 'test' });
-                    expect(inserted.id).toBeDefined();
+                    expect(inserted._id).toBeDefined();
                     expect(inserted.name).toBe('test');
 
                     // Use findById and toArray async
-                    const found = await collection.findById(inserted.id);
+                    const found = await collection.findById(inserted._id);
                     expect(found).toEqual(inserted);
 
                     const results = await collection.toArray();
@@ -163,16 +163,16 @@ describe.skipIf(isRunningInBun())(
                     expect(results[0].name).toBe('test');
 
                     // Update using put
-                    const updated = await collection.put(inserted.id, {
+                    const updated = await collection.put(inserted._id, {
                         name: 'updated',
                     });
                     expect(updated.name).toBe('updated');
-                    expect(updated.id).toBe(inserted.id);
+                    expect(updated._id).toBe(inserted._id);
 
                     // Delete using delete
-                    const deleted = await collection.delete(inserted.id);
+                    const deleted = await collection.delete(inserted._id);
                     expect(deleted).toBe(true);
-                    const afterDelete = await collection.findById(inserted.id);
+                    const afterDelete = await collection.findById(inserted._id);
                     expect(afterDelete).toBeNull();
                 } finally {
                     db.close();
@@ -185,7 +185,7 @@ describe.skipIf(isRunningInBun())(
 
                 try {
                     const performanceSchema = z.object({
-                        id: z.string(),
+                        _id: z.string(),
                         data: z.string(),
                     });
                     const collection = db.collection(
@@ -261,7 +261,7 @@ describe.skipIf(isRunningInBun())(
                     );
 
                     // Should reuse the same connection for shared configs
-                    expect(connection1.id).toBe(connection2.id);
+                    expect(connection1._id).toBe(connection2._id);
                 } finally {
                     await connectionManager.closeAll();
                 }
@@ -305,7 +305,7 @@ describe.skipIf(isRunningInBun())(
 
                 try {
                     const testSchema = z.object({
-                        id: z.string(),
+                        _id: z.string(),
                     });
                     const collection = db.collection(
                         'node_test_cleanup',
@@ -319,7 +319,7 @@ describe.skipIf(isRunningInBun())(
                 // After closing, subsequent operations should fail gracefully
                 const db2 = new Database({ path: ':memory:' });
                 const testSchema2 = z.object({
-                    id: z.string(),
+                    _id: z.string(),
                 });
                 const collection2 = db2.collection(
                     'node_test_cleanup2',
@@ -364,7 +364,7 @@ describe.skipIf(isRunningInBun())(
 
                 try {
                     const concurrentSchema = z.object({
-                        id: z.string(),
+                        _id: z.string(),
                         value: z.number(),
                     });
                     const collection = db.collection(
@@ -406,7 +406,7 @@ describe.skipIf(isRunningInBun())(
                 try {
                     // Test that we can use better-sqlite3
                     const nodeSqliteSchema = z.object({
-                        id: z.string(),
+                        _id: z.string(),
                         timestamp: z.number(),
                     });
                     const collection = db.collection(
@@ -431,14 +431,14 @@ describe.skipIf(isRunningInBun())(
 
                 // Simulate process exit scenarios
                 const cleanupSchema = z.object({
-                    id: z.string(),
+                    _id: z.string(),
                 });
                 const collection = db.collection(
                     'cleanup_test_node',
                     cleanupSchema
                 );
 
-                await collection.insert({ id: 'test' });
+                await collection.insert({ _id: 'test' });
 
                 // Clean shutdown
                 db.close();

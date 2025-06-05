@@ -28,7 +28,7 @@ async function getEmbedding(text: string): Promise<number[]> {
 
 // Define schema with vector field
 const DocumentSchema = z.object({
-    id: z.string(),
+    _id: z.string(),
     title: z.string(),
     content: z.string(),
     embedding: z.array(z.number()), // This will be treated as a vector field
@@ -40,7 +40,7 @@ type Document = z.infer<typeof DocumentSchema>;
 const documentCollection: CollectionSchema<Document> = {
     name: 'documents',
     schema: DocumentSchema,
-    primaryKey: 'id',
+    primaryKey: '_id',
     constrainedFields: {
         embedding: {
             type: 'VECTOR',
@@ -103,7 +103,7 @@ drivers.forEach(({ name, config }) => {
         beforeEach(async () => {
             db = new Database(config);
             collection = db.collection('documents', DocumentSchema, {
-                primaryKey: 'id',
+                primaryKey: '_id',
                 constrainedFields: {
                     'embedding': {
                         type: 'VECTOR',
@@ -163,7 +163,7 @@ drivers.forEach(({ name, config }) => {
             expect(results).toHaveLength(2);
             expect(results[0].distance).toBeDefined();
             expect(typeof results[0].distance).toBe('number');
-            expect(results[0].id).toBeDefined();
+            expect(results[0]._id).toBeDefined();
             // Should return tech-related documents first
             expect(['Document 1', 'Document 4']).toContain(
                 results[0].document.title
@@ -256,7 +256,7 @@ drivers.forEach(({ name, config }) => {
             const newEmbedding = await getOrCreateEmbedding(
                 'updated content about machine learning algorithms'
             );
-            const updatedDoc = await collection.put(doc.id, {
+            const updatedDoc = await collection.put(doc._id, {
                 ...doc,
                 content: 'updated content about machine learning algorithms',
                 embedding: newEmbedding,
@@ -272,7 +272,7 @@ drivers.forEach(({ name, config }) => {
             };
 
             const results = await collection.vectorSearch(searchOptions);
-            expect(results[0].document.id).toBe(doc.id);
+            expect(results[0].document._id).toBe(doc._id);
         });
 
         test('should handle vector deletions', async () => {
@@ -280,7 +280,7 @@ drivers.forEach(({ name, config }) => {
             const initialCount = docs.length;
 
             // Delete a document
-            await collection.delete(docs[0].id);
+            await collection.delete(docs[0]._id);
 
             // Verify it's gone from regular queries
             const remainingDocs = await collection.toArray();
@@ -295,7 +295,7 @@ drivers.forEach(({ name, config }) => {
 
             const results = await collection.vectorSearch(searchOptions);
             const foundDeleted = results.find(
-                (r) => r.document.id === docs[0].id
+                (r) => r.document._id === docs[0]._id
             );
             expect(foundDeleted).toBeUndefined();
         });

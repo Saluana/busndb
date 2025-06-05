@@ -6,7 +6,7 @@ import { ValidationError, DatabaseError } from '../src/errors';
 describe('Transactions', () => {
     let db: ReturnType<typeof createDB>;
     const userSchema = z.object({
-        id: z
+        _id: z
             .string()
             .uuid()
             .default(() => crypto.randomUUID()),
@@ -16,7 +16,7 @@ describe('Transactions', () => {
         createdAt: z.date().default(() => new Date()),
     });
     const postSchema = z.object({
-        id: z
+        _id: z
             .string()
             .uuid()
             .default(() => crypto.randomUUID()),
@@ -40,7 +40,7 @@ describe('Transactions', () => {
             const post = await posts.insert({
                 title: 'Hello',
                 content: 'World',
-                authorId: user.id!,
+                authorId: user._id!,
             });
             return { user, post };
         });
@@ -85,7 +85,7 @@ describe('Transactions', () => {
                 name: 'Jane',
                 email: 'jane@example.com',
             });
-            return user.id;
+            return user._id;
         });
         expect(typeof id).toBe('string');
         expect(users.findById(id!)).toBeTruthy();
@@ -258,7 +258,7 @@ describe('Transactions', () => {
             await posts.insert({
                 title: 'T',
                 content: 'C',
-                authorId: author.id!,
+                authorId: author._id!,
             });
             expect(await users.toArray()).toHaveLength(2);
             expect(await posts.toArray()).toHaveLength(1);

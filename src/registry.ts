@@ -101,7 +101,7 @@ export class Registry {
         const collectionSchema: CollectionSchema<InferSchema<T>> = {
             name,
             schema,
-            primaryKey: options.primaryKey || 'id',
+            primaryKey: options.primaryKey || '_id',
             version: options.version || 1,
             indexes: options.indexes || [],
             constraints: options.constraints,

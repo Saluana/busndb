@@ -5,7 +5,7 @@ import { QueryBuilder } from '../src/query-builder.js';
 import type { Database } from '../src/database.js';
 
 const testSchema = z.object({
-    id: z.string().uuid(),
+    _id: z.string().uuid(),
     name: z.string(),
     email: z.string().email(),
     age: z.number().int(),

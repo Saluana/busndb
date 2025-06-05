@@ -4,7 +4,7 @@ import { createDB } from '../src/index.js';
 import { unique, foreignKey, index } from '../src/schema-constraints.js';
 
 const userSchema = z.object({
-    id: z.string().uuid(),
+    _id: z.string().uuid(),
     name: z.string(),
     email: z.string().email(),
     age: z.number().int().optional(),
@@ -14,7 +14,7 @@ const userSchema = z.object({
 });
 
 const postSchema = z.object({
-    id: z.string().uuid(),
+    _id: z.string().uuid(),
     title: z.string(),
     content: z.string(),
     authorId: z.string().uuid(),
@@ -23,7 +23,7 @@ const postSchema = z.object({
 });
 
 const categorySchema = z.object({
-    id: z.string().uuid(),
+    _id: z.string().uuid(),
     name: z.string(),
     description: z.string().optional(),
     parentId: z.string().uuid().optional(),
@@ -158,12 +158,12 @@ describe('Tables: skibbaDB API vs Raw SQL Verification', () => {
             // Verify using raw SQL
             const rawUserRows = await db.query(
                 'SELECT * FROM users WHERE _id = ?',
-                [user.id]
+                [user._id]
             );
             expect(rawUserRows.length).toBe(1);
 
             const rawUser = rawUserRows[0];
-            expect(rawUser._id).toBe(user.id);
+            expect(rawUser._id).toBe(user._id);
             expect(rawUser.email).toBe('john@example.com'); // Constrained field
 
             // Check doc column contains the full document
@@ -179,19 +179,19 @@ describe('Tables: skibbaDB API vs Raw SQL Verification', () => {
             const post = await posts.insert({
                 title: 'My First Post',
                 content: 'Hello world!',
-                authorId: user.id,
+                authorId: user._id,
                 viewCount: 5,
             });
 
             // Verify post using raw SQL
             const rawPostRows = await db.query(
                 'SELECT * FROM posts WHERE _id = ?',
-                [post.id]
+                [post._id]
             );
             expect(rawPostRows.length).toBe(1);
 
             const rawPost = rawPostRows[0];
-            expect(rawPost.authorId).toBe(user.id); // Constrained field
+            expect(rawPost.authorId).toBe(user._id); // Constrained field
 
             const parsedPostData = JSON.parse(rawPost.doc);
             expect(parsedPostData.title).toBe('My First Post');
@@ -304,7 +304,7 @@ describe('Tables: skibbaDB API vs Raw SQL Verification', () => {
             });
 
             // Update using API
-            const updatedUser = await users.put(user.id, {
+            const updatedUser = await users.put(user._id, {
                 name: 'Updated User',
                 age: 26,
             });
@@ -316,7 +316,7 @@ describe('Tables: skibbaDB API vs Raw SQL Verification', () => {
             // Verify using raw SQL
             const rawUserRows = await db.query(
                 'SELECT * FROM users WHERE _id = ?',
-                [user.id]
+                [user._id]
             );
             expect(rawUserRows.length).toBe(1);
 
@@ -353,7 +353,7 @@ describe('Tables: skibbaDB API vs Raw SQL Verification', () => {
             expect(initialCount[0].count).toBe(3);
 
             // Delete one user using API
-            const deleteResult = await users.delete(users2.id);
+            const deleteResult = await users.delete(users2._id);
             expect(deleteResult).toBe(true);
 
             // Verify using raw SQL
@@ -367,7 +367,7 @@ describe('Tables: skibbaDB API vs Raw SQL Verification', () => {
             // Verify deleted user is gone
             const deletedUserRows = await db.query(
                 'SELECT * FROM users WHERE _id = ?',
-                [users2.id]
+                [users2._id]
             );
             expect(deletedUserRows.length).toBe(0);
         });
@@ -387,35 +387,35 @@ describe('Tables: skibbaDB API vs Raw SQL Verification', () => {
             const post1 = await posts.insert({
                 title: 'Post by Author 1',
                 content: 'Content 1',
-                authorId: author1.id,
+                authorId: author1._id,
                 viewCount: 10,
             });
 
             const post2 = await posts.insert({
                 title: 'Another Post by Author 1',
                 content: 'Content 2',
-                authorId: author1.id,
+                authorId: author1._id,
                 viewCount: 5,
             });
 
             const post3 = await posts.insert({
                 title: 'Post by Author 2',
                 content: 'Content 3',
-                authorId: author2.id,
+                authorId: author2._id,
                 viewCount: 15,
             });
 
             // Query posts by author using API
             const author1Posts = await posts
                 .where('authorId')
-                .eq(author1.id)
+                .eq(author1._id)
                 .toArray();
             expect(author1Posts.length).toBe(2);
 
             // Query posts by author using raw SQL
             const author1PostsSQL = await db.query(
                 'SELECT * FROM posts WHERE authorId = ?',
-                [author1.id]
+                [author1._id]
             );
             expect(author1PostsSQL.length).toBe(2);
 
@@ -468,12 +468,12 @@ describe('Tables: skibbaDB API vs Raw SQL Verification', () => {
             // Verify using raw SQL
             const rawUserRows = db.querySync(
                 'SELECT * FROM users WHERE _id = ?',
-                [user.id]
+                [user._id]
             );
             expect(rawUserRows.length).toBe(1);
 
             const rawUser = rawUserRows[0];
-            expect(rawUser._id).toBe(user.id);
+            expect(rawUser._id).toBe(user._id);
             expect(rawUser.email).toBe('john.sync@example.com');
 
             // Check doc column contains the full document
@@ -583,7 +583,7 @@ describe('Tables: skibbaDB API vs Raw SQL Verification', () => {
             });
 
             // Update using sync API
-            const updatedUser = users.putSync(user.id, {
+            const updatedUser = users.putSync(user._id, {
                 name: 'Updated User Sync',
                 age: 26,
             });
@@ -595,7 +595,7 @@ describe('Tables: skibbaDB API vs Raw SQL Verification', () => {
             // Verify using raw SQL
             const rawUserRows = db.querySync(
                 'SELECT * FROM users WHERE _id = ?',
-                [user.id]
+                [user._id]
             );
             expect(rawUserRows.length).toBe(1);
 
@@ -628,7 +628,7 @@ describe('Tables: skibbaDB API vs Raw SQL Verification', () => {
             expect(initialCount[0].count).toBe(3);
 
             // Delete one user using sync API
-            const deleteResult = users.deleteSync(users2.id);
+            const deleteResult = users.deleteSync(users2._id);
             expect(deleteResult).toBe(true);
 
             // Verify using raw SQL
@@ -655,28 +655,28 @@ describe('Tables: skibbaDB API vs Raw SQL Verification', () => {
             const post1 = posts.insertSync({
                 title: 'Post by Author 1 Sync',
                 content: 'Content 1',
-                authorId: author1.id,
+                authorId: author1._id,
                 viewCount: 10,
             });
 
             const post2 = posts.insertSync({
                 title: 'Another Post by Author 1 Sync',
                 content: 'Content 2',
-                authorId: author1.id,
+                authorId: author1._id,
                 viewCount: 5,
             });
 
             // Query posts by author using sync API
             const author1Posts = posts
                 .where('authorId')
-                .eq(author1.id)
+                .eq(author1._id)
                 .toArraySync();
             expect(author1Posts.length).toBe(2);
 
             // Query posts by author using raw SQL
             const author1PostsSQL = db.querySync(
                 'SELECT * FROM posts WHERE authorId = ?',
-                [author1.id]
+                [author1._id]
             );
             expect(author1PostsSQL.length).toBe(2);
 

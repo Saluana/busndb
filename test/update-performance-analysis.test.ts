@@ -4,20 +4,20 @@ import { unique, foreignKey, index } from '../src/schema-constraints.js';
 
 // Test schemas for different complexity levels
 const simpleSchema = z.object({
-    id: z.string().uuid(),
+    _id: z.string().uuid(),
     name: z.string(),
     score: z.number(),
 });
 
 const constrainedSchema = z.object({
-    id: z.string().uuid(),
+    _id: z.string().uuid(),
     email: z.string().email(),
     username: z.string(),
     score: z.number(),
 });
 
 const complexSchema = z.object({
-    id: z.string().uuid(),
+    _id: z.string().uuid(),
     name: z.string(),
     email: z.string().email(),
     age: z.number().int(),
@@ -78,7 +78,7 @@ async function analyzeUpdatePerformance() {
     }));
 
     simpleCollection.insertBulk(simpleData);
-    const simpleIds = simpleCollection.toArraySync().map((doc) => doc.id);
+    const simpleIds = simpleCollection.toArraySync().map((doc) => doc._id);
 
     const simpleUpdateResult = benchmark(
         'Simple Updates (No Constraints)',
@@ -115,7 +115,7 @@ async function analyzeUpdatePerformance() {
     constrainedCollection.insertBulk(constrainedData);
     const constrainedIds = constrainedCollection
         .toArraySync()
-        .map((doc) => doc.id);
+        .map((doc) => doc._id);
 
     const constrainedUpdateResult = benchmark(
         'Updates with Unique Constraints',
@@ -162,7 +162,7 @@ async function analyzeUpdatePerformance() {
     }));
 
     complexCollection.insertBulk(complexData);
-    const complexIds = complexCollection.toArraySync().map((doc) => doc.id);
+    const complexIds = complexCollection.toArraySync().map((doc) => doc._id);
 
     const complexUpdateResult = benchmark(
         'Complex Updates (Schema + Constraints)',

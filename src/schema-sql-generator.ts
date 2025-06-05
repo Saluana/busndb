@@ -80,7 +80,7 @@ export class SchemaSQLGenerator {
                 if (fieldDef.foreignKey) {
                     const fkRef = parseForeignKeyReference(fieldDef.foreignKey);
                     if (fkRef) {
-                        // Map 'id' references to '_id' since that's the actual primary key column in BusNDB
+                        // Expect foreign keys to reference the '_id' primary key column
                         const actualColumn = fkRef.column === 'id' ? '_id' : fkRef.column;
                         columnDef += ` REFERENCES ${fkRef.table}(${actualColumn})`;
                         
