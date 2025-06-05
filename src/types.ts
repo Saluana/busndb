@@ -52,7 +52,7 @@ export interface Driver {
     query(sql: string, params?: any[]): Promise<Row[]>;
     transaction<T>(fn: () => Promise<T>): Promise<T>;
     close(): Promise<void>;
-    
+
     // Sync methods (for backward compatibility)
     execSync(sql: string, params?: any[]): void;
     querySync(sql: string, params?: any[]): Row[];
@@ -132,8 +132,8 @@ export interface AggregateField {
 
 // Join definitions
 export interface JoinCondition {
-    left: string;   // field from current collection
-    right: string;  // field from joined collection
+    left: string; // field from current collection
+    right: string; // field from joined collection
     operator?: '=' | '!=' | '>' | '<' | '>=' | '<=';
 }
 
