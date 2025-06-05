@@ -404,10 +404,13 @@ describe('Select Field Tests', () => {
                 .eq('senior')
                 .toArraySync();
 
+            console.log('nested', results);
+
             expect(results).toHaveLength(1);
             expect(results[0].name).toBe('Alice');
-            // Check if nested field selection works
-            expect(results[0]).toHaveProperty('metadata.role');
+            // Check if nested field selection works - the implementation returns flat properties with dot notation names
+            expect(results[0]['metadata.role']).toBe('senior');
+            expect(results[0]['metadata.level']).toBe(3);
         });
     });
 
