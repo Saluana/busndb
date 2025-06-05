@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from 'zod/v4';
 import type { SchemaConstraints } from './schema-constraints';
 import type { UpgradeMap, SeedFunction } from './upgrade-types';
 
@@ -52,7 +52,7 @@ export interface Driver {
     query(sql: string, params?: any[]): Promise<Row[]>;
     transaction<T>(fn: () => Promise<T>): Promise<T>;
     close(): Promise<void>;
-    
+
     // Sync methods (for backward compatibility)
     execSync(sql: string, params?: any[]): void;
     querySync(sql: string, params?: any[]): Row[];
@@ -76,9 +76,9 @@ export interface ConstrainedFieldDefinition {
     vectorType?: 'float' | 'int8' | 'binary'; // Default: 'float'
 }
 
-export interface CollectionSchema<T extends z.ZodTypeAny = any> {
+export interface CollectionSchema<T = any> {
     name: string;
-    schema: z.ZodSchema<T>;
+    schema: z.ZodType<T>;
     primaryKey: string;
     version?: number;
     indexes?: string[];
@@ -89,7 +89,7 @@ export interface CollectionSchema<T extends z.ZodTypeAny = any> {
     seed?: SeedFunction<T>;
 }
 
-export type InferSchema<T> = T extends z.ZodSchema<infer U> ? U : never;
+export type InferSchema<T> = T extends z.ZodType<infer U> ? U : never;
 
 export interface QueryFilter {
     field: string;
@@ -132,8 +132,8 @@ export interface AggregateField {
 
 // Join definitions
 export interface JoinCondition {
-    left: string;   // field from current collection
-    right: string;  // field from joined collection
+    left: string; // field from current collection
+    right: string; // field from joined collection
     operator?: '=' | '!=' | '>' | '<' | '>=' | '<=';
 }
 

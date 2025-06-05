@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { z } from 'zod';
+import { z } from 'zod/v4';
 import { createDB } from '../src';
 import { Migrator } from '../src/migrator';
 
@@ -34,21 +34,23 @@ describe('Schema Migrations', () => {
     it('should create migrations meta table', async () => {
         const driver = await (db as any).ensureDriver();
         const migrator = new Migrator(driver);
-        
+
         await migrator.initializeMigrationsTable();
-        
+
         // Check that the table exists by querying it
-        const result = await driver.query("SELECT name FROM sqlite_master WHERE type='table' AND name='_skibbadb_migrations'");
+        const result = await driver.query(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='_skibbadb_migrations'"
+        );
         expect(result.length).toBe(1);
     });
 
     it('should store and retrieve migration version', async () => {
         const driver = await (db as any).ensureDriver();
         const migrator = new Migrator(driver);
-        
+
         await migrator.initializeMigrationsTable();
         await migrator.setStoredVersion('test_collection', 2);
-        
+
         const version = await migrator.getStoredVersion('test_collection');
         expect(version).toBe(2);
     });
@@ -56,9 +58,9 @@ describe('Schema Migrations', () => {
     it('should return 0 for non-existent collection version', async () => {
         const driver = await (db as any).ensureDriver();
         const migrator = new Migrator(driver);
-        
+
         await migrator.initializeMigrationsTable();
-        
+
         const version = await migrator.getStoredVersion('nonexistent');
         expect(version).toBe(0);
     });
@@ -66,21 +68,21 @@ describe('Schema Migrations', () => {
     it('should generate schema diff for added fields', async () => {
         const driver = await (db as any).ensureDriver();
         const migrator = new Migrator(driver);
-        
+
         const oldSchema = z.object({
             id: z.string(),
             name: z.string(),
         });
-        
+
         const newSchema = z.object({
             id: z.string(),
             name: z.string(),
             email: z.string().optional(),
             age: z.number().optional(),
         });
-        
+
         const diff = migrator.generateSchemaDiff(oldSchema, newSchema, 'users');
-        
+
         expect(diff.breaking).toBe(false);
         expect(diff.alters.length).toBe(2);
         expect(diff.alters[0]).toContain('ALTER TABLE users ADD COLUMN email');
@@ -90,20 +92,20 @@ describe('Schema Migrations', () => {
     it('should detect breaking changes when fields are removed', async () => {
         const driver = await (db as any).ensureDriver();
         const migrator = new Migrator(driver);
-        
+
         const oldSchema = z.object({
             id: z.string(),
             name: z.string(),
             email: z.string(),
         });
-        
+
         const newSchema = z.object({
             id: z.string(),
             name: z.string(),
         });
-        
+
         const diff = migrator.generateSchemaDiff(oldSchema, newSchema, 'users');
-        
+
         expect(diff.breaking).toBe(true);
         expect(diff.breakingReasons).toContain("Field 'email' was removed");
     });
@@ -111,19 +113,19 @@ describe('Schema Migrations', () => {
     it('should detect breaking changes when field types change', async () => {
         const driver = await (db as any).ensureDriver();
         const migrator = new Migrator(driver);
-        
+
         const oldSchema = z.object({
             id: z.string(),
             age: z.string(),
         });
-        
+
         const newSchema = z.object({
             id: z.string(),
             age: z.number(),
         });
-        
+
         const diff = migrator.generateSchemaDiff(oldSchema, newSchema, 'users');
-        
+
         expect(diff.breaking).toBe(true);
         expect(diff.breakingReasons.length).toBeGreaterThan(0);
     });
@@ -137,9 +139,12 @@ describe('Schema Migrations', () => {
 
         // Create collection with version 1
         const users = db.collection('users', UserSchema, { version: 1 });
-        
+
         // Insert a test document to ensure the collection works
-        const user = await users.insert({ name: 'John', email: 'john@example.com' });
+        const user = await users.insert({
+            name: 'John',
+            email: 'john@example.com',
+        });
         expect(user.id).toBeDefined();
         expect(user.name).toBe('John');
     });
@@ -152,10 +157,10 @@ describe('Schema Migrations', () => {
 
         // Create a collection to generate migration entry
         db.collection('users', UserSchema, { version: 1 });
-        
+
         // Wait a bit for async initialization
-        await new Promise(resolve => setTimeout(resolve, 100));
-        
+        await new Promise((resolve) => setTimeout(resolve, 100));
+
         const status = await db.getMigrationStatus();
         expect(Array.isArray(status)).toBe(true);
     });
@@ -164,7 +169,7 @@ describe('Schema Migrations', () => {
         // Set environment variable for dry-run
         const originalEnv = process.env.SKIBBADB_MIGRATE;
         process.env.SKIBBADB_MIGRATE = 'print';
-        
+
         try {
             const UserSchema = z.object({
                 id: z.string(),
@@ -187,7 +192,7 @@ describe('Schema Migrations', () => {
     it('should map Zod types to SQL types correctly', async () => {
         const driver = await (db as any).ensureDriver();
         const migrator = new Migrator(driver);
-        
+
         const schema = z.object({
             id: z.string(),
             name: z.string(),
@@ -197,9 +202,9 @@ describe('Schema Migrations', () => {
             metadata: z.object({ key: z.string() }),
             optional: z.string().optional(),
         });
-        
+
         const diff = migrator.generateSchemaDiff(null, schema, 'test');
-        
+
         expect(diff.alters.length).toBe(0); // No alters for new schema
         expect(diff.breaking).toBe(false);
     });

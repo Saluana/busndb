@@ -1,10 +1,10 @@
-import { z } from 'zod';
+import { z } from 'zod/v4';
 import { createDB } from '../src/index.js';
 
 const userSchema = z.object({
-    id: z.string().uuid(),
+    id: z.uuid(),
     name: z.string(),
-    email: z.string().email(),
+    email: z.email(),
     age: z.number().int(),
     score: z.number(),
     isActive: z.boolean().default(true),
@@ -75,13 +75,13 @@ async function runBenchmarks() {
     // Benchmark: Point Queries (findById)
     console.log('3. Benchmarking point queries...');
     const allDocs = users.toArraySync();
-    
+
     // Guard against empty docs array
     if (allDocs.length === 0) {
         console.log('No documents found, skipping point queries benchmark');
         return;
     }
-    
+
     const randomIds = Array.from(
         { length: Math.min(1000, allDocs.length) },
         () => allDocs[Math.floor(Math.random() * allDocs.length)].id

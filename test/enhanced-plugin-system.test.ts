@@ -1,5 +1,5 @@
 import { test, expect, describe, beforeEach, afterEach } from 'vitest';
-import { z } from 'zod';
+import { z } from 'zod/v4';
 import { createDB } from '../src/index';
 import type { Database } from '../src/database';
 
@@ -20,7 +20,7 @@ describe('Enhanced Plugin System', () => {
     beforeEach(async () => {
         // Import the plugin module dynamically
         helloWorldPlugin = await import('../hello-world-plugin.js');
-        
+
         db = createDB({ memory: true });
 
         // Capture console.log output

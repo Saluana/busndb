@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { z } from 'zod';
+import { z } from 'zod/v4';
 import { createDB } from '../src';
 import type { UpgradeContext } from '../src/upgrade-types';
 
@@ -19,22 +19,25 @@ describe('Upgrade Functions - Simple Tests', () => {
 
         let upgradeRan = false;
         let contextReceived: UpgradeContext | null = null;
-        
+
         const users = db.collection('users1', UserSchema, {
             version: 2,
             upgrade: {
                 2: async (collection: any, ctx: UpgradeContext) => {
                     upgradeRan = true;
                     contextReceived = ctx;
-                    
+
                     // Add test data during upgrade
-                    await collection.insert({ name: 'John', email: 'john@example.com' });
-                }
-            }
+                    await collection.insert({
+                        name: 'John',
+                        email: 'john@example.com',
+                    });
+                },
+            },
         });
 
         // Wait for async initialization
-        await new Promise(resolve => setTimeout(resolve, 200));
+        await new Promise((resolve) => setTimeout(resolve, 200));
 
         // Verify upgrade ran
         expect(upgradeRan).toBe(true);
@@ -64,18 +67,18 @@ describe('Upgrade Functions - Simple Tests', () => {
                 seedRan = true;
                 await collection.insert({ name: 'Admin', role: 'admin' });
                 await collection.insert({ name: 'Guest', role: 'guest' });
-            }
+            },
         });
 
         // Wait for async initialization
-        await new Promise(resolve => setTimeout(resolve, 200));
+        await new Promise((resolve) => setTimeout(resolve, 200));
 
         expect(seedRan).toBe(true);
 
         const seededUsers = await users.toArray();
         expect(seededUsers.length).toBe(2);
-        expect(seededUsers.find(u => u.role === 'admin')).toBeDefined();
-        expect(seededUsers.find(u => u.role === 'guest')).toBeDefined();
+        expect(seededUsers.find((u) => u.role === 'admin')).toBeDefined();
+        expect(seededUsers.find((u) => u.role === 'guest')).toBeDefined();
     });
 
     it('should skip conditional upgrade when condition is false', async () => {
@@ -93,13 +96,13 @@ describe('Upgrade Functions - Simple Tests', () => {
                     condition: async () => false, // Never run
                     migrate: async () => {
                         upgradeRan = true;
-                    }
-                }
-            }
+                    },
+                },
+            },
         });
 
         // Wait for async initialization
-        await new Promise(resolve => setTimeout(resolve, 200));
+        await new Promise((resolve) => setTimeout(resolve, 200));
 
         expect(upgradeRan).toBe(false);
     });
@@ -125,14 +128,17 @@ describe('Upgrade Functions - Simple Tests', () => {
                     executionOrder.push(3);
                     const users = await collection.toArray();
                     for (const user of users) {
-                        await collection.put(user.id, { ...user, fullName: user.name });
+                        await collection.put(user.id, {
+                            ...user,
+                            fullName: user.name,
+                        });
                     }
-                }
-            }
+                },
+            },
         });
 
         // Wait for async initialization
-        await new Promise(resolve => setTimeout(resolve, 200));
+        await new Promise((resolve) => setTimeout(resolve, 200));
 
         expect(executionOrder).toEqual([2, 3]);
 
@@ -153,12 +159,12 @@ describe('Upgrade Functions - Simple Tests', () => {
             upgrade: {
                 2: async () => {
                     throw new Error('Upgrade failed');
-                }
-            }
+                },
+            },
         });
 
         // Wait for async initialization - should not throw
-        await new Promise(resolve => setTimeout(resolve, 200));
+        await new Promise((resolve) => setTimeout(resolve, 200));
 
         // Collection should still work despite upgrade failure
         await users.insert({ name: 'John' });
@@ -184,15 +190,15 @@ describe('Upgrade Functions - Simple Tests', () => {
                 upgrade: {
                     2: async () => {
                         upgradeRan = true;
-                    }
+                    },
                 },
                 seed: async () => {
                     // Seed function for testing
-                }
+                },
             });
 
             // Wait for async initialization
-            await new Promise(resolve => setTimeout(resolve, 200));
+            await new Promise((resolve) => setTimeout(resolve, 200));
 
             expect(upgradeRan).toBe(false); // Should not run in dry-run mode
         } finally {
@@ -218,23 +224,25 @@ describe('Upgrade Functions - Simple Tests', () => {
                     // Add some users first
                     await collection.insert({ name: 'John' });
                     await collection.insert({ name: 'Jane Smith' });
-                    
-                    // Use raw SQL to update all users  
+
+                    // Use raw SQL to update all users
                     await ctx.exec(`
                         UPDATE users7 
                         SET doc = JSON_SET(doc, '$.nameLength', LENGTH(JSON_EXTRACT(doc, '$.name')))
                         WHERE JSON_EXTRACT(doc, '$.nameLength') IS NULL
                     `);
-                }
-            }
+                },
+            },
         });
 
         // Wait for async initialization
-        await new Promise(resolve => setTimeout(resolve, 200));
+        await new Promise((resolve) => setTimeout(resolve, 200));
 
         const updatedUsers = await users.toArray();
         expect(updatedUsers.length).toBe(2);
-        expect(updatedUsers.find(u => u.name === 'John')?.nameLength).toBe(4);
-        expect(updatedUsers.find(u => u.name === 'Jane Smith')?.nameLength).toBe(10);
+        expect(updatedUsers.find((u) => u.name === 'John')?.nameLength).toBe(4);
+        expect(
+            updatedUsers.find((u) => u.name === 'Jane Smith')?.nameLength
+        ).toBe(10);
     });
 });

@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from 'zod/v4';
 import { createDB } from '../src/database.js';
 import { index } from '../src/schema-constraints.js';
 

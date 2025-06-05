@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeEach, afterEach } from 'vitest';
-import { z } from 'zod';
+import { z } from 'zod/v4';
 import { Database } from '../src/database';
 import type { CollectionSchema, VectorSearchOptions } from '../src/types';
 
@@ -17,12 +17,12 @@ const documentCollection: CollectionSchema<Document> = {
     schema: DocumentSchema,
     primaryKey: 'id',
     constrainedFields: {
-        'embedding': {
+        embedding: {
             type: 'VECTOR',
             vectorDimensions: 3, // Small 3D vectors for testing
             vectorType: 'float',
-        }
-    }
+        },
+    },
 };
 
 const testDocuments = [
@@ -31,7 +31,7 @@ const testDocuments = [
         embedding: [1.0, 0.0, 0.0],
     },
     {
-        title: 'Document 2', 
+        title: 'Document 2',
         embedding: [0.0, 1.0, 0.0],
     },
     {
@@ -49,14 +49,14 @@ describe('Vector Search Basic Tests', () => {
         collection = db.collection('documents', DocumentSchema, {
             primaryKey: 'id',
             constrainedFields: {
-                'embedding': {
+                embedding: {
                     type: 'VECTOR',
                     vectorDimensions: 3, // Small 3D vectors for testing
                     vectorType: 'float',
-                }
-            }
+                },
+            },
         });
-        
+
         // Insert test documents
         for (const doc of testDocuments) {
             await collection.insert(doc);
@@ -93,6 +93,8 @@ describe('Vector Search Basic Tests', () => {
             limit: 1,
         };
 
-        await expect(collection.vectorSearch(searchOptions)).rejects.toThrow('must have 3 dimensions');
+        await expect(collection.vectorSearch(searchOptions)).rejects.toThrow(
+            'must have 3 dimensions'
+        );
     });
 });

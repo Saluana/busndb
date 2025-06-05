@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from 'zod/v4';
 import type {
     CollectionSchema,
     InferSchema,
@@ -67,7 +67,7 @@ export class Registry {
         return result;
     }
 
-    register<T extends z.ZodSchema>(
+    register<T extends z.ZodType = any>(
         name: string,
         schema: T,
         options: {
@@ -100,7 +100,7 @@ export class Registry {
 
         const collectionSchema: CollectionSchema<InferSchema<T>> = {
             name,
-            schema,
+            schema: schema as z.ZodType<InferSchema<T>>,
             primaryKey: options.primaryKey || 'id',
             version: options.version || 1,
             indexes: options.indexes || [],

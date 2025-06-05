@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { Database } from '../src/database';
 import { DatabaseError } from '../src/errors'; // Ensure DatabaseError is imported
 import { globalConnectionManager } from '../src/connection-manager';
-import { z } from 'zod';
+import { z } from 'zod/v4';
 
 describe('Connection Management', () => {
     let databases: Database[] = [];
@@ -149,17 +149,17 @@ describe('Connection Management', () => {
             // With shared connections, collections should now work properly
             // as the Collection constructor has been made async-aware for DDL
             const users = db.collection('users', userSchema);
-            
+
             // Should be able to insert and query with shared connections
             const insertedUser = await users.insert({
                 name: 'John Doe',
                 email: 'john@example.com',
             });
-            
+
             expect(insertedUser.id).toBeDefined();
             expect(insertedUser.name).toBe('John Doe');
             expect(insertedUser.email).toBe('john@example.com');
-            
+
             // Should be able to query the inserted user
             const foundUser = await users.findById(insertedUser.id);
             expect(foundUser).toEqual(insertedUser);
@@ -177,8 +177,8 @@ describe('Connection Management', () => {
             await db.exec('CREATE TABLE test_tx1 (id INTEGER, value TEXT)');
 
             await db.transaction(async () => {
-                await db.exec('INSERT INTO test_tx1 VALUES (1, \'first\')');
-                await db.exec('INSERT INTO test_tx1 VALUES (2, \'second\')');
+                await db.exec("INSERT INTO test_tx1 VALUES (1, 'first')");
+                await db.exec("INSERT INTO test_tx1 VALUES (2, 'second')");
             });
 
             const result = await db.query(
@@ -686,7 +686,7 @@ describe('Connection Management', () => {
                 databases.push(finalDb);
 
                 const finalResult = await finalDb.query(
-                    'SELECT \'system_responsive\' as status'
+                    "SELECT 'system_responsive' as status"
                 );
                 expect(finalResult).toEqual([{ status: 'system_responsive' }]);
             }, 45000); // 45 second timeout

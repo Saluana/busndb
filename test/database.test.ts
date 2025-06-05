@@ -1,5 +1,5 @@
 import { test, expect, describe, beforeEach, afterEach } from 'vitest';
-import { z } from 'zod';
+import { z } from 'zod/v4';
 import {
     createDB,
     ValidationError,
@@ -10,17 +10,17 @@ import {
 import type { Database } from '../src/database.js';
 
 const userSchema = z.object({
-    id: z.string().uuid(),
+    id: z.uuid(),
     name: z.string(),
-    email: z.string().email(),
+    email: z.email(),
     age: z.number().int().optional(),
 });
 
 const postSchema = z.object({
-    id: z.string().uuid(),
+    id: z.uuid(),
     title: z.string(),
     content: z.string(),
-    authorId: z.string().uuid(),
+    authorId: z.uuid(),
     createdAt: z.date().default(() => new Date()),
 });
 

@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from 'zod/v4';
 import type {
     DBConfig,
     Driver,
@@ -169,7 +169,7 @@ export class Database {
         }
     }
 
-    collection<T extends z.ZodSchema>(
+    collection<T extends z.ZodType = any>(
         name: string,
         schema?: T,
         options?: {
@@ -191,7 +191,7 @@ export class Database {
 
             const collectionSchema = this.registry.register(
                 name,
-                schema,
+                schema as any, // Type assertion to handle v3/v4 compatibility
                 options
             );
 

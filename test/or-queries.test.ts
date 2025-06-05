@@ -1,12 +1,12 @@
 import { test, expect, describe, beforeEach } from 'vitest';
-import { z } from 'zod';
+import { z } from 'zod/v4';
 import { createDB } from '../src/index.js';
 import type { Database } from '../src/database.js';
 
 const testSchema = z.object({
-    id: z.string().uuid(),
+    id: z.uuid(),
     name: z.string(),
-    email: z.string().email(),
+    email: z.email(),
     age: z.number().int(),
     department: z.string(),
     salary: z.number(),

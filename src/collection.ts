@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from 'zod/v4';
 import type {
     Driver,
     CollectionSchema,
@@ -20,9 +20,9 @@ import type { PluginManager } from './plugin-system';
 import { Migrator } from './migrator';
 import { fieldPathToColumnName } from './constrained-fields';
 
-export class Collection<T extends z.ZodSchema> {
+export class Collection<T extends z.ZodType = any> {
     private driver: Driver;
-    private collectionSchema: CollectionSchema<InferSchema<T>>;
+    private collectionSchema: CollectionSchema<z.infer<T>>;
     private pluginManager?: PluginManager;
     private database?: any; // Reference to the Database instance
 
@@ -32,7 +32,7 @@ export class Collection<T extends z.ZodSchema> {
 
     constructor(
         driver: Driver,
-        schema: CollectionSchema<InferSchema<T>>,
+        schema: CollectionSchema<z.infer<T>>,
         pluginManager?: PluginManager,
         database?: any
     ) {
@@ -231,7 +231,7 @@ export class Collection<T extends z.ZodSchema> {
         }
     }
 
-    private validateDocument(doc: any): InferSchema<T> {
+    private validateDocument(doc: any): z.infer<T> {
         try {
             return this.collectionSchema.schema.parse(doc);
         } catch (error) {
@@ -267,7 +267,7 @@ export class Collection<T extends z.ZodSchema> {
         return crypto.randomUUID();
     }
 
-    async insert(doc: Omit<InferSchema<T>, 'id'>): Promise<InferSchema<T>> {
+    async insert(doc: Omit<z.infer<T>, 'id'>): Promise<z.infer<T>> {
         await this.ensureInitialized();
 
         const context = {
@@ -360,8 +360,8 @@ export class Collection<T extends z.ZodSchema> {
     }
 
     async insertBulk(
-        docs: Omit<InferSchema<T>, 'id'>[]
-    ): Promise<InferSchema<T>[]> {
+        docs: Omit<z.infer<T>, 'id'>[]
+    ): Promise<z.infer<T>[]> {
         await this.ensureInitialized();
         if (docs.length === 0) return [];
 
@@ -375,7 +375,7 @@ export class Collection<T extends z.ZodSchema> {
         await this.pluginManager?.executeHookSafe('onBeforeInsert', context);
 
         try {
-            const validatedDocs: InferSchema<T>[] = [];
+            const validatedDocs: z.infer<T>[] = [];
             const sqlParts: string[] = [];
             const allParams: any[] = [];
 
@@ -473,8 +473,8 @@ export class Collection<T extends z.ZodSchema> {
 
     async put(
         id: string,
-        doc: Partial<InferSchema<T>>
-    ): Promise<InferSchema<T>> {
+        doc: Partial<z.infer<T>>
+    ): Promise<z.infer<T>> {
         await this.ensureInitialized();
         const existing = await this.findById(id);
         if (!existing) {
@@ -526,8 +526,8 @@ export class Collection<T extends z.ZodSchema> {
     }
 
     async putBulk(
-        updates: { id: string; doc: Partial<InferSchema<T>> }[]
-    ): Promise<InferSchema<T>[]> {
+        updates: { id: string; doc: Partial<z.infer<T>> }[]
+    ): Promise<z.infer<T>[]> {
         if (updates.length === 0) return [];
 
         const context = {
@@ -540,7 +540,7 @@ export class Collection<T extends z.ZodSchema> {
         await this.pluginManager?.executeHookSafe('onBeforeUpdate', context);
 
         try {
-            const validatedDocs: InferSchema<T>[] = [];
+            const validatedDocs: z.infer<T>[] = [];
             const sqlStatements: { sql: string; params: any[] }[] = [];
 
             for (const update of updates) {
@@ -656,8 +656,8 @@ export class Collection<T extends z.ZodSchema> {
     }
     async upsert(
         id: string,
-        doc: Omit<InferSchema<T>, 'id'>
-    ): Promise<InferSchema<T>> {
+        doc: Omit<z.infer<T>, 'id'>
+    ): Promise<z.infer<T>> {
         // Use the optimized SQL-level upsert for best performance
         return this.upsertOptimized(id, doc);
     }
@@ -665,8 +665,8 @@ export class Collection<T extends z.ZodSchema> {
     // Add an even more optimized version using SQL UPSERT
     async upsertOptimized(
         id: string,
-        doc: Omit<InferSchema<T>, 'id'>
-    ): Promise<InferSchema<T>> {
+        doc: Omit<z.infer<T>, 'id'>
+    ): Promise<z.infer<T>> {
         const fullDoc = { ...doc, id };
         const validatedDoc = this.validateDocument(fullDoc);
 
@@ -727,8 +727,8 @@ export class Collection<T extends z.ZodSchema> {
     }
 
     async upsertBulk(
-        updates: { id: string; doc: Omit<InferSchema<T>, 'id'> }[]
-    ): Promise<InferSchema<T>[]> {
+        updates: { id: string; doc: Omit<z.infer<T>, 'id'> }[]
+    ): Promise<z.infer<T>[]> {
         if (updates.length === 0) return [];
 
         const context = {
@@ -741,7 +741,7 @@ export class Collection<T extends z.ZodSchema> {
         await this.pluginManager?.executeHookSafe('onBeforeInsert', context);
 
         try {
-            const validatedDocs: InferSchema<T>[] = [];
+            const validatedDocs: z.infer<T>[] = [];
             const sqlParts: string[] = [];
             const allParams: any[] = [];
 
@@ -833,7 +833,7 @@ export class Collection<T extends z.ZodSchema> {
         }
     }
 
-    async findById(id: string): Promise<InferSchema<T> | null> {
+    async findById(id: string): Promise<z.infer<T> | null> {
         await this.ensureInitialized();
 
         if (
@@ -894,44 +894,44 @@ export class Collection<T extends z.ZodSchema> {
         // If we can't determine valid fields, don't validate (backward compatibility)
     }
 
-    where<K extends QueryablePaths<InferSchema<T>>>(
+    where<K extends QueryablePaths<z.output<T>>>(
         field: K
-    ): import('./query-builder.js').FieldBuilder<InferSchema<T>, K> & {
+    ): import('./query-builder.js').FieldBuilder<z.output<T>, K> & {
         collection: Collection<T>;
     };
     where(field: string): import('./query-builder.js').FieldBuilder<
-        InferSchema<T>,
+        z.output<T>,
         any
     > & {
         collection: Collection<T>;
     };
-    where<K extends QueryablePaths<InferSchema<T>>>(
+    where<K extends QueryablePaths<z.output<T>>>(
         field: K | string
-    ): import('./query-builder.js').FieldBuilder<InferSchema<T>, K> & {
+    ): import('./query-builder.js').FieldBuilder<z.output<T>, K> & {
         collection: Collection<T>;
     } {
         // Validate field name exists in schema
         this.validateFieldName(field as string);
 
-        const builder = new QueryBuilder<InferSchema<T>>();
+        const builder = new QueryBuilder<z.output<T>>();
         (builder as any).collection = this;
-        const fieldBuilder = builder.where(field as K);
+        const fieldBuilder = builder.where(field as string);
         (fieldBuilder as any).collection = this;
         return fieldBuilder as import('./query-builder.js').FieldBuilder<
-            InferSchema<T>,
+            z.output<T>,
             K
         > & { collection: Collection<T> };
     }
 
     // Query method that returns a QueryBuilder for complex queries
-    query(): QueryBuilder<InferSchema<T>> {
-        const builder = new QueryBuilder<InferSchema<T>>();
+    query(): QueryBuilder<z.output<T>> {
+        const builder = new QueryBuilder<z.output<T>>();
         (builder as any).collection = this;
         return builder;
     }
 
     // Direct query methods without conditions
-    async toArray(): Promise<InferSchema<T>[]> {
+    async toArray(): Promise<z.infer<T>[]> {
         // Plugin hook: before query
         const context = {
             collectionName: this.collectionSchema.name,
@@ -963,92 +963,92 @@ export class Collection<T extends z.ZodSchema> {
     }
 
     // Add direct sorting and pagination methods to Collection
-    orderBy<K extends OrderablePaths<InferSchema<T>>>(
+    orderBy<K extends OrderablePaths<z.output<T>>>(
         field: K,
         direction?: 'asc' | 'desc'
-    ): QueryBuilder<InferSchema<T>>;
+    ): QueryBuilder<z.output<T>>;
     orderBy(
         field: string,
         direction?: 'asc' | 'desc'
-    ): QueryBuilder<InferSchema<T>>;
-    orderBy<K extends OrderablePaths<InferSchema<T>>>(
+    ): QueryBuilder<z.output<T>>;
+    orderBy<K extends OrderablePaths<z.output<T>>>(
         field: K | string,
         direction: 'asc' | 'desc' = 'asc'
-    ): QueryBuilder<InferSchema<T>> {
+    ): QueryBuilder<z.output<T>> {
         // Validate field name exists in schema
         this.validateFieldName(field as string);
 
-        const builder = new QueryBuilder<InferSchema<T>>();
+        const builder = new QueryBuilder<z.output<T>>();
         (builder as any).collection = this;
-        return builder.orderBy(field as K, direction);
+        return builder.orderBy(field as string, direction);
     }
 
-    limit(count: number): QueryBuilder<InferSchema<T>> {
-        const builder = new QueryBuilder<InferSchema<T>>();
+    limit(count: number): QueryBuilder<z.output<T>> {
+        const builder = new QueryBuilder<z.output<T>>();
         (builder as any).collection = this;
         return builder.limit(count);
     }
 
-    offset(count: number): QueryBuilder<InferSchema<T>> {
-        const builder = new QueryBuilder<InferSchema<T>>();
+    offset(count: number): QueryBuilder<z.output<T>> {
+        const builder = new QueryBuilder<z.output<T>>();
         (builder as any).collection = this;
         return builder.offset(count);
     }
 
-    page(pageNumber: number, pageSize: number): QueryBuilder<InferSchema<T>> {
-        const builder = new QueryBuilder<InferSchema<T>>();
+    page(pageNumber: number, pageSize: number): QueryBuilder<z.output<T>> {
+        const builder = new QueryBuilder<z.output<T>>();
         (builder as any).collection = this;
         return builder.page(pageNumber, pageSize);
     }
 
-    distinct(): QueryBuilder<InferSchema<T>> {
-        const builder = new QueryBuilder<InferSchema<T>>();
+    distinct(): QueryBuilder<z.output<T>> {
+        const builder = new QueryBuilder<z.output<T>>();
         (builder as any).collection = this;
         return builder.distinct();
     }
 
     orderByMultiple(
-        orders: { field: keyof InferSchema<T>; direction?: 'asc' | 'desc' }[]
-    ): QueryBuilder<InferSchema<T>> {
-        const builder = new QueryBuilder<InferSchema<T>>();
+        orders: { field: keyof z.infer<T>; direction?: 'asc' | 'desc' }[]
+    ): QueryBuilder<z.output<T>> {
+        const builder = new QueryBuilder<z.output<T>>();
         (builder as any).collection = this;
         return builder.orderByMultiple(orders);
     }
 
     or(
         builderFn: (
-            builder: QueryBuilder<InferSchema<T>>
-        ) => QueryBuilder<InferSchema<T>>
-    ): QueryBuilder<InferSchema<T>> {
-        const builder = new QueryBuilder<InferSchema<T>>();
+            builder: QueryBuilder<z.output<T>>
+        ) => QueryBuilder<z.output<T>>
+    ): QueryBuilder<z.output<T>> {
+        const builder = new QueryBuilder<z.output<T>>();
         (builder as any).collection = this;
         return builder.or(builderFn);
     }
 
     // Async versions of direct collection query methods
-    async orderByAsync<K extends OrderablePaths<InferSchema<T>>>(
+    async orderByAsync<K extends OrderablePaths<z.infer<T>>>(
         field: K | string,
         direction: 'asc' | 'desc' = 'asc'
-    ): Promise<QueryBuilder<InferSchema<T>>> {
-        const builder = new QueryBuilder<InferSchema<T>>();
+    ): Promise<QueryBuilder<z.output<T>>> {
+        const builder = new QueryBuilder<z.output<T>>();
         (builder as any).collection = this;
-        return builder.orderBy(field as K, direction);
+        return builder.orderBy(field as string, direction);
     }
 
-    async limitAsync(count: number): Promise<QueryBuilder<InferSchema<T>>> {
-        const builder = new QueryBuilder<InferSchema<T>>();
+    async limitAsync(count: number): Promise<QueryBuilder<z.output<T>>> {
+        const builder = new QueryBuilder<z.output<T>>();
         (builder as any).collection = this;
         return builder.limit(count);
     }
 
-    async offsetAsync(count: number): Promise<QueryBuilder<InferSchema<T>>> {
-        const builder = new QueryBuilder<InferSchema<T>>();
+    async offsetAsync(count: number): Promise<QueryBuilder<z.output<T>>> {
+        const builder = new QueryBuilder<z.output<T>>();
         (builder as any).collection = this;
         return builder.offset(count);
     }
 
     // Add sync versions for backward compatibility
-    insertSync(doc: Omit<InferSchema<T>, 'id'>): InferSchema<T> {
+    insertSync(doc: Omit<z.infer<T>, 'id'>): z.infer<T> {
         const context = {
             collectionName: this.collectionSchema.name,
             schema: this.collectionSchema,
@@ -1124,11 +1124,11 @@ export class Collection<T extends z.ZodSchema> {
         }
     }
 
-    insertBulkSync(docs: Omit<InferSchema<T>, 'id'>[]): InferSchema<T>[] {
+    insertBulkSync(docs: Omit<z.infer<T>, 'id'>[]): z.infer<T>[] {
         if (docs.length === 0) return [];
 
         try {
-            const validatedDocs: InferSchema<T>[] = [];
+            const validatedDocs: z.infer<T>[] = [];
             const sqlParts: string[] = [];
             const allParams: any[] = [];
 
@@ -1203,7 +1203,7 @@ export class Collection<T extends z.ZodSchema> {
         }
     }
 
-    findByIdSync(id: string): InferSchema<T> | null {
+    findByIdSync(id: string): z.infer<T> | null {
         if (
             !this.collectionSchema.constrainedFields ||
             Object.keys(this.collectionSchema.constrainedFields).length === 0
@@ -1232,7 +1232,7 @@ export class Collection<T extends z.ZodSchema> {
         );
     }
 
-    toArraySync(): InferSchema<T>[] {
+    toArraySync(): z.infer<T>[] {
         const { sql, params } = SQLTranslator.buildSelectQuery(
             this.collectionSchema.name,
             { filters: [] },
@@ -1248,7 +1248,7 @@ export class Collection<T extends z.ZodSchema> {
         return result[0].count;
     }
 
-    firstSync(): InferSchema<T> | null {
+    firstSync(): z.infer<T> | null {
         const { sql, params } = SQLTranslator.buildSelectQuery(
             this.collectionSchema.name,
             { filters: [], limit: 1 },
@@ -1258,7 +1258,7 @@ export class Collection<T extends z.ZodSchema> {
         return rows.length > 0 ? parseDoc(rows[0].doc) : null;
     }
 
-    putSync(id: string, doc: Partial<InferSchema<T>>): InferSchema<T> {
+    putSync(id: string, doc: Partial<z.infer<T>>): z.infer<T> {
         const existing = this.findByIdSync(id);
         if (!existing) {
             throw new NotFoundError('Document not found', id);
@@ -1317,11 +1317,11 @@ export class Collection<T extends z.ZodSchema> {
         return count;
     }
 
-    upsertSync(id: string, doc: Omit<InferSchema<T>, 'id'>): InferSchema<T> {
+    upsertSync(id: string, doc: Omit<z.infer<T>, 'id'>): z.infer<T> {
         try {
             const existing = this.findByIdSync(id);
             if (existing) {
-                return this.putSync(id, doc as Partial<InferSchema<T>>);
+                return this.putSync(id, doc as Partial<z.infer<T>>);
             } else {
                 return this.insertSync({ ...doc, id } as any);
             }
@@ -1349,12 +1349,12 @@ export class Collection<T extends z.ZodSchema> {
     }
 
     upsertBulkSync(
-        docs: { id: string; doc: Omit<InferSchema<T>, 'id'> }[]
-    ): InferSchema<T>[] {
+        docs: { id: string; doc: Omit<z.infer<T>, 'id'> }[]
+    ): z.infer<T>[] {
         if (docs.length === 0) return [];
 
         try {
-            const validatedDocs: InferSchema<T>[] = [];
+            const validatedDocs: z.infer<T>[] = [];
             const sqlParts: string[] = [];
             const allParams: any[] = [];
 
@@ -1437,12 +1437,12 @@ export class Collection<T extends z.ZodSchema> {
     }
 
     putBulkSync(
-        updates: { id: string; doc: Partial<InferSchema<T>> }[]
-    ): InferSchema<T>[] {
+        updates: { id: string; doc: Partial<z.infer<T>> }[]
+    ): z.infer<T>[] {
         if (updates.length === 0) return [];
 
         try {
-            const validatedDocs: InferSchema<T>[] = [];
+            const validatedDocs: z.infer<T>[] = [];
             const sqlStatements: { sql: string; params: any[] }[] = [];
 
             for (const update of updates) {
@@ -1510,7 +1510,7 @@ export class Collection<T extends z.ZodSchema> {
         return result[0].count;
     }
 
-    async first(): Promise<InferSchema<T> | null> {
+    async first(): Promise<z.infer<T> | null> {
         const { sql, params } = SQLTranslator.buildSelectQuery(
             this.collectionSchema.name,
             { filters: [], limit: 1 },
@@ -1525,7 +1525,7 @@ export class Collection<T extends z.ZodSchema> {
      */
     async vectorSearch(
         options: VectorSearchOptions
-    ): Promise<VectorSearchResult<InferSchema<T>>[]> {
+    ): Promise<VectorSearchResult<z.infer<T>>[]> {
         await this.ensureInitialized();
 
         // Validate that the field is a vector field
@@ -1604,7 +1604,7 @@ export class Collection<T extends z.ZodSchema> {
 
         try {
             const rows = await this.driver.query(sql, params);
-            const results: VectorSearchResult<InferSchema<T>>[] = rows.map(
+            const results: VectorSearchResult<z.infer<T>>[] = rows.map(
                 (row) => ({
                     document: parseDoc(row.doc),
                     distance: row.distance as number,

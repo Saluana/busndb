@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { z } from 'zod';
+import { z } from 'zod/v4';
 import { Database } from '../src/database';
 import { ConnectionManager } from '../src/connection-manager';
 import { detectDriver, getEnvironment } from '../src/driver-detector';

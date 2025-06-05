@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from 'zod/v4';
 import type { Database } from './database';
 import type { Collection } from './collection';
 import type { Driver } from './types';
@@ -14,7 +14,7 @@ import { DatabaseError } from './errors';
 export class UpgradeRunner {
     constructor(private driver: Driver, private database: Database) {}
 
-    async runUpgrades<T extends z.ZodSchema>(
+    async runUpgrades<T extends z.ZodType = any>(
         collection: Collection<T>,
         upgrades: UpgradeMap<T>,
         fromVersion: number,
@@ -48,7 +48,7 @@ export class UpgradeRunner {
         }
     }
 
-    async runSeedFunction<T extends z.ZodSchema>(
+    async runSeedFunction<T extends z.ZodType = any>(
         collection: Collection<T>,
         seedFunction: SeedFunction<T>
     ): Promise<void> {
@@ -67,7 +67,7 @@ export class UpgradeRunner {
         }
     }
 
-    private async runSingleUpgrade<T extends z.ZodSchema>(
+    private async runSingleUpgrade<T extends z.ZodType = any>(
         collection: Collection<T>,
         upgrade: UpgradeDefinition<T>,
         fromVersion: number,

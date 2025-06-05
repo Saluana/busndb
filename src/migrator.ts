@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from 'zod/v4';
 import type { Driver, CollectionSchema } from './types';
 import { DatabaseError } from './errors';
 import { UpgradeRunner } from './upgrade-runner';
@@ -95,7 +95,7 @@ export class Migrator {
         }
     }
 
-    generateSchemaDiff(oldSchema: z.ZodSchema | null, newSchema: z.ZodSchema, tableName: string): SchemaDiff {
+    generateSchemaDiff(oldSchema: z.ZodType | null, newSchema: z.ZodType, tableName: string): SchemaDiff {
         const alters: string[] = [];
         const breakingReasons: string[] = [];
         let breaking = false;
@@ -119,8 +119,15 @@ export class Migrator {
                 const nullable = this.isFieldOptional(fieldDef) ? '' : ' NOT NULL DEFAULT NULL';
                 alters.push(`ALTER TABLE ${tableName} ADD COLUMN ${fieldName} ${sqlType}${nullable}`);
             } else {
+                console.log(`DEBUG: oldShape[${fieldName}]:`, oldShape[fieldName]);
+                console.log(`DEBUG: fieldDef:`, fieldDef);
+                console.log(`DEBUG: oldShape[${fieldName}].def:`, oldShape[fieldName].def);
+                console.log(`DEBUG: fieldDef.def:`, fieldDef.def);
+                
                 const oldType = this.zodTypeToSQL(oldShape[fieldName]);
                 const newType = this.zodTypeToSQL(fieldDef);
+                
+                console.log(`DEBUG: Field '${fieldName}' - old: '${oldType}', new: '${newType}'`);
                 
                 if (oldType !== newType) {
                     breaking = true;
@@ -139,50 +146,66 @@ export class Migrator {
         return { alters, breaking, breakingReasons };
     }
 
-    private extractSchemaShape(schema: z.ZodSchema): Record<string, any> | null {
+    private extractSchemaShape(schema: z.ZodType): Record<string, any> | null {
         if ('shape' in schema && schema.shape) {
             return schema.shape as Record<string, any>;
         }
         
-        if ('_def' in schema && schema._def) {
-            const def = schema._def as any;
-            if (def.shape) {
-                return typeof def.shape === 'function' ? def.shape() : def.shape;
-            }
+        // In Zod v4, _def moved to _zod.def
+        const def = (schema as any)._zod?.def || (schema as any)._def;
+        if (def && def.shape) {
+            return typeof def.shape === 'function' ? def.shape() : def.shape;
         }
 
         return null;
     }
 
     private zodTypeToSQL(zodDef: any): string {
-        if (!zodDef || !zodDef._def) {
+        if (!zodDef) {
             return 'TEXT';
         }
 
-        const typeName = zodDef._def.typeName;
+        // In Zod v4, access def directly
+        const def = zodDef.def || zodDef._def || zodDef._zod?.def;
+        if (!def) {
+            return 'TEXT';
+        }
+
+        const typeName = def.type || def.typeName;
         
         switch (typeName) {
             case 'ZodString':
+            case 'string':
                 return 'TEXT';
             case 'ZodNumber':
+            case 'number':
                 return 'REAL';
             case 'ZodBigInt':
             case 'ZodInt':
+            case 'bigint':
                 return 'INTEGER';
             case 'ZodBoolean':
+            case 'boolean':
                 return 'INTEGER';
             case 'ZodDate':
+            case 'date':
                 return 'TEXT';
             case 'ZodArray':
             case 'ZodObject':
             case 'ZodRecord':
+            case 'array':
+            case 'object':
+            case 'record':
                 return 'TEXT';
             case 'ZodOptional':
-                return this.zodTypeToSQL(zodDef._def.innerType);
+            case 'optional':
+                return this.zodTypeToSQL(def.innerType);
             case 'ZodNullable':
-                return this.zodTypeToSQL(zodDef._def.innerType);
+            case 'nullable':
+                return this.zodTypeToSQL(def.innerType);
             case 'ZodUnion':
-                const types = zodDef._def.options;
+            case 'union':
+                const types = def.options;
                 if (types && types.length > 0) {
                     return this.zodTypeToSQL(types[0]);
                 }
@@ -193,11 +216,17 @@ export class Migrator {
     }
 
     private isFieldOptional(zodDef: any): boolean {
-        if (!zodDef || !zodDef._def) {
+        if (!zodDef) {
             return true;
         }
 
-        const typeName = zodDef._def.typeName;
+        // In Zod v4, _def moved to _zod.def
+        const def = zodDef._zod?.def || zodDef._def;
+        if (!def) {
+            return true;
+        }
+
+        const typeName = def.typeName;
         
         if (typeName === 'ZodOptional' || typeName === 'ZodNullable') {
             return true;
@@ -275,12 +304,12 @@ export class Migrator {
                 return;
             }
 
-            let oldSchema: z.ZodSchema | null = null;
+            let oldSchema: z.ZodType | null = null;
             if (storedVersion > 0) {
-                oldSchema = schema;
+                oldSchema = schema as z.ZodType;
             }
 
-            const diff = this.generateSchemaDiff(oldSchema, schema, name);
+            const diff = this.generateSchemaDiff(oldSchema, schema as z.ZodType, name);
         
         if (process.env.SKIBBADB_MIGRATE === 'print') {
             console.log(`Migration plan for ${name} (v${storedVersion} → v${version}):`);

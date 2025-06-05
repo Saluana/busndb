@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from 'zod/v4';
 import { createDB } from '../src/index.js';
 import { unique, foreignKey, index } from '../src/schema-constraints.js';
 
@@ -318,7 +318,9 @@ async function analyzeUpdatePerformance() {
     }
 
     if (skibbadbOverhead && skibbadbOverhead > 70) {
-        console.log('⚠️  High skibbaDB overhead - investigate abstraction costs');
+        console.log(
+            '⚠️  High skibbaDB overhead - investigate abstraction costs'
+        );
     } else {
         console.log(
             '✅ skibbaDB overhead is reasonable for the features provided'

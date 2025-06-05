@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeEach, afterEach } from 'vitest';
-import { z } from 'zod';
+import { z } from 'zod/v4';
 import { Database } from '../src/database';
 import type { CollectionSchema, VectorSearchOptions } from '../src/types';
 import 'dotenv/config';
@@ -105,15 +105,15 @@ drivers.forEach(({ name, config }) => {
             collection = db.collection('documents', DocumentSchema, {
                 primaryKey: 'id',
                 constrainedFields: {
-                    'embedding': {
+                    embedding: {
                         type: 'VECTOR',
                         vectorDimensions: 1536, // text-embedding-3-small dimensions
                         vectorType: 'float',
                     },
-                    'category': {
+                    category: {
                         type: 'TEXT',
-                    }
-                }
+                    },
+                },
             });
 
             // Insert test documents with real embeddings
