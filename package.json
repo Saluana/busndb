@@ -1,6 +1,6 @@
 {
     "name": "skibbadb",
-    "version": "0.1.1",
+    "version": "0.1.2",
     "description": "A developer-friendly, embeddable NoSQL database layer on top of SQLite with full TypeScript support",
     "main": "./dist/index.js",
     "module": "./dist/index.js",
